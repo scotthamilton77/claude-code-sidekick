@@ -56,8 +56,12 @@ export default defineConfig({
 
         // === sidekick-core ===
         'packages/sidekick-core/src/index.ts', // Barrel file
+        'packages/sidekick-core/src/state/index.ts', // Barrel file
         'packages/sidekick-core/src/feature-types.ts', // Pure types
         'packages/sidekick-core/src/runtime-context.ts', // Pure types
+        'packages/sidekick-core/src/daemon-client.ts', // IPC - requires Unix sockets
+        'packages/sidekick-core/src/ipc-service.ts', // IPC - requires Unix sockets
+        'packages/sidekick-core/src/project-root.ts', // Trivial resolver (3 lines)
 
         // === sidekick-cli ===
         'packages/sidekick-cli/src/index.ts', // Barrel file

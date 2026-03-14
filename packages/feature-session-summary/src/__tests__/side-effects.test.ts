@@ -13,6 +13,7 @@ import {
   MockAssetResolver,
   MockTranscriptService,
   MockStateService,
+  MockConfigService,
 } from '@sidekick/testing-fixtures'
 import type { LLMRequest, LLMResponse } from '@sidekick/types'
 
@@ -682,6 +683,160 @@ describe('Session Summary Side-Effects', () => {
 
       // Should only have 1 LLM call (summary) - resume skipped due to low confidence, no snarky (same values)
       expect(llm.recordedRequests).toHaveLength(1)
+    })
+  })
+
+  describe('Side-Effect Invalid Persona Profile', () => {
+    it('writes error message as snarky message when persona has invalid defaultLlmProfile', async () => {
+      const sessionId = 'test-invalid-snarky-profile'
+
+      // Write existing summary to trigger title change -> snarky message
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Old Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Old intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
+
+      // Pre-create resume file so resume generation doesn't trigger
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'resume-message.json'), {
+        last_task_id: null,
+        session_title: 'Old Title',
+        snarky_comment: 'Existing snarky',
+        timestamp: new Date().toISOString(),
+      })
+
+      // Configure invalid defaultLlmProfile
+      const configService = new MockConfigService()
+      configService.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                defaultLlmProfile: 'nonexistent-profile',
+                allowList: '',
+                blockList: '',
+                resumeFreshnessHours: 4,
+              },
+            },
+          },
+        },
+      })
+
+      const ctxWithBadProfile = createMockDaemonContext({
+        logger,
+        handlers,
+        llm,
+        assets,
+        transcript,
+        stateService,
+        config: configService,
+        paths: {
+          projectDir: tempDir,
+          userConfigDir: path.join(tempDir, '.sidekick'),
+          projectConfigDir: path.join(tempDir, '.sidekick'),
+        },
+      })
+
+      // Queue LLM response with title change (triggers snarky side-effect)
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'New Title',
+          session_title_confidence: 0.9,
+          latest_intent: 'New intent',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctxWithBadProfile)
+      await flushPromises()
+
+      // Summary should still be updated
+      const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
+      const summary = stateService.getStored(summaryPath) as Record<string, unknown>
+      expect(summary.session_title).toBe('New Title')
+
+      // Snarky message should contain error message (written by the error path)
+      const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
+      const snarkyContent = stateService.getStored(snarkyPath) as { message: string }
+      expect(snarkyContent.message).toContain('is not recognized')
+    })
+
+    it('logs error and skips resume generation when persona has invalid defaultLlmProfile', async () => {
+      const sessionId = 'test-invalid-resume-profile'
+
+      // Write existing summary with same values (no snarky triggered)
+      stateService.setStored(stateService.sessionStatePath(sessionId, 'session-summary.json'), {
+        session_id: sessionId,
+        session_title: 'Same Title',
+        session_title_confidence: 0.8,
+        latest_intent: 'Same intent',
+        latest_intent_confidence: 0.8,
+        timestamp: new Date().toISOString(),
+      })
+
+      // No resume file -> triggers resume generation
+
+      // Configure invalid defaultLlmProfile
+      const configService = new MockConfigService()
+      configService.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                defaultLlmProfile: 'bad-resume-profile',
+                allowList: '',
+                blockList: '',
+                resumeFreshnessHours: 4,
+              },
+            },
+          },
+        },
+      })
+
+      const ctxWithBadProfile = createMockDaemonContext({
+        logger,
+        handlers,
+        llm,
+        assets,
+        transcript,
+        stateService,
+        config: configService,
+        paths: {
+          projectDir: tempDir,
+          userConfigDir: path.join(tempDir, '.sidekick'),
+          projectConfigDir: path.join(tempDir, '.sidekick'),
+        },
+      })
+
+      // Queue LLM response with same values, high confidence, no pivot but no resume exists
+      llm.queueResponse(
+        JSON.stringify({
+          session_title: 'Same Title',
+          session_title_confidence: 0.9,
+          latest_intent: 'Same intent',
+          latest_intent_confidence: 0.9,
+          pivot_detected: false,
+        })
+      )
+
+      await updateSessionSummary(createUserPromptEvent(sessionId), ctxWithBadProfile)
+      await flushPromises()
+
+      // Resume should NOT be created (invalid profile error)
+      const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
+      expect(stateService.has(resumePath)).toBe(false)
+
+      // Error should be logged
+      const errorLogs = logger.recordedLogs.filter((log) => log.level === 'error')
+      expect(errorLogs.some((log) => log.msg === 'Skipping resume generation due to invalid persona profile')).toBe(
+        true
+      )
     })
   })
 

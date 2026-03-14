@@ -16,6 +16,7 @@ import {
   MockStateService,
   MockTranscriptService,
   MockProfileProviderFactory,
+  MockConfigService,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext, SessionSummaryState, SessionPersonaState, LLMProvider } from '@sidekick/types'
 import {
@@ -242,6 +243,46 @@ describe('generateSnarkyMessageOnDemand', () => {
     })
   })
 
+  describe('invalid persona LLM profile', () => {
+    it('returns error when persona has invalid defaultLlmProfile', async () => {
+      setupSessionSummaryState(stateService, sessionId, createValidSummary(sessionId))
+      assets.register('prompts/snarky-message.prompt.txt', 'Generate snarky message')
+      transcript.setMetrics({ turnCount: 5, toolCount: 10 })
+
+      // Configure an invalid defaultLlmProfile that doesn't exist in available profiles
+      const configService = new MockConfigService()
+      configService.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                defaultLlmProfile: 'nonexistent-profile',
+                allowList: '',
+                blockList: '',
+                resumeFreshnessHours: 4,
+              },
+            },
+          },
+        },
+      })
+
+      ctx = createMockDaemonContext({
+        stateService,
+        llm,
+        profileFactory: new MockProfileProviderFactory(llm),
+        assets,
+        transcript,
+        config: configService,
+      })
+
+      const result = await generateSnarkyMessageOnDemand(ctx, sessionId)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('is not recognized')
+    })
+  })
+
   describe('successful generation', () => {
     beforeEach(() => {
       setupSessionSummaryState(stateService, sessionId, createValidSummary(sessionId))
@@ -453,6 +494,46 @@ describe('generateResumeMessageOnDemand', () => {
       expect(stored.session_title).toBe('Test Session Title')
       expect(stored.snarky_comment).toBe('Writing unit tests')
       expect(stored.last_task_id).toBeNull()
+    })
+  })
+
+  describe('invalid persona LLM profile', () => {
+    it('returns error when persona has invalid defaultLlmProfile', async () => {
+      setupSessionSummaryState(stateService, sessionId, createValidSummary(sessionId))
+      assets.register('prompts/resume-message.prompt.txt', 'Resume prompt')
+      transcript.setMockExcerptContent('Recent transcript...')
+
+      // Configure an invalid defaultLlmProfile
+      const configService = new MockConfigService()
+      configService.set({
+        features: {
+          'session-summary': {
+            enabled: true,
+            settings: {
+              personas: {
+                defaultLlmProfile: 'nonexistent-profile',
+                allowList: '',
+                blockList: '',
+                resumeFreshnessHours: 4,
+              },
+            },
+          },
+        },
+      })
+
+      ctx = createMockDaemonContext({
+        stateService,
+        llm,
+        profileFactory: new MockProfileProviderFactory(llm),
+        assets,
+        transcript,
+        config: configService,
+      })
+
+      const result = await generateResumeMessageOnDemand(ctx, sessionId)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('is not recognized')
     })
   })
 

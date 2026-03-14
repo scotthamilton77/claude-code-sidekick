@@ -27,7 +27,17 @@ export default defineConfig({
         'vitest.config.ts',
         'src/index.ts',
         'src/handlers/index.ts',
+        // Pure data factories with v8 ignore pragmas in source
+        'src/events.ts',
+        // Pure type re-exports
+        'src/types.ts',
       ],
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
 })
