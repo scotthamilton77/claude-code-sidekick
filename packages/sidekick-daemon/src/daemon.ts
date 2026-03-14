@@ -392,10 +392,12 @@ export class Daemon {
 
       // 8. Start config watcher for hot-reload
       this.configWatcher.start()
-      logEvent(
-        this.logger,
-        LogEvents.configWatcherStarted({ projectDir: this.projectDir, watchedFiles: ['.sidekick/'] })
-      )
+      const watchedFiles = [
+        this.stateService.rootDir(),
+        path.join(homedir(), '.sidekick'),
+        ...(this.configService.core.development.enabled ? [getDefaultAssetsDir()] : []),
+      ]
+      logEvent(this.logger, LogEvents.configWatcherStarted({ projectDir: this.projectDir, watchedFiles }))
 
       // 8b. Start persona watcher for CLI-written persona changes
       this.personaWatcher.start()

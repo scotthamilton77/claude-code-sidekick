@@ -2,57 +2,42 @@
  * Transcript Event Emission Tests
  *
  * Verifies that transcript:emitted events are logged via logEvent()
- * when TranscriptService.emitEvent() processes transcript entries.
+ * when HandlerRegistryImpl.emitTranscriptEvent() processes transcript entries.
  *
+ * The handler-registry is the single emission point for transcript:emitted events.
  * logEvent() calls logger.info() with { type, source, ...payload },
  * so we verify by checking logger.info mock calls for the expected type.
  */
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { TranscriptServiceImpl, type TranscriptServiceOptions } from '../transcript-service'
-import type { HandlerRegistry, Logger } from '@sidekick/types'
-import { MockStateService } from '@sidekick/testing-fixtures'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { HandlerRegistryImpl } from '../handler-registry'
+import { createFakeLogger, type MockedLogger } from '@sidekick/testing-fixtures'
+import type { TranscriptMetrics } from '@sidekick/types'
 
 // ============================================================================
 // Test Helpers
 // ============================================================================
 
-function createMockLogger(): Logger {
+function createEmptyMetrics(): TranscriptMetrics {
   return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createMockLogger()),
-    flush: vi.fn(() => Promise.resolve()),
-  }
-}
-
-function createMockHandlerRegistry(): HandlerRegistry {
-  return {
-    register: vi.fn(),
-    invokeHook: vi.fn(() => Promise.resolve({})),
-    emitTranscriptEvent: vi.fn(() => Promise.resolve()),
-  }
-}
-
-interface TranscriptServiceTestInternals {
-  processTranscriptFile: () => Promise<void>
-}
-
-function createTestDir(): string {
-  const testDir = join(tmpdir(), `transcript-event-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-  mkdirSync(testDir, { recursive: true })
-  return testDir
-}
-
-function cleanupTestDir(dir: string): void {
-  if (existsSync(dir)) {
-    rmSync(dir, { recursive: true, force: true })
+    turnCount: 0,
+    toolCount: 0,
+    toolsThisTurn: 0,
+    messageCount: 0,
+    tokenUsage: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      cacheCreationInputTokens: 0,
+      cacheReadInputTokens: 0,
+      cacheTiers: { ephemeral5mInputTokens: 0, ephemeral1hInputTokens: 0 },
+      serviceTierCounts: {},
+      byModel: {},
+    },
+    currentContextTokens: null,
+    isPostCompactIndeterminate: false,
+    toolsPerTurn: 0,
+    lastProcessedLine: 0,
+    lastUpdatedAt: 0,
   }
 }
 
@@ -60,9 +45,11 @@ function cleanupTestDir(dir: string): void {
  * Extract logEvent calls from logger.info mock by filtering for metadata
  * with a specific `type` field. logEvent() calls logger.info(msg, { type, source, ...payload }).
  */
-function findLogEventCalls(logger: Logger, eventType: string): Array<{ msg: string; meta: Record<string, unknown> }> {
-  const infoFn = logger.info as ReturnType<typeof vi.fn>
-  return infoFn.mock.calls
+function findLogEventCalls(
+  logger: MockedLogger,
+  eventType: string
+): Array<{ msg: string; meta: Record<string, unknown> }> {
+  return logger.info.mock.calls
     .filter((call: unknown[]) => {
       const meta = call[1] as Record<string, unknown> | undefined
       return meta?.type === eventType
@@ -77,104 +64,81 @@ function findLogEventCalls(logger: Logger, eventType: string): Array<{ msg: stri
 // Tests
 // ============================================================================
 
-describe('transcript:emitted event emission', () => {
-  let testDir: string
-  let stateDir: string
-  let transcriptPath: string
-  let logger: Logger
-  let handlers: HandlerRegistry
-  let mockStateService: MockStateService
-  let service: TranscriptServiceImpl
+describe('transcript:emitted event emission via HandlerRegistryImpl', () => {
+  let logger: MockedLogger
+  let registry: HandlerRegistryImpl
 
   beforeEach(() => {
-    testDir = createTestDir()
-    stateDir = join(testDir, '.sidekick')
-    transcriptPath = join(testDir, 'transcript.jsonl')
-    logger = createMockLogger()
-    handlers = createMockHandlerRegistry()
-    mockStateService = new MockStateService(testDir)
-
-    const options: TranscriptServiceOptions = {
-      watchDebounceMs: 50,
-      metricsPersistIntervalMs: 60000,
-      handlers,
+    logger = createFakeLogger()
+    registry = new HandlerRegistryImpl({
       logger,
-      stateDir,
-      stateService: mockStateService,
+      sessionId: 'test-session',
+      transcriptPath: '/tmp/test-transcript.jsonl',
+    })
+    // Wire up a metrics provider so the `if (metrics)` guard passes
+    registry.setMetricsProvider(() => createEmptyMetrics())
+  })
+
+  it('should emit transcript:emitted event for UserPrompt', async () => {
+    const entry = {
+      type: 'user',
+      message: { role: 'user', content: 'Hello world' },
     }
 
-    service = new TranscriptServiceImpl(options)
-  })
-
-  afterEach(async () => {
-    await service.shutdown()
-    cleanupTestDir(testDir)
-  })
-
-  it('should emit transcript:emitted event when processing a user prompt', async () => {
-    const entry = JSON.stringify({
-      type: 'user',
-      message: { role: 'user', content: 'Hello world' },
-    })
-    writeFileSync(transcriptPath, entry + '\n')
-
-    await service.prepare('test-session', transcriptPath)
-    await service.start()
-
-    const internals = service as unknown as TranscriptServiceTestInternals
-    await internals.processTranscriptFile()
+    await registry.emitTranscriptEvent('UserPrompt', entry, 1, false)
 
     const emittedCalls = findLogEventCalls(logger, 'transcript:emitted')
+    expect(emittedCalls).toHaveLength(1)
 
-    // Should have at least one transcript:emitted for UserPrompt
-    expect(emittedCalls.length).toBeGreaterThanOrEqual(1)
-
-    // Find the UserPrompt emission
-    const userPromptCall = emittedCalls.find((call) => call.meta.eventType === 'UserPrompt')
-    expect(userPromptCall).toBeDefined()
-    expect(userPromptCall!.meta.source).toBe('transcript')
-    expect(userPromptCall!.meta.lineNumber).toBe(1)
+    const call = emittedCalls[0]
+    expect(call.meta.source).toBe('transcript')
+    expect(call.meta.eventType).toBe('UserPrompt')
+    expect(call.meta.lineNumber).toBe(1)
   })
 
-  it('should emit transcript:emitted for BulkProcessingComplete', async () => {
-    const entry = JSON.stringify({
-      type: 'user',
-      message: { role: 'user', content: 'Hello world' },
-    })
-    writeFileSync(transcriptPath, entry + '\n')
+  it('should emit transcript:emitted event for ToolCall with toolName', async () => {
+    const entry = {
+      type: 'tool_use',
+      tool_name: 'Read',
+      uuid: 'abc-123',
+    }
 
-    await service.prepare('test-session', transcriptPath)
-    await service.start()
+    await registry.emitTranscriptEvent('ToolCall', entry, 5, false)
 
-    const internals = service as unknown as TranscriptServiceTestInternals
-    await internals.processTranscriptFile()
+    const emittedCalls = findLogEventCalls(logger, 'transcript:emitted')
+    expect(emittedCalls).toHaveLength(1)
 
-    const bulkCalls = findLogEventCalls(logger, 'transcript:emitted').filter(
-      (call) => call.meta.eventType === 'BulkProcessingComplete'
-    )
-
-    expect(bulkCalls.length).toBeGreaterThanOrEqual(1)
+    const call = emittedCalls[0]
+    expect(call.meta.eventType).toBe('ToolCall')
+    expect(call.meta.toolName).toBe('Read')
+    expect(call.meta.uuid).toBe('abc-123')
   })
 
   it('should include transcriptPath in the logged metadata', async () => {
-    const entry = JSON.stringify({
+    const entry = {
       type: 'user',
       message: { role: 'user', content: 'test' },
-    })
-    writeFileSync(transcriptPath, entry + '\n')
+    }
 
-    await service.prepare('test-session', transcriptPath)
-    await service.start()
-
-    const internals = service as unknown as TranscriptServiceTestInternals
-    await internals.processTranscriptFile()
+    await registry.emitTranscriptEvent('UserPrompt', entry, 1, false)
 
     const emittedCalls = findLogEventCalls(logger, 'transcript:emitted')
-    expect(emittedCalls.length).toBeGreaterThanOrEqual(1)
+    expect(emittedCalls).toHaveLength(1)
+    expect(emittedCalls[0].meta.transcriptPath).toBe('/tmp/test-transcript.jsonl')
+  })
 
-    // All transcript:emitted events should include the transcriptPath
-    const userPromptCall = emittedCalls.find((call) => call.meta.eventType === 'UserPrompt')
-    expect(userPromptCall).toBeDefined()
-    expect(userPromptCall!.meta.transcriptPath).toBe(transcriptPath)
+  it('should not emit transcript:emitted when no metrics provider is set', async () => {
+    // Create a registry without a metrics provider
+    const noMetricsRegistry = new HandlerRegistryImpl({
+      logger,
+      sessionId: 'test-session',
+      transcriptPath: '/tmp/test.jsonl',
+    })
+
+    const entry = { type: 'user', message: { role: 'user', content: 'test' } }
+    await noMetricsRegistry.emitTranscriptEvent('UserPrompt', entry, 1, false)
+
+    const emittedCalls = findLogEventCalls(logger, 'transcript:emitted')
+    expect(emittedCalls).toHaveLength(0)
   })
 })

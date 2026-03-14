@@ -1,9 +1,8 @@
 /**
  * Daemon Lifecycle Event Emission Tests
  *
- * Verifies that daemon:starting, daemon:started, ipc:started,
- * config:watcher-started, and session:eviction-started events
- * are emitted via logEvent() at the correct points in the daemon lifecycle.
+ * Verifies that session:eviction-started events are emitted via logEvent()
+ * when the daemon's eviction timer is started.
  *
  * Uses the same pattern as eviction-timer.test.ts — accessing private
  * methods via type casting to test internal behavior.
@@ -45,51 +44,24 @@ describe('Daemon lifecycle event emission', () => {
     }
   })
 
-  it('should emit daemon:starting event at the beginning of start()', async () => {
+  it('should emit session:eviction-started with correct intervalMs when eviction timer starts', async () => {
     const { Daemon } = await import('../daemon.js')
     const daemon = new Daemon(tmpDir)
 
-    // Access logger to verify logEvent was called
     const sup = daemon as unknown as {
       logger: Logger
       startEvictionTimer(): void
       stopEvictionTimer(): void
     }
 
-    // The daemon:starting event should be emitted in the constructor's logger.info
-    // but logEvent is called in start(). We can't call start() fully (needs IPC etc),
-    // so we verify the logEvent mock was called with daemon:starting type.
-    // For now, verify the call happens by checking the mock after partial start attempt.
-
-    // The startEvictionTimer method should emit session:eviction-started
     sup.startEvictionTimer()
 
     const evictionCalls = mockLogEvent.mock.calls.filter(
       (call: unknown[]) => (call[1] as { type: string })?.type === 'session:eviction-started'
     )
     expect(evictionCalls).toHaveLength(1)
-    expect((evictionCalls[0][1] as { payload: { intervalMs: number } }).payload.intervalMs).toBe(5 * 60 * 1000)
 
-    sup.stopEvictionTimer()
-  })
-
-  it('should emit session:eviction-started with correct intervalMs', async () => {
-    const { Daemon } = await import('../daemon.js')
-    const daemon = new Daemon(tmpDir)
-
-    const sup = daemon as unknown as {
-      startEvictionTimer(): void
-      stopEvictionTimer(): void
-    }
-
-    sup.startEvictionTimer()
-
-    const calls = mockLogEvent.mock.calls.filter(
-      (call: unknown[]) => (call[1] as { type: string })?.type === 'session:eviction-started'
-    )
-    expect(calls).toHaveLength(1)
-
-    const event = calls[0][1] as { type: string; payload: { intervalMs: number } }
+    const event = evictionCalls[0][1] as { type: string; payload: { intervalMs: number } }
     expect(event.type).toBe('session:eviction-started')
     expect(event.payload.intervalMs).toBe(300000) // 5 minutes
 
