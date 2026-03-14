@@ -304,19 +304,19 @@ describe('TaskEngine', () => {
   })
 
   describe('error handling', () => {
-    it('should continue processing after handler with no registered type', async () => {
-      // Enqueue task with no registered handler
-      engine.enqueue('unregistered-type', { data: 'test' })
-
-      // Give time for task to be processed
-      await new Promise((r) => setTimeout(r, 50))
-
-      // Engine should continue to work (not crashed) - verify by running another task
+    it('should continue processing after handler with no registered handler', async () => {
       const completed = createDeferred()
+
+      // Register recovery handler before enqueuing so it's ready
       engine.registerHandler('after-error', () => {
         completed.resolve()
         return Promise.resolve()
       })
+
+      // Enqueue task with no registered handler
+      engine.enqueue('unregistered-type', { data: 'test' })
+
+      // Enqueue recovery task — engine should still work after the error
       engine.enqueue('after-error', { foo: 'bar' })
 
       await completed.promise
@@ -335,10 +335,8 @@ describe('TaskEngine', () => {
       })
 
       engine.enqueue('throws-string', {})
-      // Give time for the error to be logged
-      await new Promise((r) => setTimeout(r, 50))
-
       engine.enqueue('recovery', {})
+
       await completed.promise
     })
 
