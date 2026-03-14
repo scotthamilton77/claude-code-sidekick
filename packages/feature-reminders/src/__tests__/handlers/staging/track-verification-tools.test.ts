@@ -440,10 +440,8 @@ describe('reminder:not-staged events in track-verification-tools', () => {
   let assets: MockAssetResolver
   let stateService: MockStateService
 
-  function getNotStagedEvents() {
-    return logger.recordedLogs.filter(
-      (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
-    )
+  function getNotStagedEvents(): import('@sidekick/testing-fixtures').LogRecord[] {
+    return logger.recordedLogs.filter((log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged')
   }
 
   beforeEach(() => {
@@ -499,10 +497,7 @@ additionalContext: "Lint needed"
   it('should emit not-staged event when file does not match clearing patterns', async () => {
     const handler = getRegisteredHandler()
     // .md files don't match default clearing_patterns (**/*.ts, **/*.tsx, etc.)
-    const event = createFileEditEvent(
-      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
-      '/mock/project/docs/README.md'
-    )
+    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/docs/README.md')
 
     await handler(event, ctx as any)
 
