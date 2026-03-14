@@ -59,6 +59,8 @@ Canonical event names use `category:action` format (e.g., `reminder:staged`, `se
 
 **Examples:** `reminder:staged`, `session-summary:start`, `persona:selected`, `hook:received`
 
+> **Note**: `intent` is a top-level category (like `persona`, `decision`) because intent is a session-level concept independent of the summary analysis process. `session-title` and `session-summary` are separate categories because they represent different data facets — the title is a derived label, the summary is the full analysis result.
+
 ### 2.3 Event Visibility
 
 Every canonical event carries a `visibility` field defined in the type contract:
@@ -94,13 +96,13 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 4 | `reminder:cleared` | `timeline` | daemon | `clearedCount`, `hookNames?`, `reason` |
 | 5 | `decision:recorded` | `timeline` | daemon | `decision`, `reason`, `detail` |
 | 6 | `session-summary:start` | `timeline` | daemon | `reason`, `countdown` |
-| 7 | `session-summary:finish` | `timeline` | daemon | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
+| 7 | `session-summary:finish` | `timeline` | daemon | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected`, `success`, `error?` |
 | 8 | `session-title:changed` | `timeline` | daemon | `previousValue`, `newValue`, `confidence` |
 | 9 | `intent:changed` | `timeline` | daemon | `previousValue`, `newValue`, `confidence` |
 | 10 | `snarky-message:start` | `timeline` | daemon | `sessionId` |
-| 11 | `snarky-message:finish` | `timeline` | daemon | `generatedMessage` |
+| 11 | `snarky-message:finish` | `timeline` | daemon | `generatedMessage`, `success`, `error?` |
 | 12 | `resume-message:start` | `timeline` | daemon | `title_confidence`, `intent_confidence` |
-| 13 | `resume-message:finish` | `timeline` | daemon | `snarky_comment`, `timestamp` |
+| 13 | `resume-message:finish` | `timeline` | daemon | `snarky_comment`, `timestamp`, `success`, `error?` |
 | 14 | `persona:selected` | `timeline` | daemon | `personaId`, `selectionMethod` (`pinned` \| `handoff` \| `random`), `poolSize` |
 | 15 | `persona:changed` | `timeline` | daemon | `personaFrom`, `personaTo`, `reason` |
 | 16 | `statusline:rendered` | `timeline` | cli | `displayMode`, `staleData`, `model?`, `tokens?`, `durationMs` |
@@ -178,7 +180,7 @@ The UI's data sources are NDJSON log files:
 
 Both files use identical event schema. The UI merges records from both files by `time` field (Unix ms) to produce a unified timeline.
 
-> **Exhaustive list**: These are the only two log files in the sidekick deployment. All canonical events and internal logging records are written to one of these files based on their emitter process.
+> **Exhaustive list**: For a given project, all canonical events and internal logging records are written to one of these two NDJSON log files in `{project}/.sidekick/logs/`. State files (`.sidekick/state/`, `.sidekick/sessions/{id}/state/`) are separate — see §3.3.
 
 **Schema alignment requirement:** Both CLI and daemon must emit canonical events using the same `UIEventType` discriminator and payload structure defined in `@sidekick/types`. The Pino log record wraps the canonical event:
 
@@ -225,6 +227,8 @@ Timeline filter categories derive from the event type's category prefix (the par
 | `classifier` | `reminders` | `classifier:completion-result` (§7.1.3) — grouped with reminders since it drives reminder staging |
 
 The `TimelineFilter` type and `EVENT_TO_FILTER` mapping in `@sidekick/types` implement this derivation.
+
+> **Grouping rationale**: The `session-analysis` category groups seven event types that collectively describe the session's evolving metadata — summary analysis, title changes, intent shifts, persona selection, and generated messages. Filtering them together surfaces the complete session evolution narrative.
 
 ### 2.9 Requirements Backlog (Changes Needed in CLI/Daemon)
 
