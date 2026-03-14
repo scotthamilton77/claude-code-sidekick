@@ -75,8 +75,15 @@ interface TranscriptLineProps {
   onClick: () => void
 }
 
+/** Extract command name from content containing <command-name> tag */
+function extractCommandName(content: string): string | null {
+  const match = content.match(/<command-name>\/?([\w-]+)<\/command-name>/)
+  return match ? match[1] : null
+}
+
 export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: TranscriptLineProps) {
   const [showThinking, setShowThinking] = useState(false)
+  const [showInjection, setShowInjection] = useState(false)
 
   // Compaction gets special full-width divider treatment
   if (line.type === 'compaction') {
@@ -99,6 +106,49 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           )}
         </div>
         <div className="flex-1 border-t border-dashed border-slate-300 dark:border-slate-600" />
+      </div>
+    )
+  }
+
+  // Command subtype: compact pill with terminal-green accent
+  if (line.type === 'user-message' && line.userSubtype === 'command') {
+    const cmdName = extractCommandName(line.content ?? '') ?? 'command'
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer">
+        <div className={`rounded-lg px-2.5 py-1 bg-slate-50 dark:bg-slate-800/50 border border-emerald-300 dark:border-emerald-700 ${
+          isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
+        }`}>
+          <div className="flex items-center gap-1.5">
+            <Terminal size={11} className="text-emerald-500" />
+            <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400">/{cmdName}</span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // System injection / skill-content: collapsed by default, gray styling
+  if (line.type === 'user-message' && (line.userSubtype === 'system-injection' || line.userSubtype === 'skill-content')) {
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer">
+        <div className={`rounded-lg px-2.5 py-1 bg-gray-50 dark:bg-gray-900/50 border-l-2 border border-gray-200 dark:border-gray-700 border-l-gray-400 dark:border-l-gray-500 ${
+          isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
+        }`}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowInjection(!showInjection) }}
+            className="flex items-center gap-1.5 w-full"
+          >
+            {showInjection ? <ChevronDown size={10} className="text-gray-400" /> : <ChevronRight size={10} className="text-gray-400" />}
+            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">System injection</span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </button>
+          {showInjection && line.content && (
+            <p className="text-[10px] font-mono text-gray-500 dark:text-gray-400 mt-1 leading-relaxed whitespace-pre-wrap line-clamp-[20]">
+              {line.content}
+            </p>
+          )}
+        </div>
       </div>
     )
   }

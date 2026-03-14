@@ -514,6 +514,59 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].isCompactSummary).toBe(true)
   })
 
+  // User message subtype classification
+  it('classifies plain user message as prompt subtype', async () => {
+    setupTranscript(makeUserEntry('Hello, world!'))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('prompt')
+  })
+
+  it('classifies isMeta user message as system-injection', async () => {
+    setupTranscript(makeUserEntry('Some meta content', { isMeta: true }))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('system-injection')
+  })
+
+  it('classifies isMeta message with command-name as command', async () => {
+    setupTranscript(
+      makeUserEntry('<command-name>/commit</command-name>\ncommit content', { isMeta: true })
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('command')
+  })
+
+  it('classifies message with system-reminder as system-injection', async () => {
+    setupTranscript(
+      makeUserEntry('Some text\n<system-reminder>reminder content</system-reminder>')
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('system-injection')
+  })
+
+  it('classifies non-meta message with command-name as command', async () => {
+    setupTranscript(
+      makeUserEntry('<command-name>/clear</command-name>')
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('command')
+  })
+
+  it('classifies array text blocks with correct subtypes', async () => {
+    setupTranscript(
+      makeUserEntry([
+        { type: 'text', text: 'Hello, world!' },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('prompt')
+  })
+
   it('truncates long tool result output to 500 chars', async () => {
     const longOutput = 'x'.repeat(1000)
     setupTranscript(

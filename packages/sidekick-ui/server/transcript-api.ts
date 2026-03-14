@@ -17,12 +17,15 @@ export type ApiTranscriptLineType =
   | 'api-error'
   | 'pr-link'
 
+export type ApiUserSubtype = 'prompt' | 'system-injection' | 'command' | 'skill-content'
+
 /** Transcript line returned by the API. Matches TranscriptLine from src/types.ts (subset). */
 export interface ApiTranscriptLine {
   id: string
   timestamp: number
   type: ApiTranscriptLineType
   content?: string
+  userSubtype?: ApiUserSubtype
   thinking?: string
   toolName?: string
   toolInput?: Record<string, unknown>
@@ -115,6 +118,20 @@ function extractToolResultContent(content: unknown): string {
 }
 
 /**
+ * Classify a user message into subtypes for distinct rendering.
+ * Detection order matters: command > system-injection > prompt.
+ */
+function classifyUserSubtype(entry: Record<string, unknown>, content: string): ApiUserSubtype {
+  if (entry.isMeta === true) {
+    if (content.includes('<command-name>')) return 'command'
+    return 'system-injection'
+  }
+  if (content.includes('<system-reminder>')) return 'system-injection'
+  if (content.includes('<command-name>')) return 'command'
+  return 'prompt'
+}
+
+/**
  * Process content blocks from a user entry.
  * User entries can have string content (simple text) or array content
  * (text blocks, tool_result blocks, etc.).
@@ -132,6 +149,7 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
         timestamp,
         type: 'user-message',
         content,
+        userSubtype: classifyUserSubtype(entry, content),
         ...meta,
       },
     ]
@@ -151,11 +169,13 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
     const b = block as Record<string, unknown>
 
     if (b.type === 'text') {
+      const text = b.text as string
       lines.push({
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'user-message',
-        content: b.text as string,
+        content: text,
+        userSubtype: classifyUserSubtype(entry, text),
         ...meta,
       })
     } else if (b.type === 'tool_result') {

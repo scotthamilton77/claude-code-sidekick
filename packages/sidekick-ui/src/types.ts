@@ -22,6 +22,12 @@ export type SidekickEventType =
   | 'error:occurred'
 
 // ============================================================================
+// User Message Subtypes
+// ============================================================================
+
+export type UserSubtype = 'prompt' | 'system-injection' | 'command' | 'skill-content'
+
+// ============================================================================
 // Transcript Line Types (conversation + Sidekick events inline)
 // ============================================================================
 
@@ -42,6 +48,9 @@ export interface TranscriptLine {
   timestamp: number
   type: TranscriptLineType
   content?: string
+
+  // user-message subtype classification
+  userSubtype?: UserSubtype
 
   // assistant-message
   thinking?: string
