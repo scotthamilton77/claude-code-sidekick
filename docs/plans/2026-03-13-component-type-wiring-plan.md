@@ -1,8 +1,8 @@
-# Section 4: Component-to-Type Wiring — Implementation Plan
+# Section 6: Component-to-Type Wiring — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Produce Section 4 of IMPLEMENTATION-SPEC.md — mapping all 19 v2 prototype React components to their target @sidekick/types, identifying transformation functions and gaps.
+**Goal:** Produce Section 6 of IMPLEMENTATION-SPEC.md — mapping all 19 v2 prototype React components to their target @sidekick/types, identifying transformation functions and gaps.
 
 **Architecture:** Documentation task. Read component source and @sidekick/types, produce spec tables and interface definitions. Forward-looking (target types, not current UI-local types). Gaps flagged where no canonical type exists.
 
@@ -10,12 +10,12 @@
 
 ---
 
-### Task 1: Write §4.1 — Component Inventory & Type Mapping Table
+### Task 1: Write §6.1 — Component Inventory & Type Mapping Table
 
 **Files:**
-- Modify: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md` (insert Section 4 after Section 3)
+- Modify: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md` (insert Section 6 content at §6 placeholder)
 - Reference: `packages/sidekick-ui/src/components/*.tsx` (19 files)
-- Reference: `packages/sidekick-types/src/events.ts`, `packages/sidekick-types/src/services/state.ts`
+- Reference: `packages/types/src/events.ts`, `packages/types/src/services/state.ts`
 
 **Step 1: Read all 19 component files**
 
@@ -27,20 +27,20 @@ Read every .tsx file in `packages/sidekick-ui/src/components/` to catalog:
 
 **Step 2: Read @sidekick/types source**
 
-Read `packages/sidekick-types/src/events.ts` and `packages/sidekick-types/src/services/state.ts` to catalog all available target types.
+Read `packages/types/src/events.ts` and `packages/types/src/services/state.ts` to catalog all available target types.
 
 **Step 3: Write the mapping table**
 
-Insert into IMPLEMENTATION-SPEC.md after the last line of Section 3. Create the section header and master table:
+Insert into IMPLEMENTATION-SPEC.md at the §6 placeholder. Create the section header and master table:
 
 ```markdown
-## 4. Component-to-Type Wiring
+## 6. Component-to-Type Wiring
 
-Section 4 maps each v2 prototype React component to its target `@sidekick/types` data source, identifies transformation functions needed, and flags gaps where no canonical type exists yet.
+Section 6 maps each v2 prototype React component to its target `@sidekick/types` data source, identifies transformation functions needed, and flags gaps where no canonical type exists yet.
 
 > **Scope**: This section defines the wiring spec. Transformation function implementations belong to the implementation epic.
 
-### 4.1 Component Inventory & Type Mapping
+### 6.1 Component Inventory & Type Mapping
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
@@ -48,7 +48,7 @@ Section 4 maps each v2 prototype React component to its target `@sidekick/types`
 
 Fill in all 19 rows grouped by panel category. For each component:
 - **Target Type(s)**: The @sidekick/types type(s) that will feed this component's props
-- **Import Path**: e.g., `@sidekick/types/services/state` or `@sidekick/types/events`
+- **Import Path**: `@sidekick/types` (barrel) for canonical types, `UI-local (to migrate)` for types not yet in the package
 - **Transform Needed**: Yes/No — whether backend shape differs from component props
 
 **Step 4: Verify the table**
@@ -59,12 +59,12 @@ Count rows — must be exactly 19. Verify every component from the source direct
 
 ```bash
 git add packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md
-git commit -m "docs(ui): add Section 4.1 component inventory and type mapping table"
+git commit -m "docs(ui): add Section 6.1 component inventory and type mapping table"
 ```
 
 ---
 
-### Task 2: Write §4.2 — Props Interface Definitions
+### Task 2: Write §6.2 — Props Interface Definitions
 
 **Files:**
 - Modify: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md`
@@ -79,7 +79,7 @@ Review each component's current props against its target @sidekick/types. Catego
 **Step 2: Write the subsection**
 
 ```markdown
-### 4.2 Props Interface Definitions
+### 6.2 Props Interface Definitions
 ```
 
 For aligned components, write a one-liner:
@@ -95,25 +95,25 @@ interface SessionSelectorProps {
 }
 ```
 
-For components needing type extensions, reference §3.7 and the gap list (§4.4).
+For components needing type extensions, reference §3.7 and the gap list (§6.4).
 
 **Step 3: Commit**
 
 ```bash
 git add packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md
-git commit -m "docs(ui): add Section 4.2 props interface definitions"
+git commit -m "docs(ui): add Section 6.2 props interface definitions"
 ```
 
 ---
 
-### Task 3: Write §4.3 — Transformation Functions
+### Task 3: Write §6.3 — Transformation Functions
 
 **Files:**
 - Modify: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md`
 
 **Step 1: Identify all transformations**
 
-From the §4.1 table, collect every component marked "Transform Needed: Yes". For each, determine:
+From the §6.1 table, collect every component marked "Transform Needed: Yes". For each, determine:
 - Source type (backend response or state file schema)
 - Target type (component props)
 - What the transformation does
@@ -124,7 +124,6 @@ Key transformations expected:
 3. **Log events → SidekickEvent[]**: Derive timeline events from canonical log entries
 4. **SessionListResponse → Project[]**: Group sessions by project for the selector
 5. **StateFileResponse → StateTab data**: Map state file responses to collapsible sections
-6. **Log events → Detail component props**: Extract detail fields from canonical events
 
 **Step 2: Write transformation signatures**
 
@@ -134,7 +133,7 @@ For each transformation, document:
 - Which spec sections define the input/output contracts
 
 ```markdown
-### 4.3 Transformation Functions
+### 6.3 Transformation Functions
 
 #### T-1: Log Stream → Transcript Lines
 
@@ -151,12 +150,12 @@ function parseLogToTranscriptLines(entries: LogStreamEntry[]): TranscriptLine[]
 
 ```bash
 git add packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md
-git commit -m "docs(ui): add Section 4.3 transformation function signatures"
+git commit -m "docs(ui): add Section 6.3 transformation function signatures"
 ```
 
 ---
 
-### Task 4: Write §4.4 — Gap List
+### Task 4: Write §6.4 — Gap List
 
 **Files:**
 - Modify: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md`
@@ -172,7 +171,7 @@ Review the mapping table and transformation list. Identify:
 **Step 2: Write the gap table**
 
 ```markdown
-### 4.4 Gap List — Components Without Backend Data Sources
+### 6.4 Gap List — Components Without Backend Data Sources
 
 | # | Component | Missing Data | Blocked By | Resolution |
 |---|-----------|-------------|------------|------------|
@@ -186,13 +185,13 @@ For each gap:
 
 **Step 3: Add cross-reference summary**
 
-Brief paragraph linking §4.4 gaps to §2.9 (backend work items) and §7 (feature tiers), so implementers know the dependency chain.
+Brief paragraph linking §6.4 gaps to §2.9 (backend work items) and §7 (feature tiers), so implementers know the dependency chain.
 
 **Step 4: Commit**
 
 ```bash
 git add packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md
-git commit -m "docs(ui): add Section 4.4 gap list"
+git commit -m "docs(ui): add Section 6.4 gap list"
 ```
 
 ---
@@ -211,11 +210,11 @@ git commit -m "docs(ui): add Section 4.4 gap list"
 
 **Step 2: Verify section numbering**
 
-Ensure Section 4 fits between Section 3 and the existing Section 5 (Performance Requirements). Check that existing section numbers (5, 6, 7) don't need renumbering. Update the table of contents if one exists.
+Ensure Section 6 fits between Section 5 (Performance Requirements) and Section 7 (New Feature Integration). Verify no numbering conflicts.
 
 **Step 3: Verify cross-references**
 
-Search the document for any references to "Section 4" or "§4" from other sections. Ensure they now resolve correctly.
+Search the document for any references to "Section 6" or "§6" from other sections. Ensure they resolve correctly.
 
 **Step 4: Run build verification**
 
@@ -229,7 +228,7 @@ pnpm build && pnpm typecheck
 
 ```bash
 git add packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md
-git commit -m "docs(ui): complete Section 4 component-to-type wiring spec"
+git commit -m "docs(ui): complete Section 6 component-to-type wiring spec"
 ```
 
 ---
@@ -237,5 +236,5 @@ git commit -m "docs(ui): complete Section 4 component-to-type wiring spec"
 Commit the plan file:
 ```bash
 git add docs/plans/2026-03-13-component-type-wiring-plan.md
-git commit -m "docs(ui): add Section 4 implementation plan"
+git commit -m "docs(ui): add Section 6 implementation plan"
 ```

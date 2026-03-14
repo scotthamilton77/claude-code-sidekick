@@ -1,8 +1,8 @@
-# Component Type Wiring — Section 4 Design
+# Component Type Wiring — Section 6 Design
 
 **Task**: sidekick-e4374d53
 **Parent**: sidekick-bf3bcd19 (UI Implementation Spec)
-**Target**: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md`, Section 4
+**Target**: `packages/sidekick-ui/docs/IMPLEMENTATION-SPEC.md`, Section 6
 
 ## Approach
 
@@ -14,7 +14,7 @@ Option C — map components to canonical `@sidekick/types` (forward-looking). Fl
 
 ## Section Structure
 
-### 4.1 — Component Inventory & Type Mapping Table
+### 6.1 — Component Inventory & Type Mapping Table
 
 Master table grouping all 19 components by UI panel:
 
@@ -26,16 +26,16 @@ Master table grouping all 19 components by UI panel:
 
 Each row: component name, primary props, source `@sidekick/types` type, transformation needed (yes/no).
 
-### 4.2 — Props Interface Definitions
+### 6.2 — Props Interface Definitions
 
 - Components already aligned with `@sidekick/types`: one-liner reference to the canonical type.
 - Components needing new interfaces: inline `interface` definition with rationale.
 
-### 4.3 — Transformation Functions
+### 6.3 — Transformation Functions
 
 Function signatures and logic descriptions for converting backend data shapes into component props. Spec only — implementations belong to the implementation epic (sidekick-43a8b12e).
 
-### 4.4 — Gap List
+### 6.4 — Gap List
 
 Components or props with no backend data source yet. Each entry includes: component, prop, what is missing, and suggested resolution path.
 

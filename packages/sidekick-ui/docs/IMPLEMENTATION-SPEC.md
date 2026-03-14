@@ -1237,53 +1237,49 @@ Section 6 maps each v2 prototype React component to its target `@sidekick/types`
 
 The v2 prototype contains 19 React components organized by panel. Each row identifies the canonical `@sidekick/types` type(s) that will feed the component's props and whether a transformation function is needed to bridge the backend data shape to the component's prop interface.
 
-**Import path conventions:**
-- `@sidekick/types` — barrel re-export from `packages/types/src/index.ts`; all types available here
-- `@sidekick/types/events` — `SidekickEvent` (hook/transcript union), `HookEvent`, `TranscriptEvent`, `LoggingEvent`, `LogSource`, `EventLogContext`
-- `@sidekick/types/services/state` — `SessionStateSnapshot`, `SessionSummaryState`, `SessionPersonaState`, and all 20 state file types (§3.3)
-- UI-local (to migrate) — `TranscriptLine`, `SidekickEvent` (timeline), `LEDState`, `Session`, `Project`, `TimelineFilter`, `NavigationState`, `StateSnapshot` are currently in `packages/sidekick-ui/src/types.ts`. These are forward-looking types that will be added to `@sidekick/types` as part of §2.9 R1.
+**Import path:** All types use the barrel import `@sidekick/types` (mapped in `tsconfig.base.json`). Types marked "UI-local" below are currently defined in `packages/sidekick-ui/src/types.ts` and must be migrated to `@sidekick/types` as part of §2.9 R1 before wiring can proceed.
 
 #### Session Selector Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 1 | `SessionSelector` | Session Selector | `SessionListResponse` (§3.2), `Session`, `Project` | `Session`, `Project`: UI-local (to migrate) | Yes |
+| 1 | `SessionSelector` | Session Selector | `SessionListResponse` (§3.2), `Session`, `Project` | `@sidekick/types` (UI-local: `Session`, `Project`) | Yes |
 
 #### Summary Strip
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 2 | `SummaryStrip` | Summary Strip | `Session` | UI-local (to migrate) | No |
+| 2 | `SummaryStrip` | Summary Strip | `Session` | `@sidekick/types` (UI-local: `Session`) | No |
 
 #### Transcript Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | UI-local (to migrate) | Yes |
-| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | UI-local (to migrate) | Yes |
-| 5 | `LEDGutter` | Transcript | `LEDState` | UI-local (to migrate) | Yes |
+| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | `@sidekick/types` (UI-local: `TranscriptLine`, `LEDState`) | Yes |
+| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | Yes |
+| 5 | `LEDGutter` | Transcript | `LEDState` | `@sidekick/types` (UI-local: `LEDState`) | Yes |
 | 6 | `LEDColorKey` | Transcript | _(none — static UI)_ | — | No |
-| 7 | `SearchFilterBar` | Transcript | `NavigationState` | UI-local (to migrate) | No |
+| 7 | `SearchFilterBar` | Transcript | `NavigationState` | `@sidekick/types` (UI-local: `NavigationState`) | No |
 
 #### Timeline Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 8 | `Timeline` | Timeline | `SidekickEvent[]` (timeline), `TimelineFilter` | UI-local (to migrate) | Yes |
-| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` (timeline) | UI-local (to migrate) | No |
-| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | UI-local (to migrate) | No |
+| 8 | `Timeline` | Timeline | `SidekickEvent[]` (timeline), `TimelineFilter` | `@sidekick/types` (UI-local: `SidekickEvent`, `TimelineFilter`) | Yes |
+| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` (timeline) | `@sidekick/types` (UI-local: `SidekickEvent`) | No |
+| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | `@sidekick/types` (UI-local: `TimelineFilter`, `NavigationState`) | No |
 
 #### Detail Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | UI-local (to migrate) | Yes |
-| 12 | `DetailHeader` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
-| 13 | `ToolDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
-| 14 | `DecisionDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
-| 15 | `ReminderDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
-| 16 | `ErrorDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
-| 17 | `StateTab` | Detail | `SessionStateSnapshot` (§3.7) | `@sidekick/types/services/state` | Yes |
+| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | `@sidekick/types` (UI-local: `TranscriptLine`, `StateSnapshot`) | Yes |
+| 12 | `DetailHeader` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
+| 13 | `ToolDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
+| 14 | `DecisionDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
+| 15 | `ReminderDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
+| 16 | `ErrorDetail` | Detail | `TranscriptLine` | `@sidekick/types` (UI-local: `TranscriptLine`) | No |
+| 17 | `StateTab` | Detail | `SessionStateSnapshot` (§3.7) | `@sidekick/types` | Yes |
 
 #### Shared / Layout
 
@@ -1310,25 +1306,27 @@ Each component's props are categorized by alignment with `@sidekick/types`:
 
 **LEDColorKey** — UI-only. No props. Static legend for LED indicator colors; all data is hardcoded in the component.
 
-#### Aligned Components (props match canonical types directly)
+#### Aligned Components (props match target type shape — no transformation needed)
 
-**SummaryStrip** — Aligned. Props: `{ session: Session }`. The `Session` type from `@sidekick/types` already contains all fields the component reads (`persona`, `intent`, `intentConfidence`, `contextWindowPct`, `taskQueueCount`, `tokenCount`, `costUsd`, `durationSec`, `status`).
+> **Prerequisite**: The components below are aligned in **shape** — their props already match the target type interfaces. However, `Session`, `SidekickEvent` (timeline), `TranscriptLine`, `NavigationState`, and `TimelineFilter` are currently UI-local types (defined in `packages/sidekick-ui/src/types.ts`). They must be migrated to `@sidekick/types` as part of §2.9 R1 before these components can import from the canonical package. No prop changes are needed when that migration happens — only the import path changes.
 
-**TimelineEventItem** — Aligned. Props: `{ event: SidekickEvent; isSynced: boolean; isDimmed: boolean; onClick: () => void }`. The `SidekickEvent` type matches directly. `isSynced`, `isDimmed`, and `onClick` are UI interaction props derived from `NavigationState`.
+**SummaryStrip** — Aligned (UI-local `Session`). Props: `{ session: Session }`. The `Session` type contains all fields the component reads (`persona`, `intent`, `intentConfidence`, `contextWindowPct`, `taskQueueCount`, `tokenCount`, `costUsd`, `durationSec`, `status`).
 
-**TimelineFilterBar** — Aligned. No external props; reads `NavigationState` via `useNavigation()` hook. Uses `TimelineFilter` type directly.
+**TimelineEventItem** — Aligned (UI-local `SidekickEvent`). Props: `{ event: SidekickEvent; isSynced: boolean; isDimmed: boolean; onClick: () => void }`. The `SidekickEvent` (timeline) type matches directly. `isSynced`, `isDimmed`, and `onClick` are UI interaction props derived from `NavigationState`.
 
-**SearchFilterBar** — Aligned. No external props; reads `NavigationState` via `useNavigation()` hook. Dispatches `SET_SEARCH` action.
+**TimelineFilterBar** — Aligned (UI-local `TimelineFilter`, `NavigationState`). No external props; reads `NavigationState` via `useNavigation()` hook. Uses `TimelineFilter` type directly.
 
-**DetailHeader** — Aligned. Props: `{ line: TranscriptLine; currentIndex: number; totalCount: number; activeTab: 'details' | 'state'; onTabChange: (tab) => void; onPrev: () => void; onNext: () => void; onClose: () => void }`. Uses `TranscriptLine` directly; navigation props are UI-local.
+**SearchFilterBar** — Aligned (UI-local `NavigationState`). No external props; reads `NavigationState` via `useNavigation()` hook. Dispatches `SET_SEARCH` action.
 
-**ToolDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `toolName`, `toolDurationMs`, `toolInput` fields directly from `TranscriptLine`.
+**DetailHeader** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine; currentIndex: number; totalCount: number; activeTab: 'details' | 'state'; onTabChange: (tab) => void; onPrev: () => void; onNext: () => void; onClose: () => void }`. Uses `TranscriptLine` directly; navigation props are UI-local.
 
-**DecisionDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `decisionCategory`, `decisionReasoning` fields directly from `TranscriptLine`.
+**ToolDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `toolName`, `toolDurationMs`, `toolInput` fields directly from `TranscriptLine`.
 
-**ReminderDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `reminderId`, `reminderBlocking`, `content` fields directly from `TranscriptLine`.
+**DecisionDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `decisionCategory`, `decisionReasoning` fields directly from `TranscriptLine`.
 
-**ErrorDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `errorMessage`, `errorStack` fields directly from `TranscriptLine`.
+**ReminderDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `reminderId`, `reminderBlocking`, `content` fields directly from `TranscriptLine`.
+
+**ErrorDetail** — Aligned (UI-local `TranscriptLine`). Props: `{ line: TranscriptLine }`. Reads `errorMessage`, `errorStack` fields directly from `TranscriptLine`.
 
 > **Note on detail sub-components**: `ToolDetail`, `DecisionDetail`, `ReminderDetail`, and `ErrorDetail` all receive a `TranscriptLine` directly from `DetailPanel` without transformation. The `TranscriptLine` interface carries all fields these components need as optional properties; `DetailPanel.DetailContent` dispatches to the correct sub-component based on `line.type`. No transformation function is needed.
 
@@ -1417,13 +1415,13 @@ function deriveTimelineEvents(
 
 **Input**: `TranscriptLine[]` from T-1 (already merged and sorted).
 
-**Output**: `SidekickEvent[]` consumed by `Timeline`, `TimelineEventItem`.
+**Output**: `SidekickEvent[]` (timeline type) consumed by `Timeline`, `TimelineEventItem`.
 
-**Logic**: Filter transcript lines to only those whose `type` is a `SidekickEventType` (the 16 Sidekick-specific event types from §2.4 #1-#16 — excludes conversation events like `user-message`, `tool-use`, etc.). For each matching line, construct a `SidekickEvent` with: `id` = line's id, `timestamp` = line's timestamp, `type` = line's type (narrowed to `SidekickEventType`), `label` = human-readable summary derived from the event type and payload (same logic as `DetailHeader.getLineLabel()`), `detail` = optional extra detail string, `transcriptLineId` = line's id (for scroll-sync from timeline to transcript).
+**Logic**: Filter transcript lines to only those whose `type` is a `UIEventType` (§2.4) with `visibility === 'timeline'` or `visibility === 'both'` (§2.3). This selects the 16 timeline-visible events (§2.4 #1-#16) plus events visible in both timeline and log (#17-#18, #31), excluding log-only events (#19-#30) and conversation events (`user-message`, `tool-use`, etc.). For each matching line, construct a `SidekickEvent` (timeline type) with: `id` = line's id, `timestamp` = line's timestamp, `type` = line's `UIEventType`, `label` = human-readable summary derived from the event type and payload, `detail` = optional extra detail string, `transcriptLineId` = line's id (for scroll-sync from timeline to transcript).
 
 **Consumers**: `Timeline` (#8), `TimelineEventItem` (#9)
 
-**Contracts**: Input: `TranscriptLine` from `@sidekick/types`; output: `SidekickEvent` from `@sidekick/types`. Filter categories defined by `SIDEKICK_EVENT_TO_FILTER` mapping.
+**Contracts**: Input: `TranscriptLine` (UI-local, to migrate to `@sidekick/types`); output: `SidekickEvent` (timeline type, UI-local). Visibility filter uses `EventVisibility` from `@sidekick/types` (§2.3). Filter categories defined by `SIDEKICK_EVENT_TO_FILTER` mapping.
 
 #### T-4: Session List → Project Groups
 
