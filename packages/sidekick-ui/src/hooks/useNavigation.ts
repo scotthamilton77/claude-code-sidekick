@@ -22,7 +22,7 @@ const initialState: NavigationState = {
   syncedTranscriptLineId: null,
   selectorPanel: { expanded: true },
   detailPanel: { expanded: false },
-  timelineFilters: new Set(),
+  timelineFilters: new Set<TimelineFilter>(['reminders', 'decisions', 'session-analysis', 'statusline', 'errors']),
   searchQuery: '',
   darkMode: false,
 }

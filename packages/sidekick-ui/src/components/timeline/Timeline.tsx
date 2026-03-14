@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useMemo } from 'react'
 import type { SidekickEvent } from '../../types'
 import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
 import { useNavigation } from '../../hooks/useNavigation'
@@ -14,14 +14,13 @@ interface TimelineProps {
 export function Timeline({ events, loading, error }: TimelineProps) {
   const { state, dispatch } = useNavigation()
 
-  const isEventDimmed = useCallback(
-    (event: SidekickEvent): boolean => {
-      if (state.timelineFilters.size === 0) return false
-      const filter = SIDEKICK_EVENT_TO_FILTER[event.type]
-      return !state.timelineFilters.has(filter)
-    },
-    [state.timelineFilters]
-  )
+  const visibleEvents = useMemo(() => {
+    if (state.timelineFilters.size === 0) return events
+    return events.filter(event => {
+      const filterCategory = SIDEKICK_EVENT_TO_FILTER[event.type]
+      return filterCategory ? state.timelineFilters.has(filterCategory) : true
+    })
+  }, [events, state.timelineFilters])
 
   return (
     <div className="h-full flex flex-col">
@@ -31,14 +30,13 @@ export function Timeline({ events, loading, error }: TimelineProps) {
           <div className="flex items-center justify-center h-32 text-xs text-slate-400">Loading events…</div>
         ) : error ? (
           <div className="flex items-center justify-center h-32 text-xs text-red-400 px-2 text-center">{error}</div>
-        ) : events.length === 0 ? (
+        ) : visibleEvents.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-xs text-slate-400">No events</div>
-        ) : events.map(event => (
+        ) : visibleEvents.map(event => (
           <TimelineEventItem
             key={event.id}
             event={event}
             isSynced={state.syncedTranscriptLineId === event.transcriptLineId}
-            isDimmed={isEventDimmed(event)}
             onClick={() => dispatch({ type: 'SYNC_TO_TIMELINE_EVENT', lineId: event.transcriptLineId })}
           />
         ))}

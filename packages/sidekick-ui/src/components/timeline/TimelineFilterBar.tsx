@@ -23,7 +23,7 @@ export function TimelineFilterBar() {
             className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
               isActive
                 ? activeColor
-                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                : 'text-slate-400 ring-1 ring-slate-200 dark:ring-slate-700 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
             }`}
           >
             {label}
