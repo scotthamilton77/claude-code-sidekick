@@ -21,7 +21,7 @@ export type ApiTranscriptLineType =
 export interface ApiTranscriptLine {
   id: string
   timestamp: number
-  type: string // ApiTranscriptLineType values
+  type: ApiTranscriptLineType
   content?: string
   thinking?: string
   toolName?: string
@@ -42,18 +42,10 @@ export interface ApiTranscriptLine {
 }
 
 /** Raw entry types to skip entirely (noise). */
-const SKIP_TYPES = new Set([
-  'queue-operation',
-  'file-history-snapshot',
-  'last-prompt',
-  'progress',
-])
+const SKIP_TYPES = new Set(['queue-operation', 'file-history-snapshot', 'last-prompt', 'progress'])
 
 /** System subtypes to skip. */
-const SKIP_SYSTEM_SUBTYPES = new Set([
-  'stop_hook_summary',
-  'local_command',
-])
+const SKIP_SYSTEM_SUBTYPES = new Set(['stop_hook_summary', 'local_command'])
 
 /**
  * Resolve the path to a session's transcript JSONL file.
@@ -67,10 +59,7 @@ const SKIP_SYSTEM_SUBTYPES = new Set([
  *
  * Returns the path if found, null otherwise.
  */
-export async function resolveTranscriptPath(
-  projectId: string,
-  sessionId: string
-): Promise<string | null> {
+export async function resolveTranscriptPath(projectId: string, sessionId: string): Promise<string | null> {
   const claudeProjectDir = join(homedir(), '.claude', 'projects', projectId)
 
   // Try directory layout first
@@ -110,8 +99,8 @@ function extractToolResultContent(content: unknown): string {
   if (typeof content === 'string') return content
   if (Array.isArray(content)) {
     return content
-      .filter((b: Record<string, unknown>) => b.type === 'text')
-      .map((b: Record<string, unknown>) => b.text as string)
+      .filter((b): b is Record<string, unknown> => typeof b === 'object' && b !== null && b.type === 'text')
+      .map((b) => b.text as string)
       .join('\n')
   }
   return String(content ?? '')
@@ -122,24 +111,22 @@ function extractToolResultContent(content: unknown): string {
  * User entries can have string content (simple text) or array content
  * (text blocks, tool_result blocks, etc.).
  */
-function processUserEntry(
-  entry: Record<string, unknown>,
-  lineIndex: number,
-  timestamp: number
-): ApiTranscriptLine[] {
+function processUserEntry(entry: Record<string, unknown>, lineIndex: number, timestamp: number): ApiTranscriptLine[] {
   const message = entry.message as Record<string, unknown> | undefined
   const content = message?.content ?? entry.content
   const meta = extractMetadata(entry)
 
   // String content → single user-message
   if (typeof content === 'string') {
-    return [{
-      id: `transcript-${lineIndex}-0`,
-      timestamp,
-      type: 'user-message',
-      content,
-      ...meta,
-    }]
+    return [
+      {
+        id: `transcript-${lineIndex}-0`,
+        timestamp,
+        type: 'user-message',
+        content,
+        ...meta,
+      },
+    ]
   }
 
   // Array content → iterate blocks
@@ -149,6 +136,10 @@ function processUserEntry(
   let blockIndex = 0
 
   for (const block of content) {
+    if (typeof block !== 'object' || block === null) {
+      blockIndex++
+      continue
+    }
     const b = block as Record<string, unknown>
 
     if (b.type === 'text') {
@@ -196,6 +187,10 @@ function processAssistantEntry(
   let blockIndex = 0
 
   for (const block of content) {
+    if (typeof block !== 'object' || block === null) {
+      blockIndex++
+      continue
+    }
     const b = block as Record<string, unknown>
 
     if (b.type === 'text') {
@@ -234,11 +229,7 @@ function processAssistantEntry(
 /**
  * Process a system entry based on its subtype.
  */
-function processSystemEntry(
-  entry: Record<string, unknown>,
-  lineIndex: number,
-  timestamp: number
-): ApiTranscriptLine[] {
+function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, timestamp: number): ApiTranscriptLine[] {
   const subtype = entry.subtype as string | undefined
   if (!subtype) return []
 
@@ -249,35 +240,41 @@ function processSystemEntry(
 
   if (subtype === 'compact_boundary') {
     const compactMetadata = entry.compactMetadata as Record<string, unknown> | undefined
-    return [{
-      id: `transcript-${lineIndex}-0`,
-      timestamp,
-      type: 'compaction',
-      compactionTokensBefore: compactMetadata?.preTokens as number | undefined,
-      ...meta,
-    }]
+    return [
+      {
+        id: `transcript-${lineIndex}-0`,
+        timestamp,
+        type: 'compaction',
+        compactionTokensBefore: compactMetadata?.preTokens as number | undefined,
+        ...meta,
+      },
+    ]
   }
 
   if (subtype === 'turn_duration') {
-    return [{
-      id: `transcript-${lineIndex}-0`,
-      timestamp,
-      type: 'turn-duration',
-      durationMs: entry.durationMs as number | undefined,
-      ...meta,
-    }]
+    return [
+      {
+        id: `transcript-${lineIndex}-0`,
+        timestamp,
+        type: 'turn-duration',
+        durationMs: entry.durationMs as number | undefined,
+        ...meta,
+      },
+    ]
   }
 
   if (subtype === 'api_error') {
-    return [{
-      id: `transcript-${lineIndex}-0`,
-      timestamp,
-      type: 'api-error',
-      retryAttempt: entry.retryAttempt as number | undefined,
-      maxRetries: entry.maxRetries as number | undefined,
-      errorMessage: entry.error != null ? String(entry.error) : undefined,
-      ...meta,
-    }]
+    return [
+      {
+        id: `transcript-${lineIndex}-0`,
+        timestamp,
+        type: 'api-error',
+        retryAttempt: entry.retryAttempt as number | undefined,
+        maxRetries: entry.maxRetries as number | undefined,
+        errorMessage: entry.error != null ? String(entry.error) : undefined,
+        ...meta,
+      },
+    ]
   }
 
   // Unknown system subtype — skip
@@ -287,29 +284,26 @@ function processSystemEntry(
 /**
  * Process a pr-link entry.
  */
-function processPrLinkEntry(
-  entry: Record<string, unknown>,
-  lineIndex: number,
-  timestamp: number
-): ApiTranscriptLine[] {
+function processPrLinkEntry(entry: Record<string, unknown>, lineIndex: number, timestamp: number): ApiTranscriptLine[] {
   const meta = extractMetadata(entry)
-  return [{
-    id: `transcript-${lineIndex}-0`,
-    timestamp,
-    type: 'pr-link',
-    prUrl: entry.prUrl as string | undefined,
-    prNumber: entry.prNumber as number | undefined,
-    ...meta,
-  }]
+  return [
+    {
+      id: `transcript-${lineIndex}-0`,
+      timestamp,
+      type: 'pr-link',
+      prUrl: entry.prUrl as string | undefined,
+      prNumber: entry.prNumber as number | undefined,
+      ...meta,
+    },
+  ]
 }
 
 /**
  * Extract metadata flags common to all entry types.
  */
-function extractMetadata(entry: Record<string, unknown>): Pick<
-  ApiTranscriptLine,
-  'isSidechain' | 'isMeta' | 'isCompactSummary'
-> {
+function extractMetadata(
+  entry: Record<string, unknown>
+): Pick<ApiTranscriptLine, 'isSidechain' | 'isMeta' | 'isCompactSummary'> {
   const result: Pick<ApiTranscriptLine, 'isSidechain' | 'isMeta' | 'isCompactSummary'> = {}
   if (entry.isSidechain === true) result.isSidechain = true
   if (entry.isMeta === true) result.isMeta = true
@@ -324,10 +318,7 @@ function extractMetadata(entry: Record<string, unknown>): Pick<
  * relevant entry into one or more ApiTranscriptLine objects.
  * Returns lines in file order (no sorting).
  */
-export async function parseTranscriptLines(
-  projectId: string,
-  sessionId: string
-): Promise<ApiTranscriptLine[]> {
+export async function parseTranscriptLines(projectId: string, sessionId: string): Promise<ApiTranscriptLine[]> {
   const filePath = await resolveTranscriptPath(projectId, sessionId)
   if (!filePath) return []
 

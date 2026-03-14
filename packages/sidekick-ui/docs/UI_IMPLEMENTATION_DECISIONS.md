@@ -232,9 +232,9 @@ Each decision follows this structure:
 
 ---
 
-### D14: Import @sidekick/core for transcript parsing
+### D14: Self-contained transcript parser (no @sidekick/core import)
 
-**Decision:** Reuse content extraction utilities from @sidekick/core rather than duplicating. The UI package already depends on @sidekick/core and will need chokidar/pino for SSE live updates later.
+**Decision:** Keep transcript-api.ts self-contained with inline parsing logic, matching the timeline-api.ts pattern. Avoids cross-tsconfig import issues and keeps the server module independent. The @sidekick/core dependency exists in package.json for future SSE/live features but is not imported by the parser.
 
 **Context:** Transcript parsing requires extracting text content from Claude Code JSONL entries. @sidekick/core already has utilities for this.
 
@@ -242,7 +242,7 @@ Each decision follows this structure:
 1. Duplicate extraction logic in sidekick-ui — no cross-package dependency
 2. Import from @sidekick/core — reuse existing, tested code
 
-**Rationale:** DRY. The @sidekick/core package already has tested content extraction. Adding a dependency that already exists in the workspace is trivial. Duplicating would create maintenance burden.
+**Rationale:** The server/ directory uses tsconfig.node.json while @sidekick/core uses its own tsconfig. Cross-tsconfig imports create build complexity. The parsing logic is ~50 lines and self-contained, matching the pattern already established by timeline-api.ts. The @sidekick/core dependency remains in package.json for future SSE/chokidar/pino needs.
 
 **Deferred work:** None.
 
