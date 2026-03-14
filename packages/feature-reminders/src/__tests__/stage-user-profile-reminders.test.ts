@@ -143,8 +143,12 @@ describe('stageUserProfileRemindersForSession', () => {
 
     // Remove the YAML asset so resolveReminder returns null
     mockAssets.reset()
+    // Also prevent file-system fallback from finding real YAML files
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
 
     await stageUserProfileRemindersForSession(ctx, 'test-session')
+
+    cwdSpy.mockRestore()
 
     expect(mockLogger.wasLoggedAtLevel('Failed to resolve user-profile reminder', 'warn')).toBe(true)
     // No reminders should be staged

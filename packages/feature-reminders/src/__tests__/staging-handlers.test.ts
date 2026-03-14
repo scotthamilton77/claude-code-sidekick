@@ -222,6 +222,8 @@ additionalContext: "Lint needed"
       // Use empty assets so resolveReminder returns null
       const emptyAssets = new MockAssetResolver()
       const ctxNoAssets = createMockDaemonContext({ staging, logger, handlers, assets: emptyAssets })
+      // Prevent file-system fallback from finding real YAML files
+      const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
 
       registerStagePauseAndReflect(ctxNoAssets)
 
@@ -230,6 +232,8 @@ additionalContext: "Lint needed"
       const event = createTestTranscriptEvent({ toolsThisTurn: 100 })
 
       await handler!.handler(event, ctxNoAssets as unknown as import('@sidekick/types').HandlerContext)
+
+      cwdSpy.mockRestore()
 
       // Should not stage and should log warning
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
