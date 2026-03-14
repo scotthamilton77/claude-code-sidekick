@@ -24,6 +24,7 @@ import type {
   DaemonClient,
   ProfileProviderFactory,
   LLMProvider,
+  ReminderCoordinator,
 } from '@sidekick/types'
 import { MockConfigService } from '../mocks/MockConfigService'
 import { MockLogger } from '../mocks/MockLogger'
@@ -113,6 +114,7 @@ export interface MockDaemonContextOptions {
   staging?: MockStagingService
   transcript?: MockTranscriptService
   stateService?: MockStateService
+  orchestrator?: ReminderCoordinator
   personaClearCache?: { consume(): string | null }
 }
 
@@ -146,6 +148,7 @@ export function createMockDaemonContext(overrides?: MockDaemonContextOptions): D
     staging: overrides?.staging ?? new MockStagingService(),
     transcript: overrides?.transcript ?? new MockTranscriptService(),
     stateService: overrides?.stateService ?? new MockStateService(),
+    ...(overrides?.orchestrator ? { orchestrator: overrides.orchestrator } : {}),
     ...(overrides?.personaClearCache ? { personaClearCache: overrides.personaClearCache } : {}),
   }
 }

@@ -35,6 +35,22 @@ import {
 } from '../statusline-service.js'
 import { DEFAULT_STATUSLINE_CONFIG, type StatuslineViewModel } from '../types.js'
 
+/** Shared ANSI escape codes for test assertions */
+const ANSI = {
+  reset: '\x1b[0m',
+  dim: '\x1b[2m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  red: '\x1b[31m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  bold: '\x1b[1m',
+  italic: '\x1b[3m',
+  noBold: '\x1b[22m',
+  noItalic: '\x1b[23m',
+  noDim: '\x1b[22m',
+}
+
 /**
  * Helper to set up a test directory structure for StateReader tests.
  * Creates project root with .sidekick/sessions/{sessionId}/state/ structure.
@@ -414,9 +430,9 @@ describe('Formatter utilities', () => {
       const plainBar = formatContextBar(usage, false)
 
       // Colored bar should contain ANSI escape sequences
-      expect(coloredBar).toContain('\x1b[')
+      expect(coloredBar).toContain(ANSI.reset)
       // Plain bar should not
-      expect(plainBar).not.toContain('\x1b[')
+      expect(plainBar).not.toContain(ANSI.reset)
     })
 
     it('handles low usage (green color when colored)', () => {
@@ -426,7 +442,7 @@ describe('Formatter utilities', () => {
       expect(usage!.status).toBe('low')
       const bar = formatContextBar(usage, true)
       // Should contain green ANSI code for low status applied to context portion
-      expect(bar).toContain('\x1b[32m') // green
+      expect(bar).toContain(ANSI.green)
     })
 
     it('handles medium usage (yellow color when colored)', () => {
@@ -434,7 +450,7 @@ describe('Formatter utilities', () => {
       expect(usage!.status).toBe('medium')
       const bar = formatContextBar(usage, true)
       // Should contain yellow ANSI code for medium status
-      expect(bar).toContain('\x1b[33m') // yellow
+      expect(bar).toContain(ANSI.yellow)
     })
 
     it('handles high usage (red color when colored)', () => {
@@ -442,14 +458,14 @@ describe('Formatter utilities', () => {
       expect(usage!.status).toBe('high')
       const bar = formatContextBar(usage, true)
       // Should contain red ANSI code for high status
-      expect(bar).toContain('\x1b[31m') // red
+      expect(bar).toContain(ANSI.red)
     })
 
     it('applies dim style to buffer portion', () => {
       const usage = calculateContextUsage(50000, 45000, 200000)
       const bar = formatContextBar(usage, true)
       // Should contain dim ANSI code for buffer characters
-      expect(bar).toContain('\x1b[2m') // dim
+      expect(bar).toContain(ANSI.dim)
     })
 
     describe('symbol mode support', () => {
@@ -1163,15 +1179,6 @@ describe('template wrapAt', () => {
 })
 
 describe('Formatter with colors enabled', () => {
-  const ANSI = {
-    reset: '\x1b[0m',
-    green: '\x1b[32m',
-    yellow: '\x1b[33m',
-    red: '\x1b[31m',
-    blue: '\x1b[34m',
-    magenta: '\x1b[35m',
-  }
-
   it('applies green color for normal threshold status', () => {
     const formatter = createFormatter({
       theme: DEFAULT_STATUSLINE_CONFIG.theme,
@@ -1528,17 +1535,6 @@ describe('Formatter with colors enabled', () => {
 // ============================================================================
 
 describe('Formatter.convertMarkdown', () => {
-  const ANSI = {
-    reset: '\x1b[0m',
-    bold: '\x1b[1m',
-    italic: '\x1b[3m',
-    dim: '\x1b[2m',
-    // Turn-off codes (preserve surrounding color)
-    noBold: '\x1b[22m',
-    noItalic: '\x1b[23m',
-    noDim: '\x1b[22m',
-  }
-
   it('converts **bold** to ANSI bold', () => {
     const formatter = createFormatter({
       theme: DEFAULT_STATUSLINE_CONFIG.theme,
@@ -2864,7 +2860,7 @@ describe('StatuslineService', () => {
 
       expect(result.staleData).toBe(true)
       // Should have dim ANSI code for stale indicator
-      expect(result.text).toContain('\x1b[2m(stale)\x1b[0m')
+      expect(result.text).toContain(`${ANSI.dim}(stale)${ANSI.reset}`)
     })
   })
 
@@ -3965,6 +3961,9 @@ describe('StatuslineService', () => {
         })
       )
 
+      // Use token values below the file's baseline minimum (30k) but above
+      // the default baseline minimum (~21k). This ensures the test would fail
+      // if readBaselineMetrics ignored the file and used defaults instead.
       const service = createStatuslineService({
         stateService,
         setupService,
@@ -3974,13 +3973,15 @@ describe('StatuslineService', () => {
         userConfigDir,
         projectDir: projectRoot,
         hookInput: createTestHookInput({
-          totalInputTokens: 50000,
-          totalOutputTokens: 10000,
+          totalInputTokens: 25000,
+          totalOutputTokens: 0,
         }),
       })
 
       const result = await service.render()
-      expect(result.viewModel.tokenUsageActual).toBe('60k')
+      // With file baseline: baselineMinimum = (5k+25k+50k) - 50k = 30k, so 25k gets boosted to 30k
+      // With defaults: baselineMinimum = (3.2k+17.9k+45k) - 45k = 21.1k, so 25k would stay 25k
+      expect(result.viewModel.tokenUsageActual).toBe('30k')
     })
   })
 
@@ -4001,8 +4002,8 @@ describe('StatuslineService', () => {
       })
 
       const result = await service.render()
-      expect(result.text).toContain('\x1b[33m')
-      expect(result.text).toContain('\x1b[0m')
+      expect(result.text).toContain(ANSI.yellow)
+      expect(result.text).toContain(ANSI.reset)
     })
   })
 })

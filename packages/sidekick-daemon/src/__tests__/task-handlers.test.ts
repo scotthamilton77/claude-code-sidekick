@@ -162,7 +162,7 @@ const mockConfig: SidekickConfig = {
 }
 
 describe('validateSessionId', () => {
-  it('should accept valid alphanumeric session IDs', () => {
+  it('should accept valid session IDs with alphanumeric, dashes, and underscores', () => {
     expect(() => validateSessionId('abc123')).not.toThrow()
     expect(() => validateSessionId('session-with-dashes')).not.toThrow()
     expect(() => validateSessionId('session_with_underscores')).not.toThrow()

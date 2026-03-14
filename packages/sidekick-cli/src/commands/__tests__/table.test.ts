@@ -78,9 +78,9 @@ describe('renderTable', () => {
     // Should still have header
     expect(result).toContain('Name')
     expect(result).toContain('Value')
-    // Should have border lines
+    // Should have border lines: top border, header, header separator, bottom border
     const lines = result.split('\n')
-    expect(lines.length).toBeGreaterThanOrEqual(3) // top border, header, header separator, bottom border
+    expect(lines.length).toBeGreaterThanOrEqual(4)
   })
 
   test('handles empty string cells', () => {

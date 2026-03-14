@@ -207,11 +207,12 @@ additionalContext: "Lint needed"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 100 }) // Well above threshold
       // Mark as bulk processing
       event.metadata.isBulkProcessing = true
 
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       // Should not stage despite exceeding threshold
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
@@ -225,9 +226,10 @@ additionalContext: "Lint needed"
       registerStagePauseAndReflect(ctxNoAssets)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 100 })
 
-      await handler?.handler(event, ctxNoAssets as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctxNoAssets as unknown as import('@sidekick/types').HandlerContext)
 
       // Should not stage and should log warning
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
@@ -246,16 +248,16 @@ additionalContext: "Lint needed"
         logger,
         handlers,
         assets,
+        orchestrator: mockOrchestrator,
       })
-      // Manually set orchestrator (not in MockDaemonContextOptions)
-      ;(ctxWithOrchestrator as any).orchestrator = mockOrchestrator
 
       registerStagePauseAndReflect(ctxWithOrchestrator)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 60 })
 
-      await handler?.handler(event, ctxWithOrchestrator as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctxWithOrchestrator as unknown as import('@sidekick/types').HandlerContext)
 
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       expect(mockOrchestrator.onReminderStaged).toHaveBeenCalledWith(
@@ -278,9 +280,10 @@ additionalContext: "Lint needed"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 10 }) // Below default 60
 
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
     })
@@ -289,9 +292,10 @@ additionalContext: "Lint needed"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 60 })
 
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('PreToolUse')
       expect(reminders).toHaveLength(1)
@@ -304,14 +308,15 @@ additionalContext: "Lint needed"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 65 })
 
       // First call stages
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
       // Second call should not duplicate
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
     })
 
@@ -319,9 +324,10 @@ additionalContext: "Lint needed"
       registerStagePauseAndReflect(ctx)
 
       const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ toolsThisTurn: 65 })
 
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('PreToolUse')
       expect(reminders[0].additionalContext).toBe('Checkpoint at 65 tools')
@@ -379,10 +385,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctxWithPath)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
         // Default threshold is 60, so this should trigger
         const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
 
-        await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
@@ -414,15 +421,16 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctxWithPath)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // At tool 60 on turn 1: 60 - 20 = 40 < 60 threshold, should NOT fire
         const event60 = createEventWithSession({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
-        await handler?.handler(event60, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event60, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
 
         // At tool 80 on turn 1: 80 - 20 = 60 >= 60 threshold, SHOULD fire
         const event80 = createEventWithSession({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
-        await handler?.handler(event80, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event80, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
 
@@ -453,11 +461,12 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctxWithPath)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // On turn 2, baseline from turn 1 should be ignored
         // At tool 60 on turn 2: uses default threshold (0), so 60 >= 60, SHOULD fire
         const event = createEventWithSession({ turnCount: 2, toolsThisTurn: 60, toolCount: 100 })
-        await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
@@ -484,10 +493,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctxWithPath)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
         // Should use default threshold (0) and not crash
         const event = createEventWithSession({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
 
-        await handler?.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
@@ -498,10 +508,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctx)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // First trigger at tool 60 - stages P&R
         const event60 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
-        await handler?.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate consumption: add to consumed list with stagedAt metrics
@@ -517,7 +528,7 @@ additionalContext: "Lint needed"
 
         // At tool 80 same turn: 80 - 60 = 20 < 60 threshold, should NOT re-stage
         const event80 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
-        await handler?.handler(event80, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event80, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
       })
@@ -526,10 +537,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctx)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // First trigger at tool 60 - stages P&R
         const event60 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
-        await handler?.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate consumption
@@ -544,7 +556,7 @@ additionalContext: "Lint needed"
 
         // At tool 120 same turn: 120 >= 60 + 60 threshold, SHOULD re-stage
         const event120 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 120, toolCount: 120 })
-        await handler?.handler(event120, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event120, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
@@ -553,10 +565,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctx)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // First trigger at tool 60 on turn 1
         const event1 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
-        await handler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate consumption on turn 1
@@ -571,7 +584,7 @@ additionalContext: "Lint needed"
 
         // Turn 2 at tool 60: new turn, should reactivate
         const event2 = createTestTranscriptEvent({ turnCount: 2, toolsThisTurn: 60, toolCount: 120 })
-        await handler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
@@ -606,6 +619,7 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctxWithPath)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         function createEventWithSession(metrics: Partial<TranscriptMetrics>): TranscriptEvent {
           return {
@@ -622,7 +636,7 @@ additionalContext: "Lint needed"
 
         // First P&R triggered at tool 80 (20 + 60 threshold)
         const event80 = createEventWithSession({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
-        await handler?.handler(event80, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event80, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate P&R consumption at tool 80
@@ -637,12 +651,12 @@ additionalContext: "Lint needed"
 
         // At tool 120: max(20, 80) = 80 baseline, 120 - 80 = 40 < 60 threshold, should NOT fire
         const event120 = createEventWithSession({ turnCount: 1, toolsThisTurn: 120, toolCount: 120 })
-        await handler?.handler(event120, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event120, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
 
         // At tool 140: 140 >= 80 + 60 threshold, SHOULD fire
         const event140 = createEventWithSession({ turnCount: 1, toolsThisTurn: 140, toolCount: 140 })
-        await handler?.handler(event140, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event140, ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
     })
@@ -652,10 +666,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctx)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // First trigger at tool 60 - stages P&R
         const event60 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
-        await handler?.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
 
         // Simulate consumption
@@ -672,7 +687,7 @@ additionalContext: "Lint needed"
 
         // At tool 80 same turn: 80 - 60 = 20 < 60 threshold, should NOT re-stage
         const event80 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
-        await handler?.handler(event80, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event80, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const notStagedEvents = logger.recordedLogs.filter(
           (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
@@ -686,10 +701,11 @@ additionalContext: "Lint needed"
         registerStagePauseAndReflect(ctx)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+        expect(handler).toBeDefined()
 
         // toolsThisTurn = 10 is below default threshold of 60
         const event = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 10, toolCount: 10 })
-        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const notStagedEvents = logger.recordedLogs.filter(
           (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
@@ -716,6 +732,7 @@ additionalContext: "Lint needed"
       registerStageDefaultUserPrompt(ctx)
 
       const handler = handlers.getHandler('reminders:stage-default-user-prompt')
+      expect(handler).toBeDefined()
       const event = {
         kind: 'hook' as const,
         hook: 'SessionStart' as const,
@@ -723,7 +740,7 @@ additionalContext: "Lint needed"
         payload: { startType: 'startup' as const, transcriptPath: '/test/transcript.jsonl' },
       }
 
-      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('UserPromptSubmit')
       expect(reminders).toHaveLength(1)
@@ -744,6 +761,7 @@ additionalContext: "Lint needed"
       registerStageDefaultUserPrompt(ctx)
 
       const handler = handlers.getHandler('reminders:stage-default-user-prompt-after-bulk')
+      expect(handler).toBeDefined()
       const event = createTestTranscriptEvent({ turnCount: 5, toolCount: 10, toolsThisTurn: 2 }, undefined, undefined)
       // Override event type for BulkProcessingComplete
       const bulkEvent = {
@@ -751,7 +769,7 @@ additionalContext: "Lint needed"
         eventType: 'BulkProcessingComplete' as const,
       }
 
-      await handler?.handler(bulkEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(bulkEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       const reminders = staging.getRemindersForHook('UserPromptSubmit')
       expect(reminders).toHaveLength(1)
@@ -841,8 +859,9 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
         const event = createConversationTranscriptEvent('UserPrompt')
-        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
         const result = await remindersState.reminderThrottle.read('test-session')
@@ -853,8 +872,9 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
         const event = createConversationTranscriptEvent('AssistantMessage')
-        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
         const result = await remindersState.reminderThrottle.read('test-session')
@@ -865,11 +885,12 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
 
         // Fire 9 events (below default threshold of 10)
         for (let i = 0; i < 9; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         // No SessionStart was fired, so only throttle could have staged.
@@ -882,11 +903,12 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
 
         // Fire 10 events (meets default threshold of 10)
         for (let i = 0; i < 10; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         const reminders = staging.getRemindersForHook('UserPromptSubmit')
@@ -897,11 +919,12 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
 
         // Fire 9 events to get just below threshold
         for (let i = 0; i < 9; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         // Fire the 10th event with specific metrics — this triggers re-staging
@@ -910,7 +933,7 @@ additionalContext: "Standard user prompt reminder"
           toolsThisTurn: 3,
           toolCount: 42,
         })
-        await handler?.handler(triggeringEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(triggeringEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const reminders = staging.getRemindersForHook('UserPromptSubmit')
         const restaged = reminders.find((r) => r.name === 'user-prompt-submit')
@@ -926,11 +949,12 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
 
         // Fire 10 events to trigger re-staging
         for (let i = 0; i < 10; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         const remindersState = createRemindersState(stateService)
@@ -942,13 +966,14 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
         const event = createConversationTranscriptEvent('UserPrompt')
         // Add bulk processing flag
         const bulkEvent = {
           ...event,
           metadata: { ...event.metadata, isBulkProcessing: true },
         }
-        await handler?.handler(bulkEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(bulkEvent, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
         const result = await remindersState.reminderThrottle.read('test-session')
@@ -959,13 +984,14 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
         const event = createConversationTranscriptEvent('UserPrompt')
         // Remove sessionId
         const noSessionEvent = {
           ...event,
           context: { ...event.context, sessionId: undefined },
         }
-        await handler?.handler(noSessionEvent as any, ctx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(noSessionEvent as any, ctx as unknown as import('@sidekick/types').HandlerContext)
 
         const remindersState = createRemindersState(stateService)
         const result = await remindersState.reminderThrottle.read('test-session')
@@ -987,8 +1013,9 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(emptyCtx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
         const event = createConversationTranscriptEvent('UserPrompt')
-        await handler?.handler(event, emptyCtx as unknown as import('@sidekick/types').HandlerContext)
+        await handler!.handler(event, emptyCtx as unknown as import('@sidekick/types').HandlerContext)
 
         // Should not stage anything (no entries to process)
         expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
@@ -1013,10 +1040,11 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(ctx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
         // Fire enough events that would exceed any threshold
         for (let i = 0; i < 15; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         // Should not have staged (threshold is undefined for this reminder)
@@ -1043,11 +1071,12 @@ additionalContext: "Standard user prompt reminder"
         registerStageDefaultUserPrompt(customCtx)
 
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
 
         // Fire 3 events (meets custom threshold of 3)
         for (let i = 0; i < 3; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, customCtx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, customCtx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         const reminders = staging.getRemindersForHook('UserPromptSubmit')
@@ -1167,11 +1196,12 @@ additionalContext: "Standard user prompt reminder"
 
         registerStageDefaultUserPrompt(customCtx)
         const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
 
         // Fire 3 events — persona should fire, UPS should not
         for (let i = 0; i < 3; i++) {
           const event = createConversationTranscriptEvent('UserPrompt')
-          await handler?.handler(event, customCtx as unknown as import('@sidekick/types').HandlerContext)
+          await handler!.handler(event, customCtx as unknown as import('@sidekick/types').HandlerContext)
         }
 
         const reminders = staging.getRemindersForHook('UserPromptSubmit')
@@ -1288,7 +1318,8 @@ additionalContext: "Standard user prompt reminder"
       registerUnstageVerifyCompletion(ctxWithPath)
 
       const handler = handlers.getHandler('reminders:unstage-verify-completion')
-      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
       // Reminder should be deleted
       expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
@@ -1322,7 +1353,8 @@ additionalContext: "Standard user prompt reminder"
       registerUnstageVerifyCompletion(ctxWithPath)
 
       const handler = handlers.getHandler('reminders:unstage-verify-completion')
-      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
       // Reminder should be re-staged
       const reminders = staging.getRemindersForHook('Stop')
@@ -1367,7 +1399,8 @@ additionalContext: "Standard user prompt reminder"
       registerUnstageVerifyCompletion(ctxWithPath)
 
       const handler = handlers.getHandler('reminders:unstage-verify-completion')
-      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
       // Reminder should be deleted, not re-staged
       expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
@@ -1406,7 +1439,8 @@ additionalContext: "Standard user prompt reminder"
 
       registerUnstageVerifyCompletion(ctxWithPath)
       const handler = handlers.getHandler('reminders:unstage-verify-completion')
-      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
       // Wrapper should NOT be re-staged — nothing needs verification
       expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
@@ -1416,6 +1450,7 @@ additionalContext: "Standard user prompt reminder"
       registerUnstageVerifyCompletion(ctx)
 
       const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      expect(handler).toBeDefined()
       // Intentionally omit sessionId to test error handling
       const eventWithoutSession = {
         kind: 'hook' as const,
@@ -1429,7 +1464,7 @@ additionalContext: "Standard user prompt reminder"
         },
       }
 
-      await handler?.handler(eventWithoutSession as any, ctx as unknown as import('@sidekick/types').HandlerContext)
+      await handler!.handler(eventWithoutSession as any, ctx as unknown as import('@sidekick/types').HandlerContext)
 
       expect(logger.wasLogged('No sessionId in UserPromptSubmit event')).toBe(true)
     })
@@ -1461,7 +1496,8 @@ additionalContext: "Standard user prompt reminder"
       logger.reset()
 
       const handler = handlers.getHandler('reminders:unstage-verify-completion')
-      await handler?.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
       const notStagedEvents = logger.recordedLogs.filter(
         (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
@@ -1547,7 +1583,8 @@ additionalContext: "Standard user prompt reminder"
       registerStageBashChanges(ctx)
 
       const handler = handlers.getHandler('reminders:git-baseline-capture')
-      await handler?.handler(createUserPromptSubmitEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
+      expect(handler).toBeDefined()
+      await handler!.handler(createUserPromptSubmitEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
 
       expect(mockGetGitFileStatus).toHaveBeenCalledWith(
         expect.any(String), // cwd
@@ -2025,7 +2062,8 @@ additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
       registerStagePersonaReminders(ctxWithState)
 
       const handler = handlers.getHandler('reminders:stage-persona-reminders')
-      await handler?.handler(
+      expect(handler).toBeDefined()
+      await handler!.handler(
         createSessionStartEvent(),
         ctxWithState as unknown as import('@sidekick/types').HandlerContext
       )
@@ -2063,7 +2101,8 @@ additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
       registerStagePersonaReminders(ctxWithState)
 
       const handler = handlers.getHandler('reminders:stage-persona-reminders')
-      await handler?.handler(
+      expect(handler).toBeDefined()
+      await handler!.handler(
         createSessionStartEvent(),
         ctxWithState as unknown as import('@sidekick/types').HandlerContext
       )
@@ -2093,7 +2132,8 @@ additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
       registerStagePersonaReminders(ctxWithState)
 
       const handler = handlers.getHandler('reminders:stage-persona-reminders')
-      await handler?.handler(
+      expect(handler).toBeDefined()
+      await handler!.handler(
         createSessionStartEvent(),
         ctxWithState as unknown as import('@sidekick/types').HandlerContext
       )
@@ -2139,7 +2179,8 @@ additionalContext: "Persona: {{persona_name}} - {{persona_tone}}"
       registerStagePersonaReminders(ctxWithConfig)
 
       const handler = handlers.getHandler('reminders:stage-persona-reminders')
-      await handler?.handler(
+      expect(handler).toBeDefined()
+      await handler!.handler(
         createSessionStartEvent(),
         ctxWithConfig as unknown as import('@sidekick/types').HandlerContext
       )

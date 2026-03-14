@@ -13,7 +13,7 @@ import {
   MockConfigService,
   MockStateService,
 } from '@sidekick/testing-fixtures'
-import type { DaemonContext } from '@sidekick/types'
+import type { DaemonContext, RuntimeContext } from '@sidekick/types'
 import {
   stageUserProfileRemindersForSession,
   registerStageUserProfileReminders,
@@ -175,7 +175,7 @@ describe('registerStageUserProfileReminders', () => {
   it('does not register in CLI context', () => {
     const cliCtx = createMockCLIContext()
 
-    registerStageUserProfileReminders(cliCtx as unknown as DaemonContext)
+    registerStageUserProfileReminders(cliCtx as RuntimeContext)
 
     expect((cliCtx.handlers as MockHandlerRegistry).getRegistrations()).toHaveLength(0)
   })
@@ -207,6 +207,8 @@ describe('registerStageUserProfileReminders', () => {
     registerStageUserProfileReminders(ctx)
 
     const handler = handlers.getHandler('reminders:stage-user-profile-reminders')
+    expect(handler).toBeDefined()
+
     const event = {
       kind: 'hook' as const,
       hook: 'SessionStart' as const,
@@ -214,7 +216,7 @@ describe('registerStageUserProfileReminders', () => {
       payload: { startType: 'startup' as const, transcriptPath: '/test/transcript.jsonl' },
     }
 
-    await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+    await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
     const reminders = staging.getRemindersForHook('UserPromptSubmit')
     expect(reminders.some((r) => r.name === 'user-profile')).toBe(true)

@@ -11,13 +11,16 @@ import { ConfigChangeEvent, ConfigWatcher } from '../config-watcher.js'
  * "depth separation" tests that verify internal watcher setup.
  */
 const mockChokidarWatch = vi.fn()
+const createdWatchers: ReturnType<typeof import('chokidar').watch>[] = []
 vi.mock('chokidar', async (importOriginal) => {
   const actual = await importOriginal<typeof import('chokidar')>()
   return {
     ...actual,
     watch: (...args: Parameters<typeof actual.watch>) => {
       mockChokidarWatch(...args)
-      return actual.watch(...args)
+      const watcher = actual.watch(...args)
+      createdWatchers.push(watcher)
+      return watcher
     },
   }
 })
@@ -323,6 +326,7 @@ describe('ConfigWatcher', () => {
   describe('depth separation in dev mode', () => {
     beforeEach(() => {
       mockChokidarWatch.mockClear()
+      createdWatchers.length = 0
     })
 
     it('should use depth 0 for config dirs and depth 2 for assets dir', () => {
@@ -372,10 +376,17 @@ describe('ConfigWatcher', () => {
 
       // Both watchers should be created
       expect(mockChokidarWatch).toHaveBeenCalledTimes(2)
+      expect(createdWatchers).toHaveLength(2)
 
-      // Stop should close both watchers without error
+      // Spy on close() for both chokidar watcher instances
+      const configCloseSpy = vi.spyOn(createdWatchers[0], 'close')
+      const assetsCloseSpy = vi.spyOn(createdWatchers[1], 'close')
+
+      // Stop should close both watchers
       watcher.stop()
 
+      expect(configCloseSpy).toHaveBeenCalled()
+      expect(assetsCloseSpy).toHaveBeenCalled()
       expect(logger.wasLogged('ConfigWatcher stopped')).toBe(true)
     })
   })
@@ -383,6 +394,7 @@ describe('ConfigWatcher', () => {
   describe('scope determination', () => {
     beforeEach(() => {
       mockChokidarWatch.mockClear()
+      createdWatchers.length = 0
     })
 
     it('should report scope as assets for files in devAssetsDir', async () => {
