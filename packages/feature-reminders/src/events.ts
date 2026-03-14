@@ -69,6 +69,8 @@ export const ReminderEvents = {
       reminderName: string
       hookName: string
       reason: string
+      triggeredBy?: string
+      toolState?: { status: string; editsSinceVerified: number }
     }
   ): ReminderUnstagedEvent {
     return {
@@ -86,6 +88,8 @@ export const ReminderEvents = {
         reminderName: state.reminderName,
         hookName: state.hookName,
         reason: state.reason,
+        ...(state.triggeredBy !== undefined && { triggeredBy: state.triggeredBy }),
+        ...(state.toolState !== undefined && { toolState: state.toolState }),
       },
     }
   },

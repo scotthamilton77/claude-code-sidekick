@@ -73,6 +73,32 @@ describe('ReminderEvents', () => {
       expect(event.payload.reason).toBe('cascade')
       expect(event.context.hook).toBeUndefined()
     })
+
+    it('should include optional enrichment fields when provided', () => {
+      const event = ReminderEvents.reminderUnstaged(
+        { sessionId: 'sess-123', hook: 'Stop' },
+        {
+          reminderName: 'verify-completion',
+          hookName: 'Stop',
+          reason: 'verification_passed',
+          triggeredBy: 'cascade_from_pause_and_reflect',
+          toolState: { status: 'verified', editsSinceVerified: 0 },
+        }
+      )
+
+      expect(event.payload.triggeredBy).toBe('cascade_from_pause_and_reflect')
+      expect(event.payload.toolState).toEqual({ status: 'verified', editsSinceVerified: 0 })
+    })
+
+    it('should omit enrichment fields when not provided', () => {
+      const event = ReminderEvents.reminderUnstaged(
+        { sessionId: 'sess-123' },
+        { reminderName: 'test', hookName: 'Stop', reason: 'cascade' }
+      )
+
+      expect(event.payload.triggeredBy).toBeUndefined()
+      expect(event.payload.toolState).toBeUndefined()
+    })
   })
 
   describe('remindersCleared', () => {
