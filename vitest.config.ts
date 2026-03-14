@@ -72,6 +72,8 @@ export default defineConfig({
         'packages/sidekick-daemon/src/index.ts', // Process entrypoint
         'packages/sidekick-daemon/src/daemon.ts', // Orchestration, tested via E2E
         'packages/sidekick-daemon/src/handlers/index.ts', // Barrel file
+        'packages/sidekick-daemon/src/context-metrics/index.ts', // Barrel file
+        'packages/sidekick-daemon/src/context-metrics/types.ts', // Pure type re-exports
 
         // === feature-reminders ===
         'packages/feature-reminders/src/index.ts', // Barrel file

@@ -257,7 +257,8 @@ describe('SessionPersonaWatcher', () => {
         eventType: 'change',
         fullPath: filePath,
       })
-      expect(logger.wasLogged('Session persona changed')).toBe(true)
+      const debounceMsg = '[persona-lifecycle] PersonaWatcher: debounce fired, dispatching change event'
+      expect(logger.wasLogged(debounceMsg)).toBe(true)
     })
 
     it('should handle add event type', async () => {

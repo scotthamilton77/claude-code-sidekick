@@ -361,5 +361,84 @@ describe('ConfigWatcher', () => {
 
       watcher.stop()
     })
+
+    it('should close assets watcher on stop', () => {
+      const assetsDir = path.join(tmpDir, 'assets', 'sidekick')
+
+      const onChange = vi.fn()
+      const watcher = new ConfigWatcher({ projectDir: sidekickDir, devAssetsDir: assetsDir }, logger, onChange)
+
+      watcher.start()
+
+      // Both watchers should be created
+      expect(mockChokidarWatch).toHaveBeenCalledTimes(2)
+
+      // Stop should close both watchers without error
+      watcher.stop()
+
+      expect(logger.wasLogged('ConfigWatcher stopped')).toBe(true)
+    })
+  })
+
+  describe('scope determination', () => {
+    beforeEach(() => {
+      mockChokidarWatch.mockClear()
+    })
+
+    it('should report scope as assets for files in devAssetsDir', async () => {
+      const assetsDir = path.join(tmpDir, 'assets', 'sidekick')
+      await fs.mkdir(assetsDir, { recursive: true })
+      const configPath = path.join(assetsDir, 'defaults.yaml')
+      await fs.writeFile(configPath, 'key: value\n', 'utf-8')
+
+      const onChange = vi.fn()
+      const watcher = new ConfigWatcher({ projectDir: sidekickDir, devAssetsDir: assetsDir }, logger, onChange)
+
+      watcher.start()
+      await watcher.ready()
+
+      // Modify the assets file
+      await fs.writeFile(configPath, 'key: value2\n', 'utf-8')
+
+      await vi.waitFor(
+        () => {
+          expect(onChange).toHaveBeenCalled()
+        },
+        { timeout: 1000 }
+      )
+
+      const event: ConfigChangeEvent = onChange.mock.calls[0][0] as ConfigChangeEvent
+      expect(event.scope).toBe('assets')
+
+      watcher.stop()
+    })
+
+    it('should report scope as user for files in userDir', async () => {
+      const userDir = path.join(tmpDir, 'user-config')
+      await fs.mkdir(userDir, { recursive: true })
+      const userConfig = path.join(userDir, 'user.yaml')
+      await fs.writeFile(userConfig, 'key: value\n', 'utf-8')
+
+      const onChange = vi.fn()
+      const watcher = new ConfigWatcher({ projectDir: sidekickDir, userDir }, logger, onChange)
+
+      watcher.start()
+      await watcher.ready()
+
+      // Modify the user config file
+      await fs.writeFile(userConfig, 'key: value2\n', 'utf-8')
+
+      await vi.waitFor(
+        () => {
+          expect(onChange).toHaveBeenCalled()
+        },
+        { timeout: 1000 }
+      )
+
+      const event: ConfigChangeEvent = onChange.mock.calls[0][0] as ConfigChangeEvent
+      expect(event.scope).toBe('user')
+
+      watcher.stop()
+    })
   })
 })

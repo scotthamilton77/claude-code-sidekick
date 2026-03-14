@@ -13,6 +13,7 @@ import os from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { registerStandardTaskHandlers, TaskRegistry } from '../task-handlers.js'
+import { validateSessionId } from '../task-registry.js'
 import { ContextGetter, TaskEngine } from '../task-engine.js'
 
 const logger = createConsoleLogger({ minimumLevel: 'error' })
@@ -159,6 +160,33 @@ const mockConfig: SidekickConfig = {
   },
   features: {},
 }
+
+describe('validateSessionId', () => {
+  it('should accept valid alphanumeric session IDs', () => {
+    expect(() => validateSessionId('abc123')).not.toThrow()
+    expect(() => validateSessionId('session-with-dashes')).not.toThrow()
+    expect(() => validateSessionId('session_with_underscores')).not.toThrow()
+    expect(() => validateSessionId('ABC-123_def')).not.toThrow()
+  })
+
+  it('should reject empty session ID', () => {
+    expect(() => validateSessionId('')).toThrow('Invalid sessionId format')
+  })
+
+  it('should reject session IDs with path traversal characters', () => {
+    expect(() => validateSessionId('../etc/passwd')).toThrow('Invalid sessionId format')
+    expect(() => validateSessionId('session/../../root')).toThrow('Invalid sessionId format')
+  })
+
+  it('should reject session IDs with spaces', () => {
+    expect(() => validateSessionId('session with spaces')).toThrow('Invalid sessionId format')
+  })
+
+  it('should reject session IDs with special characters', () => {
+    expect(() => validateSessionId('session@id')).toThrow('Invalid sessionId format')
+    expect(() => validateSessionId('session.id')).toThrow('Invalid sessionId format')
+  })
+})
 
 describe('TaskRegistry (Orphan Prevention)', () => {
   let tmpDir: string

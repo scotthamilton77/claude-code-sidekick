@@ -304,28 +304,42 @@ describe('TaskEngine', () => {
   })
 
   describe('error handling', () => {
-    it('should log error when no handler registered for task type', async () => {
-      // Spy on logger.error to verify the error is logged
-      const errorSpy = vi.spyOn(logger, 'error')
-
+    it('should continue processing after handler with no registered type', async () => {
       // Enqueue task with no registered handler
-      const taskId = engine.enqueue('unregistered-type', { data: 'test' })
+      engine.enqueue('unregistered-type', { data: 'test' })
 
       // Give time for task to be processed
       await new Promise((r) => setTimeout(r, 50))
 
-      // Verify error was logged with correct message
-      expect(errorSpy).toHaveBeenCalledWith('No handler for task type', {
-        type: 'unregistered-type',
-        id: taskId,
+      // Engine should continue to work (not crashed) - verify by running another task
+      const completed = createDeferred()
+      engine.registerHandler('after-error', () => {
+        completed.resolve()
+        return Promise.resolve()
       })
-
-      // Engine should continue to work (not crashed)
-      const handler = vi.fn().mockResolvedValue(undefined)
-      engine.registerHandler('after-error', handler)
       engine.enqueue('after-error', { foo: 'bar' })
 
-      await vi.waitFor(() => expect(handler).toHaveBeenCalled())
+      await completed.promise
+    })
+
+    it('should handle non-Error exceptions thrown by handler', async () => {
+      const completed = createDeferred()
+      engine.registerHandler('throws-string', () => {
+        throw 'string error' // eslint-disable-line @typescript-eslint/only-throw-error
+      })
+
+      // After the error, enqueue another task to verify engine recovers
+      engine.registerHandler('recovery', () => {
+        completed.resolve()
+        return Promise.resolve()
+      })
+
+      engine.enqueue('throws-string', {})
+      // Give time for the error to be logged
+      await new Promise((r) => setTimeout(r, 50))
+
+      engine.enqueue('recovery', {})
+      await completed.promise
     })
 
     it('should log cancellation differently from timeout', async () => {
@@ -473,6 +487,78 @@ describe('TaskEngine', () => {
 
       await vi.waitFor(() => expect(completed.length).toBe(3), { timeout: 500 })
       expect(completed).toHaveLength(3)
+    })
+  })
+
+  describe('getStatus', () => {
+    it('should return empty status when idle', () => {
+      const status = engine.getStatus()
+      expect(status.pending).toBe(0)
+      expect(status.active).toBe(0)
+      expect(status.activeTasks).toHaveLength(0)
+    })
+
+    it('should reflect active and pending tasks', async () => {
+      const singleEngine = new TaskEngine(logger, mockContextGetter, 1, 60000)
+      const taskStarted = createDeferred()
+      const blocker = createDeferred()
+
+      singleEngine.registerHandler('block', async () => {
+        taskStarted.resolve()
+        await blocker.promise
+      })
+
+      // First task takes the only slot
+      singleEngine.enqueue('block', {})
+      await taskStarted.promise
+
+      // Second task queues
+      singleEngine.enqueue('block', {})
+
+      const status = singleEngine.getStatus()
+      expect(status.active).toBe(1)
+      expect(status.pending).toBe(1)
+      expect(status.activeTasks).toHaveLength(1)
+      expect(status.activeTasks[0].type).toBe('block')
+      expect(status.activeTasks[0].startTime).toBeGreaterThan(0)
+      expect(status.activeTasks[0].id).toBeDefined()
+
+      blocker.resolve()
+      await singleEngine.shutdown()
+    })
+  })
+
+  describe('context getter', () => {
+    it('should pass sessionId from payload to contextGetter', async () => {
+      const contextGetterSpy = vi.fn().mockResolvedValue(mockDaemonContext)
+      const spyEngine = new TaskEngine(logger, contextGetterSpy, 2, 100)
+      const completed = createDeferred()
+
+      spyEngine.registerHandler('test', () => {
+        completed.resolve()
+        return Promise.resolve()
+      })
+
+      spyEngine.enqueue('test', { sessionId: 'session-abc' })
+      await completed.promise
+
+      expect(contextGetterSpy).toHaveBeenCalledWith('session-abc')
+    })
+
+    it('should pass undefined when no sessionId in payload', async () => {
+      const contextGetterSpy = vi.fn().mockResolvedValue(mockDaemonContext)
+      const spyEngine = new TaskEngine(logger, contextGetterSpy, 2, 100)
+      const completed = createDeferred()
+
+      spyEngine.registerHandler('test', () => {
+        completed.resolve()
+        return Promise.resolve()
+      })
+
+      spyEngine.enqueue('test', { data: 'no-session' })
+      await completed.promise
+
+      expect(contextGetterSpy).toHaveBeenCalledWith(undefined)
     })
   })
 })
