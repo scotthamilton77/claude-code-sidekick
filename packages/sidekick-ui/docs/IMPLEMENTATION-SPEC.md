@@ -1478,6 +1478,32 @@ function extractDetailProps(
 
 **Contracts**: Input/output: `TranscriptLine` from `@sidekick/types`.
 
+### 6.4 Gap List — Components Without Backend Data Sources
+
+Not all components can be wired to real data today. This section identifies components whose target types do not yet exist in `@sidekick/types`, components that need backend events not yet emitted, and transformation functions that depend on types not yet defined.
+
+| # | Component | Missing Data | Blocked By | Resolution |
+|---|-----------|-------------|------------|------------|
+| G-1 | `SessionSelector` | `SessionListResponse` API endpoint not implemented | §4.5 (API routes) | Implement `GET /api/projects/:projectId/sessions` endpoint returning `SessionListResponse` (§3.2) |
+| G-2 | `SessionSelector` | Session enrichment requires reading all state files per session | §3.7 (type extension) | Extend `SessionStateSnapshot` with 8 missing fields (§3.7); implement `GET /api/sessions/:id/state` |
+| G-3 | `TranscriptLineCard` | Transcript events (`user-message`, `assistant-message`, `tool-use`, `tool-result`, `compaction`) have no canonical event definition | §2.4 (event table) | These events originate from Claude Code's transcript, not from Sidekick. Define a `TranscriptEventType` union in `@sidekick/types` or parse them from `transcript-events.log` via `transcript:emitted` records (§2.4 #29) |
+| G-4 | `LEDGutter` | LED assembly (T-2) requires `VerificationToolsState` which may not be written for all sessions | §3.3 #11 | Daemon must write `verification-tools.json` on tool status changes; T-2 must handle `null` gracefully |
+| G-5 | `SummaryStrip` | `Session.contextWindowPct`, `tokenCount`, `costUsd`, `durationSec`, `taskQueueCount` have no backend data source | §7.1.1 (LLM Call Timeline), §7.1.2 (Task Queue) | `contextWindowPct` from `SessionContextMetrics` (§3.3 #14); `tokenCount`/`costUsd` from `LLMMetricsState` (§3.3 #15, file not written — §7.1.1 P-1); `durationSec` derived from session start/end timestamps; `taskQueueCount` from `TaskRegistryState` (§3.3 #19) |
+| G-6 | `StateTab` | Current `StateSnapshot` uses `Record<string, unknown>` for all fields | §3.7 (type extension) | Replace UI-local `StateSnapshot` with extended `SessionStateSnapshot` from `@sidekick/types`; expand `STATE_FILE_LABELS` from 7 entries to 20 (full state file set from §3.3) |
+| G-7 | `Timeline` | 10 of 16 `SidekickEventType` values are "new" events the daemon does not yet emit | §2.9 R2–R6, R8 | Implement backend work items R2 (start/finish pairs), R3 (persona events), R4 (decision events), R5 (reminder:unstaged), R6 (title/intent changed), R8 (error:occurred) |
+| G-8 | `DetailPanel` | State snapshots for time-travel require SSE push of file changes | §4.3 (SSE Bus) | Implement SSE bus for `file:changed` notifications; `DetailPanel` rebuilds state snapshot array on push events |
+| G-9 | `TranscriptLineCard` | Canonical `UIEventType` union not yet defined in `@sidekick/types` | §2.9 R1 | Implement R1: define `UIEventType`, `EventVisibility`, and per-event payload interfaces in `packages/types/src/events.ts` |
+
+#### Cross-Reference Summary
+
+The gaps above form a dependency chain with two other sections:
+
+- **§2.9 (Backend Work Items R1–R8)** blocks G-3, G-7, and G-9. Until the daemon emits canonical events, the Timeline panel shows only events that already exist (3 of 16 event types: `reminder:staged` via `ReminderStaged`, `reminder:consumed` via `ReminderConsumed`, `statusline:rendered` via `StatuslineRendered`). The remaining 10 new event types and 3 renames (§2.4 Status column) require daemon implementation.
+
+- **§7 (Feature Integration Tiers)** defines which gaps are addressed at each tier. Tier 1 critical gaps (§7.1) include LLM call events (G-5 partial) and task queue visibility (G-5 partial). Tier 2 features add persona detail views and pre-compaction snapshots. Components with G-5 gaps can render with `--` fallback values until the corresponding feature tier is implemented.
+
+- **§3.7 (SessionStateSnapshot extension)** blocks G-2 and G-6. The canonical type must be extended with 8 fields before `StateTab` can display typed state data instead of `Record<string, unknown>`.
+
 ## 7. New Feature Integration
 This section specifies the UI integration for each new feature identified in PHASE2-AUDIT §3.3. Features are organized by tier (critical gaps → important enhancements → future work). Each Tier 1 and Tier 2 feature defines its data source, component placement, interaction pattern, and backend readiness.
 
