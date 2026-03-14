@@ -12,7 +12,7 @@
 import type { HookResponse, RuntimeContext } from '@sidekick/core'
 import { IpcService } from '@sidekick/core'
 import type { StopHookEvent } from '@sidekick/types'
-import { createConsumptionHandler, buildDefaultResponse } from './consumption-handler-factory.js'
+import { createConsumptionHandler, buildDefaultResponse, type ResponseBuilderResult } from './consumption-handler-factory.js'
 import { ReminderIds } from '../../types.js'
 import type { CompletionCategory } from '../../types.js'
 
@@ -71,6 +71,15 @@ export function registerInjectStop(context: RuntimeContext): void {
           reasoning: classification.reasoning?.slice(0, 200),
         })
 
+        // Build enrichment for the consumed event
+        const classificationEnrichment: ResponseBuilderResult['enrichment'] = {
+          classificationResult: {
+            category: classification.category,
+            confidence: classification.confidence,
+            shouldBlock: classification.shouldBlock,
+          },
+        }
+
         // Determine response based on classification
         if (classification.shouldBlock) {
           // Claiming completion with high confidence - block with verification
@@ -83,7 +92,10 @@ export function registerInjectStop(context: RuntimeContext): void {
               error: String(clearErr),
             })
           }
-          return buildDefaultResponse(reminder, supportsBlocking)
+          return {
+            response: buildDefaultResponse(reminder, supportsBlocking),
+            enrichment: classificationEnrichment,
+          }
         } else {
           // Non-blocking: set unverified state so we re-stage on next UserPromptSubmit
           cliCtx.logger.info('VC inject-stop: NOT BLOCKING', {
@@ -115,14 +127,14 @@ export function registerInjectStop(context: RuntimeContext): void {
 
           if (classification.category === 'ASKING_QUESTION' || classification.category === 'ANSWERING_QUESTION') {
             // Silent - no interruption
-            return {}
+            return { response: {}, enrichment: classificationEnrichment }
           } else {
             // OTHER - notify user but don't block
             const response: HookResponse = {}
             if (classification.userMessage) {
               response.userMessage = classification.userMessage
             }
-            return response
+            return { response, enrichment: classificationEnrichment }
           }
         }
       } catch (err) {
