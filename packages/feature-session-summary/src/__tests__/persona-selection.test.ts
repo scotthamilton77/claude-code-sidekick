@@ -894,6 +894,27 @@ describe('ensurePersonaForSession', () => {
     expect(mockLogger.wasLoggedAtLevel('Persona state missing for active session, re-selecting', 'info')).toBe(true)
   })
 
+  it('logs warning and does not throw when re-selection fails', async () => {
+    // Set up loader that throws to simulate an error during selectPersonaForSession
+    mockCreatePersonaLoader.mockReturnValue({
+      discover: (): Map<string, PersonaDefinition> => {
+        throw new Error('Persona loader broke')
+      },
+      load: vi.fn(),
+      loadFile: vi.fn(),
+      resolver: {},
+      cascadeLayers: [],
+    })
+
+    const ctx = createMockDaemonContext({ logger: mockLogger, stateService: mockStateService })
+
+    // Should not throw - the catch block handles it
+    await expect(ensurePersonaForSession('test-session', ctx)).resolves.not.toThrow()
+
+    // Verify warning was logged (the catch block on line 321)
+    expect(mockLogger.wasLoggedAtLevel('Failed to ensure persona for session', 'warn')).toBe(true)
+  })
+
   it('does not re-select when persona state already exists', async () => {
     const personas = new Map<string, PersonaDefinition>()
     personas.set('skippy', createMockPersona('skippy'))
