@@ -858,6 +858,13 @@ export interface ReminderUnstagedPayload {
   reminderName: string
   hookName: string
   reason: string
+  /** What caused this unstaging */
+  triggeredBy?: string
+  /** For VC tool unstaging: the tool's state machine snapshot */
+  toolState?: {
+    status: string
+    editsSinceVerified: number
+  }
 }
 
 /** Payload for `reminder:consumed` — a reminder was consumed by a hook. */
