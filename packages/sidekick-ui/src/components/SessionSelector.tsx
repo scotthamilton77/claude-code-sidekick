@@ -11,7 +11,20 @@ interface SessionSelectorProps {
 
 export function SessionSelector({ projects }: SessionSelectorProps) {
   const { state, dispatch } = useNavigation()
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(projects.map((p) => p.id)))
+  // Default: only expand the project with the most recent session
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
+    if (projects.length === 0) return new Set<string>()
+    // Find project whose first session (already sorted newest-first) is most recent
+    let mostRecentProject = projects[0]
+    for (const p of projects) {
+      if (p.sessions.length > 0 && mostRecentProject.sessions.length > 0) {
+        if (p.sessions[0].date > mostRecentProject.sessions[0].date) {
+          mostRecentProject = p
+        }
+      }
+    }
+    return new Set([mostRecentProject.id])
+  })
 
   if (!state.selectorPanel.expanded) {
     const selectedProject = projects.find((p) => p.id === state.selectedProjectId)
