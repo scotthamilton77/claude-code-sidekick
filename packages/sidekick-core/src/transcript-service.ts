@@ -1629,6 +1629,23 @@ export class TranscriptServiceImpl implements TranscriptService {
    */
   private async emitEvent(eventType: TranscriptEventType, entry: TranscriptEntry, lineNumber: number): Promise<void> {
     await this.options.handlers.emitTranscriptEvent(eventType, entry, lineNumber, this.isBulkProcessing)
+
+    // Log transcript:emitted event for observability
+    if (this.sessionId && this.transcriptPath) {
+      const uuid = typeof entry.uuid === 'string' ? entry.uuid : undefined
+      const toolName =
+        (eventType === 'ToolCall' || eventType === 'ToolResult') && typeof entry.name === 'string'
+          ? entry.name
+          : undefined
+      logEvent(
+        this.options.logger,
+        LogEvents.transcriptEventEmitted(
+          { sessionId: this.sessionId },
+          { eventType, lineNumber, uuid, toolName },
+          { transcriptPath: this.transcriptPath, metrics: this.deepCloneMetrics() }
+        )
+      )
+    }
   }
 
   // ============================================================================
