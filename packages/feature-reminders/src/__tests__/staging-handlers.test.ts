@@ -218,14 +218,23 @@ additionalContext: "Lint needed"
       expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
     })
 
-    it('logs warning when reminder definition cannot be resolved', async () => {
-      // Use empty assets so resolveReminder returns null
-      const emptyAssets = new MockAssetResolver()
-      const ctxNoAssets = createMockDaemonContext({ staging, logger, handlers, assets: emptyAssets })
-      // Prevent file-system fallback from finding real YAML files
-      const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
+    describe('when reminder definition cannot be resolved', () => {
+      let cwdSpy: ReturnType<typeof vi.spyOn>
 
-      try {
+      beforeEach(() => {
+        // Prevent file-system fallback from finding real YAML files
+        cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
+      })
+
+      afterEach(() => {
+        cwdSpy.mockRestore()
+      })
+
+      it('logs warning when reminder definition cannot be resolved', async () => {
+        // Use empty assets so resolveReminder returns null
+        const emptyAssets = new MockAssetResolver()
+        const ctxNoAssets = createMockDaemonContext({ staging, logger, handlers, assets: emptyAssets })
+
         registerStagePauseAndReflect(ctxNoAssets)
 
         const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
@@ -237,9 +246,7 @@ additionalContext: "Lint needed"
         // Should not stage and should log warning
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
         expect(logger.wasLoggedAtLevel('Failed to resolve reminder', 'warn')).toBe(true)
-      } finally {
-        cwdSpy.mockRestore()
-      }
+      })
     })
 
     it('calls orchestrator.onReminderStaged after staging', async () => {
