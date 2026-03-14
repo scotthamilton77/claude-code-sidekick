@@ -8,9 +8,10 @@ import { TimelineEventItem } from './TimelineEvent'
 interface TimelineProps {
   events: SidekickEvent[]
   loading?: boolean
+  error?: string | null
 }
 
-export function Timeline({ events, loading }: TimelineProps) {
+export function Timeline({ events, loading, error }: TimelineProps) {
   const { state, dispatch } = useNavigation()
 
   const isEventDimmed = useCallback(
@@ -28,6 +29,8 @@ export function Timeline({ events, loading }: TimelineProps) {
       <div className="flex-1 overflow-y-auto py-1">
         {loading ? (
           <div className="flex items-center justify-center h-32 text-xs text-slate-400">Loading events…</div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-32 text-xs text-red-400 px-2 text-center">{error}</div>
         ) : events.length === 0 ? (
           <div className="flex items-center justify-center h-32 text-xs text-slate-400">No events</div>
         ) : events.map(event => (

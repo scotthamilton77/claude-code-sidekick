@@ -12,7 +12,7 @@ function App() {
   const [state, dispatch] = useReducer(navigationReducer, initialState)
   const { projects, loading, error } = useSessions()
 
-  const { events: timelineEvents, loading: timelineLoading } = useTimeline(
+  const { events: timelineEvents, loading: timelineLoading, error: timelineError } = useTimeline(
     state.selectedProjectId,
     state.selectedSessionId
   )
@@ -78,7 +78,7 @@ function App() {
               <div className="flex-1 flex overflow-hidden">
                 {/* Timeline — fixed width, never compresses */}
                 <div className="w-60 flex-shrink-0 border-r border-slate-200 dark:border-slate-700 overflow-hidden">
-                  <Timeline events={timelineEvents} loading={timelineLoading} />
+                  <Timeline events={timelineEvents} loading={timelineLoading} error={timelineError} />
                 </div>
 
                 {/* Transcript — shrinks when detail open */}
