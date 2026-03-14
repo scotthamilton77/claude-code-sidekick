@@ -14,13 +14,12 @@ export function SessionSelector({ projects }: SessionSelectorProps) {
   // Default: only expand the project with the most recent session
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => {
     if (projects.length === 0) return new Set<string>()
-    // Find project whose first session (already sorted newest-first) is most recent
-    let mostRecentProject = projects[0]
+    // Initialize to first project with sessions, falling back to projects[0]
+    let mostRecentProject = projects.find((p) => p.sessions.length > 0) ?? projects[0]
     for (const p of projects) {
-      if (p.sessions.length > 0 && mostRecentProject.sessions.length > 0) {
-        if (p.sessions[0].dateRaw > mostRecentProject.sessions[0].dateRaw) {
-          mostRecentProject = p
-        }
+      if (p.sessions.length === 0) continue
+      if (mostRecentProject.sessions.length === 0 || p.sessions[0].dateRaw > mostRecentProject.sessions[0].dateRaw) {
+        mostRecentProject = p
       }
     }
     return new Set([mostRecentProject.id])
