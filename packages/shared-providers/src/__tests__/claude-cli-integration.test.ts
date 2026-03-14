@@ -72,9 +72,10 @@ describeIntegration('claude-cli /context integration', () => {
       providerId: 'integration-test',
     })
 
-    // CLI exits with 0 - stdout is empty/whitespace because output goes to transcript
+    // CLI exits with 0 - /context output appears on stdout as markdown
     expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe('') // Key insight: stdout is empty!
+    expect(result.stdout.trim()).not.toBe('')
+    expect(result.stdout).toContain('Context Usage')
 
     // Wait a moment for file system
     await new Promise((resolve) => setTimeout(resolve, 100))
@@ -94,11 +95,12 @@ describeIntegration('claude-cli /context integration', () => {
 
     expect(lines.length).toBeGreaterThan(0)
 
-    // Find the /context output line
+    // Find the /context output line — may be in message.content or content directly
     const contextOutputLine = lines.find((line) => {
       try {
         const entry = JSON.parse(line)
-        return entry.message?.content?.includes('<local-command-stdout>')
+        const text = entry.message?.content ?? entry.content ?? ''
+        return text.includes('<local-command-stdout>')
       } catch {
         return false
       }
@@ -108,14 +110,14 @@ describeIntegration('claude-cli /context integration', () => {
 
     // Parse and verify structure
     const contextEntry = JSON.parse(contextOutputLine!)
-    const stdout = contextEntry.message.content as string
+    const stdout = (contextEntry.message?.content ?? contextEntry.content) as string
 
     // Verify expected markers
     expect(stdout).toContain('<local-command-stdout>')
     expect(stdout).toContain('System prompt')
     expect(stdout).toContain('System tools')
 
-    // Verify token count format: "63.2k / 200.0k (32%)"
+    // Verify token count format: "18k / 200k (9%)"
     expect(stdout).toMatch(/\d+\.?\d*k?\s*\/\s*\d+\.?\d*k?\s*\(/i)
   })
 
@@ -124,18 +126,19 @@ describeIntegration('claude-cli /context integration', () => {
     const content = await fs.readFile(expectedTranscriptPath, 'utf-8')
     const lines = content.trim().split('\n').filter(Boolean)
 
-    // Find the /context output
+    // Find the /context output — may be in message.content or content directly
     const contextLine = lines.find((line) => {
       try {
         const entry = JSON.parse(line)
-        return entry.message?.content?.includes('<local-command-stdout>')
+        const text = entry.message?.content ?? entry.content ?? ''
+        return text.includes('<local-command-stdout>')
       } catch {
         return false
       }
     })
 
     const entry = JSON.parse(contextLine!)
-    const stdout = entry.message.content as string
+    const stdout = (entry.message?.content ?? entry.content) as string
 
     // Verify it has parseable format
     // Either markdown table (| Category | Tokens |) or visual format (Category: Xk tokens)
