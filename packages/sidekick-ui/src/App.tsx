@@ -1,17 +1,18 @@
 import { useReducer, useEffect } from 'react'
 import { NavigationContext, initialState, navigationReducer } from './hooks/useNavigation'
+import { useSessions } from './hooks/useSessions'
 import { SessionSelector } from './components/SessionSelector'
 import { SummaryStrip } from './components/SummaryStrip'
 import { Timeline } from './components/timeline/Timeline'
 import { Transcript } from './components/transcript/Transcript'
 import { DetailPanel } from './components/detail/DetailPanel'
-import { mockProjects } from './data/mock-data'
 
 function App() {
   const [state, dispatch] = useReducer(navigationReducer, initialState)
+  const { projects, loading, error } = useSessions()
 
   // Derive selected data from state
-  const selectedProject = mockProjects.find(p => p.id === state.selectedProjectId)
+  const selectedProject = projects.find(p => p.id === state.selectedProjectId)
   const selectedSession = selectedProject?.sessions.find(s => s.id === state.selectedSessionId)
   const selectedLine = selectedSession?.transcriptLines.find(l => l.id === state.selectedTranscriptLineId)
 
@@ -50,7 +51,17 @@ function App() {
         <div className="h-screen w-screen bg-slate-50 dark:bg-slate-950 flex overflow-hidden">
           {/* Session Selector — compresses to label */}
           <div className={`panel-transition ${selectorWidth} border-r border-slate-200 dark:border-slate-800 overflow-hidden`}>
-            <SessionSelector projects={mockProjects} />
+            {loading ? (
+              <div className="flex items-center justify-center h-full text-slate-400">
+                Loading sessions...
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-full text-red-500 px-4 text-center">
+                {error}
+              </div>
+            ) : (
+              <SessionSelector projects={projects} />
+            )}
           </div>
 
           {/* Dashboard Area — visible when session selected */}
