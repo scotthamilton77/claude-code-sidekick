@@ -129,7 +129,7 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 | 30 | `transcript:pre-compact` | `log` | daemon | `snapshotPath`, `lineCount` |
 | 31 | `error:occurred` | `both` | both | `errorMessage`, `errorStack?`, `source` |
 
-> **†** `hook` is currently stored in `EventLogContext` (the `context` object), not in `payload`. Canonical events flatten this into the payload for consistency — the `hook` field moves from `context.hook` to `payload.hook`.
+> **†** `hook` appears at `payload.hook` in canonical events. In internal `LoggingEvent` records, it is positioned in the `context` object (`context.hook`).
 
 ### 2.5 Naming Mismatch Resolution (PHASE2-AUDIT §2.5)
 
@@ -222,6 +222,7 @@ Timeline filter categories derive from the event type's category prefix (the par
 | `session-summary`, `session-title`, `intent`, `snarky-message`, `resume-message`, `persona` | `session-analysis` | All session lifecycle events |
 | `statusline` | `statusline` | `statusline:rendered` |
 | `error` | `errors` | `error:occurred` |
+| `hook` | `hooks` | `hook:received`, `hook:completed` |
 | `llm` | `llm-calls` | `llm:call-start`, `llm:call-finish` (§7.1.1) |
 | `task` | `tasks` | `task:queued`, `task:completed`, `task:failed` (§7.1.2) |
 | `classifier` | `reminders` | `classifier:completion-result` (§7.1.3) — grouped with reminders since it drives reminder staging |
@@ -256,7 +257,7 @@ Modify `ctx.staging.deleteReminder()` call sites (e.g., `unstage-verify-completi
 
 #### R6: Daemon — emit `session-title:changed` and `intent:changed`
 
-Extract discrete events from `SummaryUpdated` by comparing `old_title`/`old_intent` metadata fields with current values. Emit `session-title:changed` and/or `intent:changed` only when values actually differ.
+Extract discrete events from session summary state by comparing previous and current title/intent values. Emit `session-title:changed` and/or `intent:changed` only when values actually differ.
 
 #### R7: CLI/Daemon — align `ReminderStaged` payload with canonical contract
 
@@ -1106,7 +1107,7 @@ Three principles govern performance work in the UI:
 
 **Threshold:** 200 events — below this, native DOM rendering; at or above, virtual scrolling activates.
 
-**Library:** TanStack Virtual (formerly react-virtual) — zero-dependency, ~3KB gzipped, framework-agnostic.
+**Library:** TanStack Virtual — zero-dependency, ~3KB gzipped, framework-agnostic.
 
 **Why 200:**
 At ~300 bytes/event, 200 events is ~60KB of data — trivially renderable with native DOM. Beyond 200, DOM node count causes measurable layout thrash. The known pain point (1000+ events noted in epic sidekick-n4lx) is well above this threshold.
