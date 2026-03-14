@@ -70,8 +70,8 @@ export async function resolveTranscriptPath(projectId: string, sessionId: string
   // Try directory layout first
   const dirPath = join(claudeProjectDir, sessionId, `${sessionId}.jsonl`)
   try {
-    await stat(dirPath)
-    return dirPath
+    const st = await stat(dirPath)
+    if (st.isFile()) return dirPath
   } catch {
     // fall through
   }
@@ -79,11 +79,13 @@ export async function resolveTranscriptPath(projectId: string, sessionId: string
   // Try bare file layout
   const barePath = join(claudeProjectDir, `${sessionId}.jsonl`)
   try {
-    await stat(barePath)
-    return barePath
+    const st = await stat(barePath)
+    if (st.isFile()) return barePath
   } catch {
-    return null
+    // fall through
   }
+
+  return null
 }
 
 /**

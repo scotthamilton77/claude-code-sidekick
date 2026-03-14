@@ -234,15 +234,15 @@ Each decision follows this structure:
 
 ### D14: Self-contained transcript parser (no @sidekick/core import)
 
-**Decision:** Keep transcript-api.ts self-contained with inline parsing logic, matching the timeline-api.ts pattern. Avoids cross-tsconfig import issues and keeps the server module independent. The @sidekick/core dependency exists in package.json for future SSE/live features but is not imported by the parser.
+**Decision:** Keep transcript-api.ts self-contained with inline parsing logic, matching the timeline-api.ts pattern. No `@sidekick/core` import — importing it breaks the Vite config chain.
 
-**Context:** Transcript parsing requires extracting text content from Claude Code JSONL entries. @sidekick/core already has utilities for this.
+**Context:** Transcript parsing requires extracting text content from Claude Code JSONL entries. `@sidekick/core` already has utilities for this.
 
 **Alternatives considered:**
 1. Duplicate extraction logic in sidekick-ui — no cross-package dependency
-2. Import from @sidekick/core — reuse existing, tested code
+2. Import from `@sidekick/core` — reuse existing, tested code
 
-**Rationale:** The server/ directory uses tsconfig.node.json while @sidekick/core uses its own tsconfig. Cross-tsconfig imports create build complexity. The parsing logic is ~50 lines and self-contained, matching the pattern already established by timeline-api.ts. The @sidekick/core dependency remains in package.json for future SSE/chokidar/pino needs.
+**Rationale:** Importing `@sidekick/core` breaks the Vite config chain: `vite.config.ts` loads `api-plugin.ts` which loads the server modules. If any server module imports `@sidekick/core`, Vite must resolve that package and its transitive dependencies (pino, chokidar, etc.) during config loading, causing resolution failures. The parsing logic is ~50 lines and self-contained, matching the pattern already established by timeline-api.ts. The `@sidekick/core` dependency remains in package.json for future SSE/live features that run outside the Vite config chain.
 
 **Deferred work:** None.
 

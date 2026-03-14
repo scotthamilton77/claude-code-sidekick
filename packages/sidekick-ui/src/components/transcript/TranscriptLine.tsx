@@ -170,11 +170,13 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
             <span className="font-mono">{line.toolName}</span>
             {line.toolDurationMs != null && <span className="ml-2">{line.toolDurationMs}ms</span>}
-            {line.toolInput && (
-              <p className="font-mono text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">
-                {formatToolInput(line.toolName, line.toolInput)}
-              </p>
-            )}
+            {line.toolInput &&
+              (() => {
+                const preview = formatToolInput(line.toolName, line.toolInput)
+                return preview ? (
+                  <p className="font-mono text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{preview}</p>
+                ) : null
+              })()}
           </div>
         )}
 
