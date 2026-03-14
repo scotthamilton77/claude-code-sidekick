@@ -832,7 +832,7 @@ export const UI_EVENT_TYPES = [
 export type UIEventType = (typeof UI_EVENT_TYPES)[number]
 
 // ============================================================================
-// Per-Event Payload Interfaces (flat structure, optional nested state snapshots)
+// Per-Event Payload Interfaces (enriched payloads with optional nested state snapshots)
 // ============================================================================
 
 /** Payload for `reminder:staged` — a reminder was staged for a hook. */

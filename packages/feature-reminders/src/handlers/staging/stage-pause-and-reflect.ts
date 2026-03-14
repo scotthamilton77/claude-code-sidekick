@@ -26,6 +26,10 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
 
       const metrics = event.metadata.metrics
       const sessionId = event.context?.sessionId
+      if (!sessionId) {
+        ctx.logger.warn('[stage-pause-and-reflect] No sessionId available, skipping')
+        return undefined
+      }
       const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
       const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
 
@@ -33,12 +37,10 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
       // Note: Baseline tracking vs countdown has similar complexity. Cross-reminder coordination
       // (baseline resets, turn resets) is now handled by ReminderOrchestrator per 9.6 refactoring.
       let prBaseline: PRBaselineState | null = null
-      if (sessionId) {
-        const remindersState = createRemindersState(ctx.stateService)
-        const result = await remindersState.prBaseline.read(sessionId)
-        if (result.source !== 'default') {
-          prBaseline = result.data
-        }
+      const remindersState = createRemindersState(ctx.stateService)
+      const result = await remindersState.prBaseline.read(sessionId)
+      if (result.source !== 'default') {
+        prBaseline = result.data
       }
 
       // Calculate effective baseline for threshold
@@ -65,7 +67,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
           logEvent(
             ctx.logger,
             ReminderEvents.reminderNotStaged(
-              { sessionId: sessionId ?? '' },
+              { sessionId },
               {
                 reminderName: 'pause-and-reflect',
                 hookName: 'PreToolUse',
@@ -84,7 +86,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
         logEvent(
           ctx.logger,
           ReminderEvents.reminderNotStaged(
-            { sessionId: sessionId ?? '' },
+            { sessionId },
             {
               reminderName: 'pause-and-reflect',
               hookName: 'PreToolUse',
