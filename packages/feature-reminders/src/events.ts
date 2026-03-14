@@ -78,7 +78,7 @@ export const ReminderEvents = {
       hookName: string
       reason: string
       triggeredBy?: string
-      toolState?: { status: string; editsSinceVerified: number }
+      toolState?: { status: 'staged' | 'verified' | 'cooldown'; editsSinceVerified: number }
     }
   ): ReminderUnstagedEvent {
     return {

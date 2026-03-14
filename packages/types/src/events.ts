@@ -825,7 +825,7 @@ export const UI_EVENT_TYPES = [
 export type UIEventType = (typeof UI_EVENT_TYPES)[number]
 
 // ============================================================================
-// Per-Event Payload Interfaces (flat structure)
+// Per-Event Payload Interfaces (flat structure, optional nested state snapshots)
 // ============================================================================
 
 /** Payload for `reminder:staged` — a reminder was staged for a hook. */
@@ -855,7 +855,7 @@ export interface ReminderUnstagedPayload {
   triggeredBy?: string
   /** For VC tool unstaging: the tool's state machine snapshot */
   toolState?: {
-    status: string
+    status: 'staged' | 'verified' | 'cooldown'
     editsSinceVerified: number
   }
 }

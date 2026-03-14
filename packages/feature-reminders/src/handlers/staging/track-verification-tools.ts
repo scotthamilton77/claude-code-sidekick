@@ -16,6 +16,7 @@ import type {
   DaemonContext,
   HandlerContext,
   SidekickEvent,
+  StagingEnrichment,
   TranscriptEvent,
   VerificationToolsState,
 } from '@sidekick/types'
@@ -224,7 +225,16 @@ async function handleBashCommand(
       daemonCtx.logger,
       ReminderEvents.reminderUnstaged(
         { sessionId },
-        { reminderName: reminderId, hookName: 'Stop', reason: 'tool_verified', triggeredBy: 'verification_passed' }
+        {
+          reminderName: reminderId,
+          hookName: 'Stop',
+          reason: 'tool_verified',
+          triggeredBy: 'verification_passed',
+          toolState: {
+            status: toolsState[toolName].status,
+            editsSinceVerified: toolsState[toolName].editsSinceVerified,
+          },
+        }
       )
     )
     anyUnstaged = true
@@ -267,7 +277,7 @@ async function ensureToolReminderStaged(
   daemonCtx: DaemonContext,
   reminderId: string,
   stagedNames: Set<string>,
-  enrichment?: import('@sidekick/types').StagingEnrichment
+  enrichment?: StagingEnrichment
 ): Promise<boolean> {
   if (stagedNames.has(reminderId)) return true
 
