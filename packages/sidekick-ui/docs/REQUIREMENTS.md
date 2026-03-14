@@ -31,7 +31,7 @@ The timeline supports emphasis modes that highlight specific event types (hook e
 The dashboard shows summary-level indicators (task queue count, active persona, context window %). Detail is accessed via overlays or panels that expand rightward, following the compression pattern (see Navigation Model).
 
 ### DP-5: Confidence as Visual Signal
-Session summary confidence is communicated directly on timeline events via color-coded badges (green ≥0.8, amber 0.5–0.8, red <0.5) with dual badge format showing both title and intent confidence.
+Session summary confidence is communicated directly on timeline events via color-coded badges (green >0.8, amber 0.5–0.8, red <0.5) with dual badge format showing both title and intent confidence.
 
 ## 3. Navigation Model
 
@@ -143,7 +143,7 @@ Auto-follow new events as they arrive. File watching or polling — implementati
 Questions from initial requirements, resolved during prototyping:
 
 - **Focus filters**: Composable. Multiple filters can be active simultaneously (implemented as `Set<TimelineFilter>`). Non-matching events dim rather than hide, preserving timeline context.
-- **Confidence visualization**: Color-coded badges on timeline events (green ≥0.8, amber 0.5–0.8, red <0.5). Dual badge format showing both title and intent confidence.
+- **Confidence visualization**: Color-coded badges on timeline events (green >0.8, amber 0.5–0.8, red <0.5). Dual badge format showing both title and intent confidence.
 - **Drill-down compression**: Panels compress leftward with CSS transitions. The session selector compresses to a 40px vertical label; the dashboard compresses when the detail panel opens.
 - **Session selector**: Tree view grouped by project, with sessions sorted by last-modified (most recent first). Expandable project nodes, live indicator for active sessions.
 

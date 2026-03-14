@@ -227,7 +227,7 @@ Timeline filter categories derive from the event type's category prefix (the par
 | `task` | `tasks` | `task:queued`, `task:completed`, `task:failed` (§7.1.2) |
 | `classifier` | `reminders` | `classifier:completion-result` (§7.1.3) — grouped with reminders since it drives reminder staging |
 
-The `TimelineFilter` type and `EVENT_TO_FILTER` mapping in `@sidekick/types` implement this derivation.
+The `TimelineFilter` type and `EVENT_TO_FILTER` mapping implement this derivation. Both are defined in `@sidekick/types`.
 
 > **Grouping rationale**: The `session-analysis` category groups seven event types that collectively describe the session's evolving metadata — summary analysis, title changes, intent shifts, persona selection, and generated messages. Filtering them together surfaces the complete session evolution narrative.
 
@@ -1975,7 +1975,7 @@ Events introduced by this section that must be added to the canonical event tabl
 | 37 | `task:failed` | `both` | daemon | Task Engine | G-2 |
 | 38 | `classifier:completion-result` | `timeline` | daemon | Reminder System | G-11 |
 
-> **Note:** These 7 events follow the `category:action` naming convention (§2.2) and extend the canonical event table (§2.4) to a total of 38 events. Three new categories are added: `llm`, `task`, `classifier`. The corresponding `UIEventType` values and filter category mappings (§2.8) are included in the table above.
+> **Note:** These 7 events follow the `category:action` naming convention (§2.2) and extend the canonical event table (§2.4) to a total of 38 events. Three new categories are added: `llm`, `task`, `classifier`. The corresponding `UIEventType` values and filter category mappings (§2.8) are defined in the table above.
 
 ### 7.6 Requirements Traceability
 
