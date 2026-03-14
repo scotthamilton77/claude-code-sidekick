@@ -1,4 +1,5 @@
 import { readFile, stat } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 /**
@@ -57,18 +58,23 @@ const SKIP_SYSTEM_SUBTYPES = new Set([
 /**
  * Resolve the path to a session's transcript JSONL file.
  *
+ * Claude Code stores transcripts under ~/.claude/projects/{projectId}/.
+ * The projectId is the registry-style ID (e.g. `-Users-foo`).
+ *
  * Two layouts exist:
- *   Directory: {projectDir}/{sessionId}/{sessionId}.jsonl
- *   Bare file: {projectDir}/{sessionId}.jsonl
+ *   Directory: ~/.claude/projects/{projectId}/{sessionId}/{sessionId}.jsonl
+ *   Bare file: ~/.claude/projects/{projectId}/{sessionId}.jsonl
  *
  * Returns the path if found, null otherwise.
  */
 export async function resolveTranscriptPath(
-  projectDir: string,
+  projectId: string,
   sessionId: string
 ): Promise<string | null> {
+  const claudeProjectDir = join(homedir(), '.claude', 'projects', projectId)
+
   // Try directory layout first
-  const dirPath = join(projectDir, sessionId, `${sessionId}.jsonl`)
+  const dirPath = join(claudeProjectDir, sessionId, `${sessionId}.jsonl`)
   try {
     await stat(dirPath)
     return dirPath
@@ -77,7 +83,7 @@ export async function resolveTranscriptPath(
   }
 
   // Try bare file layout
-  const barePath = join(projectDir, `${sessionId}.jsonl`)
+  const barePath = join(claudeProjectDir, `${sessionId}.jsonl`)
   try {
     await stat(barePath)
     return barePath
@@ -319,10 +325,10 @@ function extractMetadata(entry: Record<string, unknown>): Pick<
  * Returns lines in file order (no sorting).
  */
 export async function parseTranscriptLines(
-  projectDir: string,
+  projectId: string,
   sessionId: string
 ): Promise<ApiTranscriptLine[]> {
-  const filePath = await resolveTranscriptPath(projectDir, sessionId)
+  const filePath = await resolveTranscriptPath(projectId, sessionId)
   if (!filePath) return []
 
   let content: string

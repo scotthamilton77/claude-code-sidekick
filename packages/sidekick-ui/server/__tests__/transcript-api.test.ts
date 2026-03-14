@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Mock node:os
+vi.mock('node:os', () => ({
+  homedir: () => '/home/testuser',
+}))
+
 // Mock node:fs/promises
 const mockReadFile = vi.fn()
 const mockAccess = vi.fn()
@@ -90,6 +95,8 @@ function makePrLinkEntry(overrides: Record<string, unknown> = {}): string {
 // Import after mocks
 import { resolveTranscriptPath, parseTranscriptLines } from '../transcript-api.js'
 
+const CLAUDE_PROJECT_BASE = '/home/testuser/.claude/projects/myproject'
+
 describe('resolveTranscriptPath', () => {
   it('returns dir-layout path when exists', async () => {
     // Directory layout: {sessionId}/{sessionId}.jsonl exists
@@ -100,8 +107,8 @@ describe('resolveTranscriptPath', () => {
       return Promise.reject(new Error('ENOENT'))
     })
 
-    const result = await resolveTranscriptPath('/projects/myproject', 'session-1')
-    expect(result).toBe('/projects/myproject/session-1/session-1.jsonl')
+    const result = await resolveTranscriptPath('myproject', 'session-1')
+    expect(result).toBe(`${CLAUDE_PROJECT_BASE}/session-1/session-1.jsonl`)
   })
 
   it('falls back to bare file', async () => {
@@ -112,15 +119,26 @@ describe('resolveTranscriptPath', () => {
       return Promise.reject(new Error('ENOENT'))
     })
 
-    const result = await resolveTranscriptPath('/projects/myproject', 'session-1')
-    expect(result).toBe('/projects/myproject/session-1.jsonl')
+    const result = await resolveTranscriptPath('myproject', 'session-1')
+    expect(result).toBe(`${CLAUDE_PROJECT_BASE}/session-1.jsonl`)
   })
 
   it('returns null when neither exists', async () => {
     mockStat.mockRejectedValue(new Error('ENOENT'))
 
-    const result = await resolveTranscriptPath('/projects/myproject', 'session-1')
+    const result = await resolveTranscriptPath('myproject', 'session-1')
     expect(result).toBeNull()
+  })
+
+  it('constructs correct paths from projectId and homedir', async () => {
+    mockStat.mockRejectedValue(new Error('ENOENT'))
+
+    await resolveTranscriptPath('-Users-foo', 'session-1')
+
+    // Verify stat was called with the correct ~/.claude/projects/ path
+    const statCalls = mockStat.mock.calls.map((c: unknown[]) => c[0])
+    expect(statCalls[0]).toBe('/home/testuser/.claude/projects/-Users-foo/session-1/session-1.jsonl')
+    expect(statCalls[1]).toBe('/home/testuser/.claude/projects/-Users-foo/session-1.jsonl')
   })
 })
 
@@ -140,7 +158,7 @@ describe('parseTranscriptLines', () => {
   it('parses user text message (string content) -> user-message', async () => {
     setupTranscript(makeUserEntry('Hello, world!'))
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('user-message')
     expect(lines[0].content).toBe('Hello, world!')
@@ -151,7 +169,7 @@ describe('parseTranscriptLines', () => {
       makeUserEntry([{ type: 'text', text: 'Array text content' }])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('user-message')
     expect(lines[0].content).toBe('Array text content')
@@ -168,7 +186,7 @@ describe('parseTranscriptLines', () => {
       ])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('tool-result')
     expect(lines[0].toolOutput).toBe('Tool output text')
@@ -187,7 +205,7 @@ describe('parseTranscriptLines', () => {
       ])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('tool-result')
     expect(lines[0].toolOutput).toBe('Error occurred')
@@ -199,7 +217,7 @@ describe('parseTranscriptLines', () => {
       makeAssistantEntry([{ type: 'text', text: 'Hello from assistant' }])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('assistant-message')
     expect(lines[0].content).toBe('Hello from assistant')
@@ -210,7 +228,7 @@ describe('parseTranscriptLines', () => {
       makeAssistantEntry([{ type: 'thinking', thinking: 'Let me think about this...' }])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('assistant-message')
     expect(lines[0].thinking).toBe('Let me think about this...')
@@ -228,7 +246,7 @@ describe('parseTranscriptLines', () => {
       ])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('tool-use')
     expect(lines[0].toolName).toBe('Read')
@@ -248,7 +266,7 @@ describe('parseTranscriptLines', () => {
       ])
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(2)
     expect(lines[0].type).toBe('assistant-message')
     expect(lines[0].content).toBe('Let me read that file.')
@@ -265,7 +283,7 @@ describe('parseTranscriptLines', () => {
       })
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('compaction')
     expect(lines[0].compactionTokensBefore).toBe(85000)
@@ -276,7 +294,7 @@ describe('parseTranscriptLines', () => {
       makeSystemEntry('turn_duration', { durationMs: 12500 })
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('turn-duration')
     expect(lines[0].durationMs).toBe(12500)
@@ -291,7 +309,7 @@ describe('parseTranscriptLines', () => {
       })
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('api-error')
     expect(lines[0].retryAttempt).toBe(2)
@@ -302,7 +320,7 @@ describe('parseTranscriptLines', () => {
   it('parses pr-link -> pr-link with prUrl, prNumber', async () => {
     setupTranscript(makePrLinkEntry())
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('pr-link')
     expect(lines[0].prUrl).toBe('https://github.com/org/repo/pull/42')
@@ -317,7 +335,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(2)
     expect(lines.every((l) => l.type === 'user-message')).toBe(true)
   })
@@ -329,7 +347,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
   })
 
@@ -340,7 +358,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
   })
 
@@ -351,7 +369,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
   })
 
@@ -362,7 +380,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
   })
 
@@ -374,7 +392,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].content).toBe('Hello')
   })
@@ -382,14 +400,14 @@ describe('parseTranscriptLines', () => {
   it('returns empty array when file does not exist', async () => {
     mockStat.mockRejectedValue(new Error('ENOENT'))
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toEqual([])
   })
 
   it('returns empty array when file is empty', async () => {
     setupTranscript('')
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toEqual([])
   })
 
@@ -401,7 +419,7 @@ describe('parseTranscriptLines', () => {
       )
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].isSidechain).toBe(true)
   })
@@ -414,7 +432,7 @@ describe('parseTranscriptLines', () => {
       )
     )
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
     expect(lines[0].model).toBe('claude-opus-4-20250514')
   })
@@ -429,7 +447,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines[0].id).toBe('transcript-0-0')
     expect(lines[1].id).toBe('transcript-1-0')
     expect(lines[2].id).toBe('transcript-1-1')
@@ -446,7 +464,7 @@ describe('parseTranscriptLines', () => {
     ].join('\n')
     setupTranscript(content)
 
-    const lines = await parseTranscriptLines('/projects/myproject', 'session-1')
+    const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(3)
     expect(lines[0].content).toBe('First')
     expect(lines[1].content).toBe('Second')
@@ -454,5 +472,44 @@ describe('parseTranscriptLines', () => {
     // Timestamps ascending
     expect(lines[0].timestamp).toBeLessThan(lines[1].timestamp)
     expect(lines[1].timestamp).toBeLessThan(lines[2].timestamp)
+  })
+
+  it('skips last-prompt entries', async () => {
+    const content = [
+      makeUserEntry('Hello'),
+      JSON.stringify({ type: 'last-prompt', timestamp: DEFAULT_TIMESTAMP, prompt: 'some prompt' }),
+      makeUserEntry('World'),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(2)
+    expect(lines.every((l) => l.type === 'user-message')).toBe(true)
+  })
+
+  it('preserves isMeta flag on entries', async () => {
+    setupTranscript(
+      makeAssistantEntry(
+        [{ type: 'text', text: 'Meta response' }],
+        { isMeta: true }
+      )
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].isMeta).toBe(true)
+  })
+
+  it('preserves isCompactSummary flag on entries', async () => {
+    setupTranscript(
+      makeAssistantEntry(
+        [{ type: 'text', text: 'Summary of compacted context' }],
+        { isCompactSummary: true }
+      )
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].isCompactSummary).toBe(true)
   })
 })
