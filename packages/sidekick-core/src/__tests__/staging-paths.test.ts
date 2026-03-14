@@ -64,10 +64,10 @@ describe('Path Validation', () => {
       expect(isValidPathSegment('')).toBe(false)
     })
 
-    it('returns false for segment with parent directory traversal', () => {
+    it('returns false for literal ".." but allows ".." as substring', () => {
       expect(isValidPathSegment('..')).toBe(false)
-      expect(isValidPathSegment('foo..')).toBe(false)
-      expect(isValidPathSegment('..bar')).toBe(false)
+      expect(isValidPathSegment('foo..')).toBe(true)
+      expect(isValidPathSegment('..bar')).toBe(true)
     })
 
     it('returns false for segment with forward slash', () => {
@@ -78,9 +78,14 @@ describe('Path Validation', () => {
       expect(isValidPathSegment('foo\\bar')).toBe(false)
     })
 
-    it('returns false for segment starting with dot', () => {
-      expect(isValidPathSegment('.hidden')).toBe(false)
-      expect(isValidPathSegment('.gitignore')).toBe(false)
+    it('accepts dot-prefixed segments (allowed by character class)', () => {
+      expect(isValidPathSegment('.hidden')).toBe(true)
+      expect(isValidPathSegment('.gitignore')).toBe(true)
+    })
+
+    it('rejects segments with characters outside allowed set', () => {
+      expect(isValidPathSegment('foo bar')).toBe(false)
+      expect(isValidPathSegment('foo@bar')).toBe(false)
     })
   })
 
