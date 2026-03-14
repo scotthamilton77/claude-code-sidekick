@@ -2,7 +2,7 @@
  * Tests for user profile reminder staging handler
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   createMockDaemonContext,
   createMockCLIContext,
@@ -134,28 +134,35 @@ describe('stageUserProfileRemindersForSession', () => {
     expect(debugLog!.meta).toMatchObject({ sessionId: 'test-session', userName: 'Scott' })
   })
 
-  it('logs warning when reminder YAML cannot be resolved', async () => {
-    mockLoadUserProfile.mockReturnValue({
-      name: 'Scott',
-      role: 'Dev',
-      interests: [],
+  describe('when reminder YAML cannot be resolved', () => {
+    let cwdSpy: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      // Prevent file-system fallback from finding real YAML files
+      cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
     })
 
-    // Remove the YAML asset so resolveReminder returns null
-    mockAssets.reset()
-    // Also prevent file-system fallback from finding real YAML files
-    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
+    afterEach(() => {
+      cwdSpy.mockRestore()
+    })
 
-    try {
+    it('logs warning when reminder YAML cannot be resolved', async () => {
+      mockLoadUserProfile.mockReturnValue({
+        name: 'Scott',
+        role: 'Dev',
+        interests: [],
+      })
+
+      // Remove the YAML asset so resolveReminder returns null
+      mockAssets.reset()
+
       await stageUserProfileRemindersForSession(ctx, 'test-session')
 
       expect(mockLogger.wasLoggedAtLevel('Failed to resolve user-profile reminder', 'warn')).toBe(true)
       // No reminders should be staged
       expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
       expect(staging.getRemindersForHook('SessionStart')).toHaveLength(0)
-    } finally {
-      cwdSpy.mockRestore()
-    }
+    })
   })
 })
 
