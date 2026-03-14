@@ -28,7 +28,15 @@ export default defineConfig({
         'src/daemon.ts', // Orchestration layer, tested via E2E
         'src/index.ts', // Process entrypoint only
         'src/handlers/index.ts', // Barrel file - just re-exports
+        'src/context-metrics/index.ts', // Barrel file - just re-exports
+        'src/context-metrics/types.ts', // Pure type re-exports, no runtime logic
       ],
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 88, // Chokidar error/ready callbacks are internal and untestable in unit tests
+        lines: 90,
+      },
     },
   },
 })
