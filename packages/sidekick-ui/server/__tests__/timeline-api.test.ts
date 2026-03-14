@@ -105,7 +105,7 @@ describe('parseTimelineEvents', () => {
       'not valid json',
       makeLogLine({ time: 1000, type: 'reminder:staged' }),
       '{broken',
-      makeLogLine({ time: 2000, type: 'decision:recorded', payload: { category: 'testing', reasoning: 'tests passed' } }),
+      makeLogLine({ time: 2000, type: 'decision:recorded', payload: { decision: 'skip-tests', reason: 'tests passed' } }),
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
@@ -187,8 +187,8 @@ describe('generateLabel', () => {
   })
 
   it('generates label for decision:recorded', () => {
-    const result = generateLabel('decision:recorded', { category: 'testing', reasoning: 'tests already passed' })
-    expect(result).toEqual({ label: 'Decision: testing', detail: 'tests already passed' })
+    const result = generateLabel('decision:recorded', { decision: 'skip-tests', reason: 'tests already passed' })
+    expect(result).toEqual({ label: 'Decision: skip-tests', detail: 'tests already passed' })
   })
 
   it('generates label for session-title:changed', () => {
@@ -240,7 +240,7 @@ describe('generateLabel', () => {
 
   it('generates label for resume-message:finish', () => {
     const longMessage = 'c'.repeat(100)
-    const result = generateLabel('resume-message:finish', { generatedMessage: longMessage })
+    const result = generateLabel('resume-message:finish', { snarky_comment: longMessage })
     expect(result).toEqual({ label: 'Resume Complete', detail: 'c'.repeat(80) })
   })
 

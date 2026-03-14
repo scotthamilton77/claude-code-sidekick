@@ -80,9 +80,9 @@ export function generateLabel(
       return { label: `Consumed: ${name}` }
     }
     case 'decision:recorded': {
-      const category = (payload.category as string) || 'unknown'
-      const reasoning = payload.reasoning as string | undefined
-      return { label: `Decision: ${category}`, ...(reasoning ? { detail: reasoning } : {}) }
+      const decision = (payload.decision as string) || 'unknown'
+      const reason = payload.reason as string | undefined
+      return { label: `Decision: ${decision}`, ...(reason ? { detail: reason } : {}) }
     }
     case 'session-title:changed': {
       const newVal = (payload.newValue as string) || 'unknown'
@@ -133,7 +133,7 @@ export function generateLabel(
     case 'resume-message:start':
       return { label: 'Resume Started' }
     case 'resume-message:finish': {
-      const msg = payload.generatedMessage as string | undefined
+      const msg = payload.snarky_comment as string | undefined
       return {
         label: 'Resume Complete',
         ...(msg ? { detail: msg.slice(0, 80) } : {}),

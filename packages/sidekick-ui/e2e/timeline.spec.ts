@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type APIRequestContext } from '@playwright/test'
 
 // Helper: find a project that has at least one session, returning both
 async function findProjectWithSessions(
-  request: Parameters<Parameters<typeof test>[1]>[0]['request']
+  request: APIRequestContext
 ): Promise<{
   project: { id: string; name: string }
   sessions: Array<{ id: string; title: string }>
