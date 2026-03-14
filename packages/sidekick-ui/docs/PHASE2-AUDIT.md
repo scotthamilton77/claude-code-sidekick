@@ -41,23 +41,23 @@ Transcript Logging Events:
 
 ### 1.2 Types Handled by UI
 
-Current UI event types (packages/sidekick-ui/src/types.ts — 16 Sidekick event types):
-1. 'reminder-staged' — ReminderDetail component
-2. 'reminder-unstaged' — ReminderDetail component
-3. 'reminder-consumed' — ReminderDetail component
-4. 'decision' — DecisionDetail component
-5. 'session-summary-start' — inline rendering
-6. 'session-summary-finish' — inline rendering
-7. 'session-title-changed' — DetailPanel
-8. 'intent-changed' — DetailPanel
-9. 'snarky-message-start' — inline rendering
-10. 'snarky-message-finish' — DetailPanel
-11. 'resume-message-start' — inline rendering
-12. 'resume-message-finish' — DetailPanel
-13. 'persona-selected' — DetailPanel
-14. 'persona-changed' — DetailPanel
-15. 'statusline-rendered' — DetailPanel
-16. 'log-error' — ErrorDetail component
+UI event types (16 types rendered on the timeline and transcript):
+1. 'reminder:staged' — ReminderDetail component
+2. 'reminder:unstaged' — ReminderDetail component
+3. 'reminder:consumed' — ReminderDetail component
+4. 'decision:recorded' — DecisionDetail component
+5. 'session-summary:start' — inline rendering
+6. 'session-summary:finish' — inline rendering
+7. 'session-title:changed' — DetailPanel
+8. 'intent:changed' — DetailPanel
+9. 'snarky-message:start' — inline rendering
+10. 'snarky-message:finish' — DetailPanel
+11. 'resume-message:start' — inline rendering
+12. 'resume-message:finish' — DetailPanel
+13. 'persona:selected' — DetailPanel
+14. 'persona:changed' — DetailPanel
+15. 'statusline:rendered' — DetailPanel
+16. 'error:occurred' — ErrorDetail component
 
 Transcript line types:
 - 'user-message', 'assistant-message', 'tool-use', 'tool-result', 'compaction'
@@ -415,7 +415,6 @@ None of the three mockup options (Data-Dense Dashboard, Focus & Flow, Timeline-C
 **Overall assessment**: MONITORING-UI.md retains value as context for the original design intent (time travel debugging, log-based reconstruction, compaction awareness). However, it should not be used for implementation decisions — REQUIREMENTS.md and this audit document supersede it for all actionable requirements, event schemas, and UI layout specifications.
 
 ## 7. Traceability
->>>>>>> f9d4315 (docs(ui): add MONITORING-UI.md accuracy assessment to Phase 2 audit)
 
 | Source | Issue | Status |
 |--------|-------|--------|
