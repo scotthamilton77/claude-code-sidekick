@@ -244,6 +244,7 @@ function renderSidekickDetail(line: TLine) {
     case 'reminder:staged':
     case 'reminder:unstaged':
     case 'reminder:consumed':
+    case 'reminder:cleared':
       return (
         <div className="flex items-center gap-2 text-[10px] mt-0.5">
           <span
@@ -353,6 +354,7 @@ function getLineStyles(line: TLine) {
     case 'reminder:staged':
     case 'reminder:unstaged':
     case 'reminder:consumed':
+    case 'reminder:cleared':
       return {
         bg: 'bg-rose-50/50 dark:bg-rose-950/20',
         border: 'border border-rose-200 dark:border-rose-800/50',

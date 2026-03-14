@@ -2,11 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { SIDEKICK_EVENT_TO_FILTER, type SidekickEventType, type TimelineFilter } from '../types'
 
 describe('SIDEKICK_EVENT_TO_FILTER', () => {
-  it('should map all 16 SidekickEventType values', () => {
+  it('should map all 17 SidekickEventType values', () => {
     const expectedTypes: SidekickEventType[] = [
       'reminder:staged',
       'reminder:unstaged',
       'reminder:consumed',
+      'reminder:cleared',
       'decision:recorded',
       'session-summary:start',
       'session-summary:finish',
@@ -28,6 +29,7 @@ describe('SIDEKICK_EVENT_TO_FILTER', () => {
     expect(SIDEKICK_EVENT_TO_FILTER['reminder:staged']).toBe('reminders')
     expect(SIDEKICK_EVENT_TO_FILTER['reminder:unstaged']).toBe('reminders')
     expect(SIDEKICK_EVENT_TO_FILTER['reminder:consumed']).toBe('reminders')
+    expect(SIDEKICK_EVENT_TO_FILTER['reminder:cleared']).toBe('reminders')
   })
 
   it('should map analysis events to session-analysis filter', () => {

@@ -162,6 +162,23 @@ describe('parseTimelineEvents', () => {
     expect(events.map((e) => e.timestamp)).toEqual([1000, 2000, 3000, 4000])
   })
 
+  it('includes reminder:cleared events', async () => {
+    const line = makeLogLine({
+      time: 1000,
+      type: 'reminder:cleared',
+      reminderType: 'vc-build',
+    })
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sidekick.1.log')) return Promise.resolve(line)
+      return Promise.resolve('')
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'session-1')
+    expect(events).toHaveLength(1)
+    expect(events[0].type).toBe('reminder:cleared')
+    expect(events[0].label).toBe('Cleared: vc-build')
+  })
+
   it('returns empty array when log directory does not exist', async () => {
     mockReaddir.mockRejectedValue(new Error('ENOENT'))
 
@@ -192,6 +209,16 @@ describe('generateLabel', () => {
   it('generates label for reminder:consumed', () => {
     const result = generateLabel('reminder:consumed', { reminderName: 'verify-completion' })
     expect(result).toEqual({ label: 'Consumed: verify-completion' })
+  })
+
+  it('generates label for reminder:cleared', () => {
+    const result = generateLabel('reminder:cleared', { reminderType: 'vc-build' })
+    expect(result).toEqual({ label: 'Cleared: vc-build' })
+  })
+
+  it('generates label for reminder:cleared with no reminderType', () => {
+    const result = generateLabel('reminder:cleared', {})
+    expect(result).toEqual({ label: 'Cleared: all' })
   })
 
   it('generates label for decision:recorded', () => {

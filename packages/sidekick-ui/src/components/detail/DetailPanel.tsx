@@ -69,6 +69,7 @@ function DetailContent({ line }: { line: TranscriptLine }) {
     case 'reminder:staged':
     case 'reminder:unstaged':
     case 'reminder:consumed':
+    case 'reminder:cleared':
       return <ReminderDetail line={line} />
     case 'error:occurred':
       return <ErrorDetail line={line} />

@@ -287,6 +287,7 @@ describe('parseTranscriptLines', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('compaction')
     expect(lines[0].compactionTokensBefore).toBe(85000)
+    expect(lines[0].compactionTokensAfter).toBe(42000)
   })
 
   it('parses system/turn_duration -> turn-duration with durationMs', async () => {

@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto'
  * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
  */
 export type TimelineSidekickEventType =
-  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed'
+  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed' | 'reminder:cleared'
   | 'decision:recorded'
   | 'session-summary:start' | 'session-summary:finish' | 'session-title:changed' | 'intent:changed'
   | 'snarky-message:start' | 'snarky-message:finish' | 'resume-message:start' | 'resume-message:finish'
@@ -34,6 +34,7 @@ const TIMELINE_EVENT_TYPES = new Set<string>([
   'reminder:staged',
   'reminder:unstaged',
   'reminder:consumed',
+  'reminder:cleared',
   'decision:recorded',
   'session-summary:start',
   'session-summary:finish',
@@ -78,6 +79,10 @@ export function generateLabel(
     case 'reminder:consumed': {
       const name = (payload.reminderName as string) || 'unknown'
       return { label: `Consumed: ${name}` }
+    }
+    case 'reminder:cleared': {
+      const reminderType = (payload.reminderType as string) ?? 'all'
+      return { label: `Cleared: ${reminderType}` }
     }
     case 'decision:recorded': {
       const decision = (payload.decision as string) || 'unknown'

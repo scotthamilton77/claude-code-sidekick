@@ -6,6 +6,7 @@ export type SidekickEventType =
   | 'reminder:staged'
   | 'reminder:unstaged'
   | 'reminder:consumed'
+  | 'reminder:cleared'
   | 'decision:recorded'
   | 'session-summary:start'
   | 'session-summary:finish'
@@ -190,6 +191,7 @@ export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter>
   'reminder:staged': 'reminders',
   'reminder:unstaged': 'reminders',
   'reminder:consumed': 'reminders',
+  'reminder:cleared': 'reminders',
   'decision:recorded': 'decisions',
   'session-summary:start': 'session-analysis',
   'session-summary:finish': 'session-analysis',
