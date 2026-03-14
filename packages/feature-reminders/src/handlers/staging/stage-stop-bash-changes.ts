@@ -8,7 +8,8 @@
  * @see docs/plans/2026-02-16-bash-vc-detection-design.md
  */
 import type { RuntimeContext } from '@sidekick/core'
-import { getGitFileStatus } from '@sidekick/core'
+import { getGitFileStatus, logEvent } from '@sidekick/core'
+import { ReminderEvents } from '../../events.js'
 import { isDaemonContext, isHookEvent, isTranscriptEvent } from '@sidekick/types'
 import type { DaemonContext, VerificationToolsState } from '@sidekick/types'
 import picomatch from 'picomatch'
@@ -87,6 +88,18 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       if (lastConsumed?.stagedAt) {
         const shouldReactivate = metrics.turnCount > lastConsumed.stagedAt.turnCount
         if (!shouldReactivate) {
+          logEvent(
+            daemonCtx.logger,
+            ReminderEvents.reminderNotStaged(
+              { sessionId },
+              {
+                reminderName: 'verify-completion',
+                hookName: 'Stop',
+                reason: 'same_turn',
+                triggeredBy: 'bash_command',
+              }
+            )
+          )
           daemonCtx.logger.debug('Bash VC: skipped (already consumed this turn)', {
             currentTurn: metrics.turnCount,
             lastConsumedTurn: lastConsumed.stagedAt.turnCount,
@@ -106,7 +119,21 @@ export function registerStageBashChanges(context: RuntimeContext): void {
         newFileCount: newFiles.length,
       })
 
-      if (newFiles.length === 0) return
+      if (newFiles.length === 0) {
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderNotStaged(
+            { sessionId },
+            {
+              reminderName: 'verify-completion',
+              hookName: 'Stop',
+              reason: 'no_changes_detected',
+              triggeredBy: 'bash_command',
+            }
+          )
+        )
+        return
+      }
 
       // Filter through source code patterns
       const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
@@ -114,6 +141,18 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       const sourceMatches = newFiles.filter((f) => picomatch.isMatch(f, config.source_code_patterns))
 
       if (sourceMatches.length === 0) {
+        logEvent(
+          daemonCtx.logger,
+          ReminderEvents.reminderNotStaged(
+            { sessionId },
+            {
+              reminderName: 'verify-completion',
+              hookName: 'Stop',
+              reason: 'pattern_mismatch',
+              triggeredBy: 'bash_command',
+            }
+          )
+        )
         daemonCtx.logger.debug('Bash VC: new files found but no source code matches', { newFiles })
         return
       }

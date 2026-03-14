@@ -1816,6 +1816,103 @@ additionalContext: "Standard user prompt reminder"
         expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
       })
     })
+
+    describe('reminder:not-staged events', () => {
+      it('should emit not-staged when reactivation skipped (same turn)', async () => {
+        registerStageBashChanges(ctx)
+
+        // Capture baseline
+        mockGetGitFileStatus.mockResolvedValue([])
+        const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+        await baselineHandler?.handler(
+          createUserPromptSubmitEvent(),
+          ctx as unknown as import('@sidekick/types').HandlerContext
+        )
+
+        // First Bash creates a source file — stages VC
+        mockGetGitFileStatus.mockResolvedValue(['src/a.ts'])
+        const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+        const event1 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+        await bashHandler?.handler(event1, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('Stop').map((r) => r.name)).toContain('verify-completion')
+
+        // Simulate consumption
+        staging.addConsumedReminder('Stop', 'verify-completion', {
+          name: 'verify-completion',
+          blocking: true,
+          priority: 51,
+          persistent: false,
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+        })
+        await staging.deleteReminder('Stop', 'verify-completion')
+
+        logger.reset()
+
+        // Second Bash same turn — should skip reactivation
+        mockGetGitFileStatus.mockResolvedValue(['src/a.ts', 'src/b.ts'])
+        const event2 = createToolResultEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'Bash')
+        await bashHandler?.handler(event2, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('same_turn')
+        expect(notStagedEvents[0].meta?.triggeredBy).toBe('bash_command')
+      })
+
+      it('should emit not-staged when no new files detected', async () => {
+        registerStageBashChanges(ctx)
+
+        // Capture baseline
+        mockGetGitFileStatus.mockResolvedValue(['src/a.ts'])
+        const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+        await baselineHandler?.handler(
+          createUserPromptSubmitEvent(),
+          ctx as unknown as import('@sidekick/types').HandlerContext
+        )
+
+        logger.reset()
+
+        // Bash runs but git status unchanged
+        mockGetGitFileStatus.mockResolvedValue(['src/a.ts'])
+        const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+        const event = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+        await bashHandler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('no_changes_detected')
+      })
+
+      it('should emit not-staged when new files dont match source patterns', async () => {
+        registerStageBashChanges(ctx)
+
+        // Capture baseline with no files
+        mockGetGitFileStatus.mockResolvedValue([])
+        const baselineHandler = handlers.getHandler('reminders:git-baseline-capture')
+        await baselineHandler?.handler(
+          createUserPromptSubmitEvent(),
+          ctx as unknown as import('@sidekick/types').HandlerContext
+        )
+
+        logger.reset()
+
+        // Bash creates a markdown file (not in source_code_patterns)
+        mockGetGitFileStatus.mockResolvedValue(['docs/README.md'])
+        const bashHandler = handlers.getHandler('reminders:stage-stop-bash-changes')
+        const event = createToolResultEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Bash')
+        await bashHandler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('pattern_mismatch')
+      })
+    })
   })
 
   describe('registerStagePersonaReminders', () => {
