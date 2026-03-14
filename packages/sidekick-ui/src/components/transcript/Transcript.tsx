@@ -155,7 +155,7 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
             No transcript available
           </div>
         )}
-        {!loading && !error && filteredLines.length > 0 && filteredLines.map((line, index) => {
+        {!loading && !error && filteredLines.length > 0 && filteredLines.map((line) => {
           const pair = line.toolUseId ? pairByToolUseId.get(line.toolUseId) : undefined
           const isHighlightedPair = hoveredToolUseId != null && line.toolUseId === hoveredToolUseId
 

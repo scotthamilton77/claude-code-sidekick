@@ -8,6 +8,7 @@ import { SummaryStrip } from './components/SummaryStrip'
 import { Timeline } from './components/timeline/Timeline'
 import { Transcript } from './components/transcript/Transcript'
 import { DetailPanel } from './components/detail/DetailPanel'
+import { SubagentTranscript } from './components/transcript/SubagentTranscript'
 
 function App() {
   const [state, dispatch] = useReducer(navigationReducer, initialState)
@@ -87,8 +88,8 @@ function App() {
                   <Timeline events={timelineEvents} loading={timelineLoading} error={timelineError} />
                 </div>
 
-                {/* Transcript — shrinks when detail open */}
-                <div className={`${detailOpen ? 'flex-[2]' : 'flex-[3]'} border-r border-slate-200 dark:border-slate-700 overflow-hidden min-w-0 panel-transition`}>
+                {/* Transcript — shrinks when subagents or detail open */}
+                <div className={`${state.subagentChain.length > 0 || detailOpen ? 'flex-[2]' : 'flex-[3]'} border-r border-slate-200 dark:border-slate-700 overflow-hidden min-w-0 panel-transition`}>
                   <Transcript
                     lines={transcriptLines}
                     loading={transcriptLoading}
@@ -97,6 +98,24 @@ function App() {
                     scrollToLineId={state.syncedTranscriptLineId}
                   />
                 </div>
+
+                {/* Subagent panel chain */}
+                {state.subagentChain.map((entry, index) => (
+                  <SubagentTranscript
+                    key={`${entry.agentId}-${index}`}
+                    projectId={entry.projectId}
+                    sessionId={entry.sessionId}
+                    agentId={entry.agentId}
+                    agentType={entry.agentType}
+                    depth={index}
+                    onClose={() => {
+                      // Close this and all panels to the right
+                      for (let i = state.subagentChain.length - 1; i >= index; i--) {
+                        dispatch({ type: 'CLOSE_SUBAGENT' })
+                      }
+                    }}
+                  />
+                ))}
 
                 {/* Detail Panel — slides in on transcript click */}
                 {detailOpen && selectedLine && (

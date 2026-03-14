@@ -1,5 +1,5 @@
 import { createContext, useContext, type Dispatch } from 'react'
-import type { NavigationState, TimelineFilter, TranscriptFilter } from '../types'
+import type { NavigationState, TimelineFilter, TranscriptFilter, SubagentChainEntry } from '../types'
 
 // Action types
 type NavigationAction =
@@ -12,6 +12,8 @@ type NavigationAction =
   | { type: 'TOGGLE_SELECTOR_PANEL' }
   | { type: 'TOGGLE_TIMELINE_FILTER'; filter: TimelineFilter }
   | { type: 'TOGGLE_TRANSCRIPT_FILTER'; filter: TranscriptFilter }
+  | { type: 'OPEN_SUBAGENT'; entry: SubagentChainEntry; depth?: number }
+  | { type: 'CLOSE_SUBAGENT' }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'TOGGLE_DARK_MODE' }
 
@@ -25,6 +27,7 @@ const initialState: NavigationState = {
   detailPanel: { expanded: false },
   timelineFilters: new Set<TimelineFilter>(['reminders', 'decisions', 'session-analysis', 'statusline', 'errors']),
   transcriptFilters: new Set<TranscriptFilter>(['conversation', 'tools', 'thinking', 'sidekick', 'system']),
+  subagentChain: [],
   searchQuery: '',
   darkMode: false,
 }
@@ -122,6 +125,17 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       }
       return { ...state, transcriptFilters: newFilters }
     }
+
+    case 'OPEN_SUBAGENT': {
+      // If depth is specified, pop everything after that depth then push
+      const chain = action.depth != null
+        ? [...state.subagentChain.slice(0, action.depth), action.entry]
+        : [...state.subagentChain, action.entry]
+      return { ...state, subagentChain: chain }
+    }
+
+    case 'CLOSE_SUBAGENT':
+      return { ...state, subagentChain: state.subagentChain.slice(0, -1) }
 
     case 'SET_SEARCH':
       return { ...state, searchQuery: action.query }

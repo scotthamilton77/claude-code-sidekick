@@ -232,6 +232,18 @@ export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter>
 // Navigation State
 // ============================================================================
 
+// ============================================================================
+// Subagent Chain Navigation
+// ============================================================================
+
+export interface SubagentChainEntry {
+  projectId: string
+  sessionId: string
+  agentId: string
+  agentType?: string
+  parentToolUseId?: string
+}
+
 export type NavigationDepth = 'selector' | 'dashboard' | 'detail'
 
 export interface PanelState {
@@ -248,6 +260,7 @@ export interface NavigationState {
   detailPanel: PanelState
   timelineFilters: Set<TimelineFilter>
   transcriptFilters: Set<TranscriptFilter>
+  subagentChain: SubagentChainEntry[]
   searchQuery: string
   darkMode: boolean
 }
