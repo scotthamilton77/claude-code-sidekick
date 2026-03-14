@@ -21,7 +21,7 @@ class CollectingWritable extends Writable {
 }
 
 // Use vi.hoisted to declare mocks that are used in vi.mock factory
-const { mockDaemonClient, mockKillAllDaemons } = vi.hoisted(() => ({
+const { mockDaemonClient, mockKillAllDaemons, mockKillZombieDaemons } = vi.hoisted(() => ({
   mockDaemonClient: {
     start: vi.fn(),
     stop: vi.fn(),
@@ -30,6 +30,7 @@ const { mockDaemonClient, mockKillAllDaemons } = vi.hoisted(() => ({
     kill: vi.fn(),
   },
   mockKillAllDaemons: vi.fn(),
+  mockKillZombieDaemons: vi.fn(),
 }))
 
 // Mock @sidekick/core module
@@ -38,6 +39,7 @@ vi.mock('@sidekick/core', () => ({
     return mockDaemonClient
   }),
   killAllDaemons: mockKillAllDaemons,
+  killZombieDaemons: mockKillZombieDaemons,
 }))
 
 // Mock logger
@@ -215,6 +217,46 @@ describe('handleDaemonCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('Usage: sidekick daemon')
+    })
+  })
+
+  describe('kill-zombies subcommand', () => {
+    test('kills zombie daemons', async () => {
+      mockKillZombieDaemons.mockResolvedValue([
+        { pid: 333, killed: true },
+        { pid: 444, killed: true },
+      ])
+
+      const result = await handleDaemonCommand('kill-zombies', '/tmp/project', mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Killed zombie: PID 333')
+      expect(stdout.data).toContain('Killed zombie: PID 444')
+      expect(stdout.data).toContain('Killed 2 of 2 zombie daemons')
+    })
+
+    test('reports when no zombie daemons found', async () => {
+      mockKillZombieDaemons.mockResolvedValue([])
+
+      const result = await handleDaemonCommand('kill-zombies', '/tmp/project', mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('No zombie daemons found')
+    })
+
+    test('reports failures when some zombie kills fail', async () => {
+      mockKillZombieDaemons.mockResolvedValue([
+        { pid: 555, killed: true },
+        { pid: 666, killed: false, error: 'ESRCH' },
+      ])
+
+      const result = await handleDaemonCommand('kill-zombies', '/tmp/project', mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Killed zombie: PID 555')
+      expect(stdout.data).toContain('Failed: PID 666')
+      expect(stdout.data).toContain('ESRCH')
+      expect(stdout.data).toContain('Killed 1 of 2 zombie daemons')
     })
   })
 

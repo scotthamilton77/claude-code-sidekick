@@ -202,6 +202,67 @@ additionalContext: "Lint needed"
       const registrations = handlers.getRegistrations()
       expect(registrations[0].priority).toBe(80)
     })
+
+    it('skips staging during bulk transcript reconstruction', async () => {
+      registerStagePauseAndReflect(ctx)
+
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 100 }) // Well above threshold
+      // Mark as bulk processing
+      event.metadata.isBulkProcessing = true
+
+      await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+      // Should not stage despite exceeding threshold
+      expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
+    })
+
+    it('logs warning when reminder definition cannot be resolved', async () => {
+      // Use empty assets so resolveReminder returns null
+      const emptyAssets = new MockAssetResolver()
+      const ctxNoAssets = createMockDaemonContext({ staging, logger, handlers, assets: emptyAssets })
+
+      registerStagePauseAndReflect(ctxNoAssets)
+
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 100 })
+
+      await handler?.handler(event, ctxNoAssets as unknown as import('@sidekick/types').HandlerContext)
+
+      // Should not stage and should log warning
+      expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(0)
+      expect(logger.wasLoggedAtLevel('Failed to resolve reminder', 'warn')).toBe(true)
+    })
+
+    it('calls orchestrator.onReminderStaged after staging', async () => {
+      const mockOrchestrator = {
+        onReminderStaged: vi.fn().mockResolvedValue(undefined),
+        onReminderConsumed: vi.fn().mockResolvedValue(undefined),
+        onUserPromptSubmit: vi.fn().mockResolvedValue(undefined),
+      }
+
+      const ctxWithOrchestrator = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+      })
+      // Manually set orchestrator (not in MockDaemonContextOptions)
+      ;(ctxWithOrchestrator as any).orchestrator = mockOrchestrator
+
+      registerStagePauseAndReflect(ctxWithOrchestrator)
+
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      const event = createTestTranscriptEvent({ toolsThisTurn: 60 })
+
+      await handler?.handler(event, ctxWithOrchestrator as unknown as import('@sidekick/types').HandlerContext)
+
+      expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+      expect(mockOrchestrator.onReminderStaged).toHaveBeenCalledWith(
+        { name: 'pause-and-reflect', hook: 'PreToolUse' },
+        'test-session'
+      )
+    })
   })
 
   describe('registerStagePauseAndReflect', () => {
@@ -839,6 +900,74 @@ additionalContext: "Standard user prompt reminder"
         expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(0)
       })
 
+      it('skips when no sessionId in event', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:throttle-restage')
+        const event = createConversationTranscriptEvent('UserPrompt')
+        // Remove sessionId
+        const noSessionEvent = {
+          ...event,
+          context: { ...event.context, sessionId: undefined },
+        }
+        await handler?.handler(noSessionEvent as any, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const remindersState = createRemindersState(stateService)
+        const result = await remindersState.reminderThrottle.read('test-session')
+        // Counter should remain unchanged
+        expect(result.data['user-prompt-submit'].messagesSinceLastStaging).toBe(0)
+      })
+
+      it('skips when no throttle entries registered', async () => {
+        // Use a state service with no throttle state
+        const emptyStateService = new MockStateService()
+        const emptyCtx = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService: emptyStateService,
+        })
+
+        registerStageDefaultUserPrompt(emptyCtx)
+
+        const handler = handlers.getHandler('reminders:throttle-restage')
+        const event = createConversationTranscriptEvent('UserPrompt')
+        await handler?.handler(event, emptyCtx as unknown as import('@sidekick/types').HandlerContext)
+
+        // Should not stage anything (no entries to process)
+        expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
+      })
+
+      it('skips entries with no configured threshold', async () => {
+        // Seed throttle state with a reminder that has no threshold in config
+        const remindersState = createRemindersState(stateService)
+        await remindersState.reminderThrottle.write('test-session', {
+          'unknown-reminder': {
+            messagesSinceLastStaging: 0,
+            targetHook: 'UserPromptSubmit',
+            cachedReminder: {
+              name: 'unknown-reminder',
+              blocking: false,
+              priority: 10,
+              persistent: false,
+            },
+          },
+        })
+
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:throttle-restage')
+        // Fire enough events that would exceed any threshold
+        for (let i = 0; i < 15; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        // Should not have staged (threshold is undefined for this reminder)
+        expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
+      })
+
       it('respects configurable threshold', async () => {
         const configWithThreshold = new MockConfigService()
         configWithThreshold.set({
@@ -1292,6 +1421,26 @@ additionalContext: "Standard user prompt reminder"
         },
       }
     }
+
+    it('does not register when projectDir is missing', () => {
+      const ctxNoProjectDir = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        paths: { projectDir: '', userConfigDir: '/mock/user', projectConfigDir: '/mock/project-config' },
+      })
+
+      registerStageBashChanges(ctxNoProjectDir)
+
+      // Should not register any handlers when projectDir is empty/missing
+      const hookHandlers = handlers.getHandlersForHook('UserPromptSubmit')
+      const transcriptHandlers = handlers.getHandlersByKind('transcript')
+      const baselineHandler = hookHandlers.find((h: any) => h.id === 'reminders:git-baseline-capture')
+      const bashHandler = transcriptHandlers.find((h: any) => h.id === 'reminders:stage-stop-bash-changes')
+      expect(baselineHandler).toBeUndefined()
+      expect(bashHandler).toBeUndefined()
+    })
 
     it('registers two handlers — one hook, one transcript', () => {
       registerStageBashChanges(ctx)

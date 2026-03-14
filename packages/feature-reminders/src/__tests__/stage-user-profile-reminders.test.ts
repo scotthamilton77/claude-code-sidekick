@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   createMockDaemonContext,
+  createMockCLIContext,
   MockStagingService,
   MockLogger,
   MockHandlerRegistry,
@@ -13,7 +14,10 @@ import {
   MockStateService,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext } from '@sidekick/types'
-import { stageUserProfileRemindersForSession } from '../handlers/staging/stage-user-profile-reminders'
+import {
+  stageUserProfileRemindersForSession,
+  registerStageUserProfileReminders,
+} from '../handlers/staging/stage-user-profile-reminders'
 
 // Mock @sidekick/core — mock loadUserProfile
 vi.mock('@sidekick/core', async (importOriginal) => {
@@ -128,5 +132,91 @@ describe('stageUserProfileRemindersForSession', () => {
     )
     expect(debugLog).toBeDefined()
     expect(debugLog!.meta).toMatchObject({ sessionId: 'test-session', userName: 'Scott' })
+  })
+
+  it('logs warning when reminder YAML cannot be resolved', async () => {
+    mockLoadUserProfile.mockReturnValue({
+      name: 'Scott',
+      role: 'Dev',
+      interests: [],
+    })
+
+    // Remove the YAML asset so resolveReminder returns null
+    mockAssets.reset()
+
+    await stageUserProfileRemindersForSession(ctx, 'test-session')
+
+    expect(mockLogger.wasLoggedAtLevel('Failed to resolve user-profile reminder', 'warn')).toBe(true)
+    // No reminders should be staged
+    expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
+    expect(staging.getRemindersForHook('SessionStart')).toHaveLength(0)
+  })
+})
+
+describe('registerStageUserProfileReminders', () => {
+  beforeEach(() => {
+    mockLoadUserProfile.mockClear()
+  })
+
+  it('registers handler in daemon context for SessionStart', () => {
+    const handlers = new MockHandlerRegistry()
+    const ctx = createMockDaemonContext({
+      handlers,
+      staging: new MockStagingService(),
+      logger: new MockLogger(),
+    })
+
+    registerStageUserProfileReminders(ctx)
+
+    const registrations = handlers.getHandlersForHook('SessionStart')
+    expect(registrations.some((h) => h.id === 'reminders:stage-user-profile-reminders')).toBe(true)
+  })
+
+  it('does not register in CLI context', () => {
+    const cliCtx = createMockCLIContext()
+
+    registerStageUserProfileReminders(cliCtx as unknown as DaemonContext)
+
+    expect((cliCtx.handlers as MockHandlerRegistry).getRegistrations()).toHaveLength(0)
+  })
+
+  it('invokes stageUserProfileRemindersForSession on SessionStart event', async () => {
+    mockLoadUserProfile.mockReturnValue({
+      name: 'Test',
+      role: 'Dev',
+      interests: [],
+    })
+
+    const handlers = new MockHandlerRegistry()
+    const staging = new MockStagingService()
+    const assets = new MockAssetResolver()
+    assets.register(
+      'reminders/user-profile.yaml',
+      'id: user-profile\nblocking: false\npriority: 4\npersistent: true\nadditionalContext: "Hello {{user_name}}"\n'
+    )
+
+    const ctx = createMockDaemonContext({
+      handlers,
+      staging,
+      logger: new MockLogger(),
+      assets,
+      config: new MockConfigService(),
+      stateService: new MockStateService(),
+    })
+
+    registerStageUserProfileReminders(ctx)
+
+    const handler = handlers.getHandler('reminders:stage-user-profile-reminders')
+    const event = {
+      kind: 'hook' as const,
+      hook: 'SessionStart' as const,
+      context: { sessionId: 'test-session', timestamp: Date.now() },
+      payload: { startType: 'startup' as const, transcriptPath: '/test/transcript.jsonl' },
+    }
+
+    await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+    const reminders = staging.getRemindersForHook('UserPromptSubmit')
+    expect(reminders.some((r) => r.name === 'user-profile')).toBe(true)
   })
 })

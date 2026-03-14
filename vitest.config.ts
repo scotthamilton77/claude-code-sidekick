@@ -66,7 +66,10 @@ export default defineConfig({
         // === sidekick-cli ===
         'packages/sidekick-cli/src/index.ts', // Barrel file
         'packages/sidekick-cli/src/bin.ts', // CLI entrypoint only
-        'packages/sidekick-cli/src/commands/**', // CLI dispatch layer
+        'packages/sidekick-cli/src/commands/setup.ts', // Barrel re-export to setup/index.ts
+        'packages/sidekick-cli/src/commands/setup/index.ts', // Interactive wizard (tested via setup.test.ts for doctor/force)
+        'packages/sidekick-cli/src/commands/setup/prompts.ts', // Interactive readline UI
+        'packages/sidekick-cli/src/commands/setup/user-profile-setup.ts', // Interactive wizard step
 
         // === shared-providers ===
         'packages/shared-providers/src/index.ts', // Barrel file
@@ -80,8 +83,11 @@ export default defineConfig({
 
         // === feature-reminders ===
         'packages/feature-reminders/src/index.ts', // Barrel file
+        'packages/feature-reminders/src/types.ts', // Pure type definitions and constants
+        'packages/feature-reminders/src/events.ts', // Pure data factories (v8 ignore in source)
         'packages/feature-reminders/src/handlers/*/index.ts', // Registration wiring
         'packages/feature-reminders/src/handlers/consumption/inject-*.ts', // Thin wrappers
+        'packages/feature-reminders/src/handlers/ipc/types.ts', // Pure type definitions
 
         // === feature-session-summary ===
         'packages/feature-session-summary/src/index.ts', // Barrel file

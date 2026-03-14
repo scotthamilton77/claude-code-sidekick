@@ -339,4 +339,117 @@ describe('handleConfigCommand', () => {
     // Should also display help text after the error
     expect(text).toContain('Usage')
   })
+
+  test('config get without arg returns error with usage', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('get', [], projectDir, noopLogger, stdout, {})
+
+    expect(result.exitCode).toBe(1)
+    expect(output()).toContain('config get requires a dot-path')
+  })
+
+  test('config set without value returns error with usage', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('set', ['core.logging.level'], projectDir, noopLogger, stdout, {})
+
+    expect(result.exitCode).toBe(1)
+    expect(output()).toContain('config set requires a dot-path and a value')
+  })
+
+  test('config unset without arg returns error with usage', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('unset', [], projectDir, noopLogger, stdout, {})
+
+    expect(result.exitCode).toBe(1)
+    expect(output()).toContain('config unset requires a dot-path')
+  })
+
+  test('config with no subcommand returns error with usage', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand(undefined, [], projectDir, noopLogger, stdout, {})
+
+    expect(result.exitCode).toBe(1)
+    expect(output()).toContain('config command requires a subcommand')
+    expect(output()).toContain('Usage')
+  })
+
+  test('config get with json format returns JSON value', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const assets = createMockAssets()
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('get', ['core.logging'], projectDir, noopLogger, stdout, {
+      format: 'json',
+      assets,
+    })
+
+    expect(result.exitCode).toBe(0)
+    const parsed = JSON.parse(output().trim())
+    expect(parsed).toHaveProperty('level')
+  })
+
+  test('config list returns empty message when no overrides at scope', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('list', [], projectDir, noopLogger, stdout, { scope: 'project' })
+
+    expect(result.exitCode).toBe(0)
+    expect(output()).toContain('No overrides')
+  })
+
+  test('config list with json format returns JSON array', () => {
+    const projectDir = join(tempRoot, 'project')
+    const projectSidekick = join(projectDir, '.sidekick')
+    mkdirSync(projectSidekick, { recursive: true })
+    writeFileSync(join(projectSidekick, 'core.yaml'), 'logging:\n  level: debug\n')
+
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('list', [], projectDir, noopLogger, stdout, {
+      scope: 'project',
+      format: 'json',
+    })
+
+    expect(result.exitCode).toBe(0)
+    const parsed = JSON.parse(output().trim())
+    expect(Array.isArray(parsed)).toBe(true)
+    expect(parsed.length).toBeGreaterThan(0)
+  })
+
+  test('config unset on unset key returns informational message', () => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand('unset', ['core.nonexistent.key'], projectDir, noopLogger, stdout, {})
+
+    expect(result.exitCode).toBe(0)
+    expect(output()).toContain('was not set')
+  })
+
+  test.each(['help', '-h'])('config %s shows usage', (subcommand) => {
+    const projectDir = join(tempRoot, 'project')
+    mkdirSync(projectDir, { recursive: true })
+    const { stdout, output } = createTestStdout()
+
+    const result = handleConfigCommand(subcommand, [], projectDir, noopLogger, stdout, {})
+
+    expect(result.exitCode).toBe(0)
+    expect(output()).toContain('Usage')
+  })
 })
