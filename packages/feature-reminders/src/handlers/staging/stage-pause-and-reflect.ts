@@ -65,7 +65,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
           logEvent(
             ctx.logger,
             ReminderEvents.reminderNotStaged(
-              { sessionId: event.context?.sessionId ?? '' },
+              { sessionId: sessionId ?? '' },
               {
                 reminderName: 'pause-and-reflect',
                 hookName: 'PreToolUse',
@@ -84,7 +84,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
         logEvent(
           ctx.logger,
           ReminderEvents.reminderNotStaged(
-            { sessionId: event.context?.sessionId ?? '' },
+            { sessionId: sessionId ?? '' },
             {
               reminderName: 'pause-and-reflect',
               hookName: 'PreToolUse',

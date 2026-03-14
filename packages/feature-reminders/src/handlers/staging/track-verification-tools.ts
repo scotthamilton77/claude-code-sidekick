@@ -97,45 +97,56 @@ export async function stageToolsForFiles(
   sessionId: string,
   verificationTools: VerificationToolsMap,
   toolsState: VerificationToolsState,
-  remindersState: RemindersStateAccessors
+  remindersState: RemindersStateAccessors,
+  triggeredBy: string = 'file_edit'
 ): Promise<boolean> {
   const existingReminders = await daemonCtx.staging.listReminders('Stop')
   const stagedNames = new Set(existingReminders.map((r) => r.name))
   let anyStaged = false
+  const emittedNotStaged = new Set<string>()
 
   for (const filePath of filePaths) {
     for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
+      const reminderId = TOOL_REMINDER_MAP[toolName]
+      if (!reminderId) continue
+
       if (!toolConfig.enabled) {
-        logEvent(
-          daemonCtx.logger,
-          ReminderEvents.reminderNotStaged(
-            { sessionId },
-            {
-              reminderName: toolName,
-              hookName: 'Stop',
-              reason: 'feature_disabled',
-              triggeredBy: 'file_edit',
-            }
+        const emitKey = `${reminderId}:feature_disabled`
+        if (!emittedNotStaged.has(emitKey)) {
+          emittedNotStaged.add(emitKey)
+          logEvent(
+            daemonCtx.logger,
+            ReminderEvents.reminderNotStaged(
+              { sessionId },
+              {
+                reminderName: reminderId,
+                hookName: 'Stop',
+                reason: 'feature_disabled',
+                triggeredBy,
+              }
+            )
           )
-        )
+        }
         continue
       }
 
-      const reminderId = TOOL_REMINDER_MAP[toolName]
-      if (!reminderId) continue
       if (!picomatch.isMatch(filePath, toolConfig.clearing_patterns)) {
-        logEvent(
-          daemonCtx.logger,
-          ReminderEvents.reminderNotStaged(
-            { sessionId },
-            {
-              reminderName: reminderId,
-              hookName: 'Stop',
-              reason: 'pattern_mismatch',
-              triggeredBy: 'file_edit',
-            }
+        const emitKey = `${reminderId}:pattern_mismatch`
+        if (!emittedNotStaged.has(emitKey)) {
+          emittedNotStaged.add(emitKey)
+          logEvent(
+            daemonCtx.logger,
+            ReminderEvents.reminderNotStaged(
+              { sessionId },
+              {
+                reminderName: reminderId,
+                hookName: 'Stop',
+                reason: 'pattern_mismatch',
+                triggeredBy,
+              }
+            )
           )
-        )
+        }
         continue
       }
 
@@ -186,7 +197,7 @@ export async function stageToolsForFiles(
                 reason: 'below_threshold',
                 threshold: toolConfig.clearing_threshold,
                 currentValue: newEdits,
-                triggeredBy: 'file_edit',
+                triggeredBy,
               }
             )
           )

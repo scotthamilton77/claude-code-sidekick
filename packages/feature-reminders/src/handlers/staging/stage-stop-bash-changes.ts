@@ -172,7 +172,15 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       const stateResult = await remindersState.verificationTools.read(sessionId)
       const toolsState: VerificationToolsState = { ...stateResult.data }
 
-      await stageToolsForFiles(sourceMatches, daemonCtx, sessionId, verificationTools, toolsState, remindersState)
+      await stageToolsForFiles(
+        sourceMatches,
+        daemonCtx,
+        sessionId,
+        verificationTools,
+        toolsState,
+        remindersState,
+        'bash_command'
+      )
     },
   })
 }
