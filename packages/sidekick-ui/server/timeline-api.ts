@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
@@ -194,10 +194,26 @@ async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
 }
 
 /**
+ * Find all log files matching a prefix in the logs directory.
+ * Handles pino-roll rotation: sidekick.log, sidekick.1.log, sidekick.2.log, etc.
+ */
+async function findLogFiles(logsDir: string, prefix: string): Promise<string[]> {
+  try {
+    const files = await readdir(logsDir)
+    return files
+      .filter((f) => f.startsWith(prefix) && f.endsWith('.log'))
+      .map((f) => join(logsDir, f))
+  } catch {
+    return []
+  }
+}
+
+/**
  * Parse timeline events from sidekick log files for a given session.
  *
- * Reads both cli.log and sidekickd.log, filters by session ID and
- * UI-visible event types, merges, and sorts by timestamp ascending.
+ * Reads all sidekick*.log and sidekickd*.log files (including rotated),
+ * filters by session ID and UI-visible event types, merges, and sorts
+ * by timestamp ascending.
  */
 export async function parseTimelineEvents(
   projectDir: string,
@@ -205,12 +221,14 @@ export async function parseTimelineEvents(
 ): Promise<TimelineEvent[]> {
   const logsDir = join(projectDir, '.sidekick', 'logs')
 
-  const [cliEntries, daemonEntries] = await Promise.all([
-    readLogFile(join(logsDir, 'cli.log')),
-    readLogFile(join(logsDir, 'sidekickd.log')),
+  const [cliFiles, daemonFiles] = await Promise.all([
+    findLogFiles(logsDir, 'sidekick.'),
+    findLogFiles(logsDir, 'sidekickd.'),
   ])
 
-  const allEntries = [...cliEntries, ...daemonEntries]
+  const allFiles = [...cliFiles, ...daemonFiles]
+  const fileResults = await Promise.all(allFiles.map(readLogFile))
+  const allEntries = fileResults.flat()
 
   // Filter by sessionId, then by timeline-visible event types
   const filtered = allEntries.filter(

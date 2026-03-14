@@ -3,9 +3,11 @@ import type { TimelineSidekickEventType } from '../timeline-api.js'
 
 // Mock node:fs/promises
 const mockReadFile = vi.fn()
+const mockReaddir = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
+  readdir: (...args: unknown[]) => mockReaddir(...args),
 }))
 
 // Mock node:crypto
@@ -17,10 +19,13 @@ vi.mock('node:crypto', () => ({
 
 beforeEach(() => {
   mockReadFile.mockClear()
+  mockReaddir.mockClear()
   mockRandomUUID.mockClear()
   // Default: sequential UUIDs
   let uuidCounter = 0
   mockRandomUUID.mockImplementation(() => `uuid-${++uuidCounter}`)
+  // Default: return standard log file names (pino-roll rotation pattern)
+  mockReaddir.mockResolvedValue(['sidekick.1.log', 'sidekickd.1.log'])
 })
 
 /** Helper: create a valid NDJSON log line */
@@ -50,7 +55,7 @@ describe('parseTimelineEvents', () => {
       payload: { reminderName: 'vc-build', reason: 'tool_threshold' },
     })
     mockReadFile.mockImplementation((path: string) => {
-      if (path.includes('cli.log')) return Promise.resolve(line)
+      if (path.includes('sidekick.1.log')) return Promise.resolve(line)
       return Promise.resolve('') // sidekickd.log empty
     })
 
@@ -74,7 +79,7 @@ describe('parseTimelineEvents', () => {
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
-      if (path.includes('cli.log')) return Promise.resolve(lines)
+      if (path.includes('sidekick.1.log')) return Promise.resolve(lines)
       return Promise.resolve('')
     })
 
@@ -91,7 +96,7 @@ describe('parseTimelineEvents', () => {
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
-      if (path.includes('cli.log')) return Promise.resolve(lines)
+      if (path.includes('sidekick.1.log')) return Promise.resolve(lines)
       return Promise.resolve('')
     })
 
@@ -109,7 +114,7 @@ describe('parseTimelineEvents', () => {
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
-      if (path.includes('cli.log')) return Promise.resolve(lines)
+      if (path.includes('sidekick.1.log')) return Promise.resolve(lines)
       return Promise.resolve('')
     })
 
@@ -124,7 +129,7 @@ describe('parseTimelineEvents', () => {
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
-      if (path.includes('cli.log')) return Promise.resolve(lines)
+      if (path.includes('sidekick.1.log')) return Promise.resolve(lines)
       return Promise.resolve('')
     })
 
@@ -145,8 +150,8 @@ describe('parseTimelineEvents', () => {
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
-      if (path.includes('cli.log')) return Promise.resolve(cliLines)
-      if (path.includes('sidekickd.log')) return Promise.resolve(daemonLines)
+      if (path.includes('sidekick.1.log')) return Promise.resolve(cliLines)
+      if (path.includes('sidekickd.1.log')) return Promise.resolve(daemonLines)
       return Promise.reject(new Error('ENOENT'))
     })
 
@@ -155,14 +160,15 @@ describe('parseTimelineEvents', () => {
     expect(events.map((e) => e.timestamp)).toEqual([1000, 2000, 3000, 4000])
   })
 
-  it('returns empty array when log files do not exist', async () => {
-    mockReadFile.mockRejectedValue(new Error('ENOENT'))
+  it('returns empty array when log directory does not exist', async () => {
+    mockReaddir.mockRejectedValue(new Error('ENOENT'))
 
     const events = await parseTimelineEvents('/fake/project', 'session-1')
     expect(events).toEqual([])
   })
 
   it('returns empty array when log files are empty', async () => {
+    mockReaddir.mockResolvedValue(['sidekick.1.log', 'sidekickd.1.log'])
     mockReadFile.mockResolvedValue('')
 
     const events = await parseTimelineEvents('/fake/project', 'session-1')
