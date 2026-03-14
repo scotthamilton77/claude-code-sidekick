@@ -29,6 +29,7 @@ export interface ApiTranscriptLine {
   toolOutput?: string
   toolSuccess?: boolean
   compactionTokensBefore?: number
+  compactionTokensAfter?: number
   durationMs?: number
   retryAttempt?: number
   maxRetries?: number
@@ -256,6 +257,7 @@ function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, t
         timestamp,
         type: 'compaction',
         compactionTokensBefore: compactMetadata?.preTokens as number | undefined,
+        compactionTokensAfter: compactMetadata?.postTokens as number | undefined,
         ...meta,
       },
     ]

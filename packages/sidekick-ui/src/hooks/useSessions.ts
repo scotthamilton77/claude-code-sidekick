@@ -79,6 +79,7 @@ export function useSessions(): UseSessionsResult {
                     id: s.id,
                     title: s.title,
                     date: formatDate(s.date),
+                    dateRaw: s.date,
                     branch: apiProject.branch,
                     projectId: apiProject.id,
                     persona: s.persona,

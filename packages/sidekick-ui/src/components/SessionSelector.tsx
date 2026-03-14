@@ -18,7 +18,7 @@ export function SessionSelector({ projects }: SessionSelectorProps) {
     let mostRecentProject = projects[0]
     for (const p of projects) {
       if (p.sessions.length > 0 && mostRecentProject.sessions.length > 0) {
-        if (p.sessions[0].date > mostRecentProject.sessions[0].date) {
+        if (p.sessions[0].dateRaw > mostRecentProject.sessions[0].dateRaw) {
           mostRecentProject = p
         }
       }

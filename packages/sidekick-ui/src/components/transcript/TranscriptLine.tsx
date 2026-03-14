@@ -196,6 +196,19 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           <p className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5 font-mono">{line.errorMessage}</p>
         )}
 
+        {/* PR link URL */}
+        {line.type === 'pr-link' && line.prUrl && (
+          <a
+            href={line.prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 mt-0.5 font-mono truncate block"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {line.prUrl}
+          </a>
+        )}
+
         {/* Sidekick event inline details */}
         {isSidekickEvent && renderSidekickDetail(line)}
       </div>
