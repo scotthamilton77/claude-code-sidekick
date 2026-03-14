@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
-import { listProjects, listSessions } from './sessions-api.js'
+import { listProjects, getProjectById, listSessions } from './sessions-api.js'
 
 /** Sidekick project registry root (user-scope) */
 const REGISTRY_ROOT = join(homedir(), '.sidekick', 'projects')
@@ -37,8 +37,7 @@ export function sessionsApiPlugin(): Plugin {
           const sessionsMatch = req.url.match(/^\/api\/projects\/([^/]+)\/sessions$/)
           if (sessionsMatch && req.method === 'GET') {
             const projectId = decodeURIComponent(sessionsMatch[1])
-            const projects = await listProjects(REGISTRY_ROOT)
-            const project = projects.find(p => p.id === projectId)
+            const project = await getProjectById(REGISTRY_ROOT, projectId)
 
             if (!project) {
               res.statusCode = 404

@@ -34,7 +34,7 @@ test.describe('TB1 Session Selector — UI rendering', () => {
 
     await page.goto('/')
     // Wait for loading to finish (loading text disappears)
-    await expect(page.getByText('Loading sessions...')).not.toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Loading sessions...')).toHaveCount(0, { timeout: 10_000 })
 
     if (projects.length === 0) {
       // Empty state: the SessionSelector renders but with no project entries
@@ -67,14 +67,12 @@ test.describe('TB1 Session Selector — interaction', () => {
     }
 
     await page.goto('/')
-    await expect(page.getByText('Loading sessions...')).not.toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Loading sessions...')).toHaveCount(0, { timeout: 10_000 })
 
     // Projects start expanded by default (see SessionSelector useState initializer)
     // Fetch sessions for the first project to know what to expect
     const firstProject = projects[0]
-    const sessionsResponse = await request.get(
-      `/api/projects/${encodeURIComponent(firstProject.id)}/sessions`,
-    )
+    const sessionsResponse = await request.get(`/api/projects/${encodeURIComponent(firstProject.id)}/sessions`)
     const { sessions } = await sessionsResponse.json()
 
     if (sessions.length === 0) {
@@ -105,9 +103,7 @@ test.describe('TB1 Session Selector — interaction', () => {
     let targetProject = null
     let targetSessions: Array<{ id: string; title: string }> = []
     for (const project of projects) {
-      const sessionsResponse = await request.get(
-        `/api/projects/${encodeURIComponent(project.id)}/sessions`,
-      )
+      const sessionsResponse = await request.get(`/api/projects/${encodeURIComponent(project.id)}/sessions`)
       const { sessions } = await sessionsResponse.json()
       if (sessions.length > 0) {
         targetProject = project
@@ -122,7 +118,7 @@ test.describe('TB1 Session Selector — interaction', () => {
     }
 
     await page.goto('/')
-    await expect(page.getByText('Loading sessions...')).not.toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Loading sessions...')).toHaveCount(0, { timeout: 10_000 })
 
     // Click the first session
     const sessionTitle = targetSessions[0].title
@@ -148,9 +144,7 @@ test.describe('TB1 Session Selector — interaction', () => {
     let targetProject = null
     let targetSessions: Array<{ id: string; title: string }> = []
     for (const project of projects) {
-      const sessionsResponse = await request.get(
-        `/api/projects/${encodeURIComponent(project.id)}/sessions`,
-      )
+      const sessionsResponse = await request.get(`/api/projects/${encodeURIComponent(project.id)}/sessions`)
       const { sessions } = await sessionsResponse.json()
       if (sessions.length > 0) {
         targetProject = project
@@ -165,7 +159,7 @@ test.describe('TB1 Session Selector — interaction', () => {
     }
 
     await page.goto('/')
-    await expect(page.getByText('Loading sessions...')).not.toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Loading sessions...')).toHaveCount(0, { timeout: 10_000 })
 
     // Sessions should be visible (projects start expanded)
     const firstSessionTitle = targetSessions[0].title

@@ -98,6 +98,40 @@ export async function listProjects(registryRoot: string): Promise<ApiProject[]> 
 }
 
 /**
+ * Look up a single project by its registry directory name.
+ * Avoids calling listProjects() (which runs git branch for every project).
+ */
+export async function getProjectById(registryRoot: string, projectId: string): Promise<ApiProject | null> {
+  const entryFile = join(registryRoot, projectId, 'registry.json')
+  try {
+    const raw = await readFile(entryFile, 'utf-8')
+    const entry = JSON.parse(raw) as { path: string; displayName: string; lastActive: string }
+
+    try {
+      await access(entry.path)
+    } catch {
+      return null
+    }
+
+    if (projectId.startsWith('-private')) return null
+
+    const lastActiveMs = new Date(entry.lastActive).getTime()
+    const active = Date.now() - lastActiveMs < ACTIVE_THRESHOLD_MS
+    const branch = await getGitBranch(entry.path)
+
+    return {
+      id: projectId,
+      name: entry.displayName || basename(entry.path),
+      projectDir: entry.path,
+      branch,
+      active,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
  * List all sessions for a project by scanning its .sidekick/sessions/ directory.
  */
 export async function listSessions(projectDir: string, isProjectActive = false): Promise<ApiSession[]> {
@@ -117,8 +151,13 @@ export async function listSessions(projectDir: string, isProjectActive = false):
 
     const sessionDir = join(sessionsDir, dirent.name)
 
-    // Get session directory mtime for date
-    const dirStat = await stat(sessionDir)
+    // Get session directory mtime for date (skip on TOCTOU race)
+    let dirStat
+    try {
+      dirStat = await stat(sessionDir)
+    } catch {
+      continue // directory disappeared between readdir and stat
+    }
     const date = dirStat.mtime.toISOString()
 
     // Determine if session is active
