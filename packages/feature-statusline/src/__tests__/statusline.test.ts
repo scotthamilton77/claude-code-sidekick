@@ -1451,6 +1451,39 @@ describe('Formatter with colors enabled', () => {
     expect(result).toBe('')
   })
 
+  it('applies color to cost token with warning status', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+    const viewModel = makeViewModel({ costStatus: 'warning' as const })
+    const result = formatter.format('{cost}', viewModel)
+    expect(result).toContain(ANSI.yellow)
+  })
+
+  it('applies color to contextWindow token', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+    const viewModel = makeViewModel()
+    const result = formatter.format('{contextWindow}', viewModel)
+    expect(result).toContain(ANSI.green)
+  })
+
+  it('applies color to duration token', () => {
+    const formatter = createFormatter({
+      theme: {
+        ...DEFAULT_STATUSLINE_CONFIG.theme,
+        colors: { ...DEFAULT_STATUSLINE_CONFIG.theme.colors, duration: 'blue' },
+      },
+      useColors: true,
+    })
+    const viewModel = makeViewModel()
+    const result = formatter.format('{duration}', viewModel)
+    expect(result).toContain(ANSI.blue)
+  })
+
   it('applies branch color based on pattern', () => {
     const formatter = createFormatter({
       theme: DEFAULT_STATUSLINE_CONFIG.theme,
@@ -3723,6 +3756,253 @@ describe('StatuslineService', () => {
 
       // Without projectDir, daemon health is not checked — normal render
       expect(result.displayMode).not.toBe('setup_warning')
+    })
+  })
+
+  describe('setup status: not-run and unhealthy states', () => {
+    it('shows setup warning when setup state is not-run', async () => {
+      const notRunSetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('not-run' as const),
+        getEffectiveApiKeyHealth: () => Promise.resolve('healthy' as const),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: notRunSetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('Sidekick not configured')
+      expect(result.text).toContain('sidekick setup')
+    })
+
+    it('shows missing key warning when unhealthy with missing API key', async () => {
+      const unhealthySetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('unhealthy' as const),
+        getEffectiveApiKeyHealth: (key) =>
+          Promise.resolve(key === 'OPENROUTER_API_KEY' ? ('missing' as const) : ('healthy' as const)),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: unhealthySetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('OPENROUTER_API_KEY not found')
+    })
+
+    it('shows invalid key warning when unhealthy with invalid API key', async () => {
+      const unhealthySetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('unhealthy' as const),
+        getEffectiveApiKeyHealth: (key) =>
+          Promise.resolve(key === 'OPENROUTER_API_KEY' ? ('invalid' as const) : ('healthy' as const)),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: unhealthySetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('OPENROUTER_API_KEY invalid')
+    })
+
+    it('shows generic unhealthy warning when no specific key issue found', async () => {
+      const unhealthySetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('unhealthy' as const),
+        getEffectiveApiKeyHealth: () => Promise.resolve('healthy' as const),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: unhealthySetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('Setup issue detected')
+    })
+
+    it('checks OPENAI_API_KEY when OPENROUTER_API_KEY is healthy', async () => {
+      const unhealthySetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('unhealthy' as const),
+        getEffectiveApiKeyHealth: (key) =>
+          Promise.resolve(key === 'OPENAI_API_KEY' ? ('missing' as const) : ('healthy' as const)),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: unhealthySetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+      })
+
+      const result = await service.render()
+
+      expect(result.displayMode).toBe('setup_warning')
+      expect(result.text).toContain('OPENAI_API_KEY not found')
+    })
+  })
+
+  describe('resume message freshness', () => {
+    it('skips stale resume messages older than freshness threshold', async () => {
+      const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString()
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: 'task-1',
+          session_title: 'Old Work',
+          snarky_comment: 'Stale message!',
+          timestamp: fiveHoursAgo,
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+      })
+
+      const result = await service.render()
+      expect(result.displayMode).toBe('empty_summary')
+    })
+
+    it('shows fresh resume messages within freshness threshold', async () => {
+      const oneHourAgo = new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: 'task-1',
+          session_title: 'Recent Work',
+          snarky_comment: 'Fresh message!',
+          timestamp: oneHourAgo,
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+      })
+
+      const result = await service.render()
+      expect(result.displayMode).toBe('resume_message')
+      expect(result.viewModel.summary).toBe('Fresh message!')
+    })
+
+    it('respects custom freshnessHours from personaConfig', async () => {
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+      await fs.writeFile(
+        path.join(stateDir, 'resume-message.json'),
+        JSON.stringify({
+          last_task_id: 'task-1',
+          session_title: 'Work',
+          snarky_comment: 'Message',
+          timestamp: twoHoursAgo,
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        isResumedSession: true,
+        personaConfig: { resumeFreshnessHours: 1 },
+      })
+
+      const result = await service.render()
+      expect(result.displayMode).toBe('empty_summary')
+    })
+  })
+
+  describe('readBaselineMetrics with config dirs', () => {
+    it('reads real baseline metrics when userConfigDir and projectDir are provided', async () => {
+      const userConfigDir = path.join(tmpdir(), `baseline-user-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+      await fs.mkdir(path.join(userConfigDir, 'state'), { recursive: true })
+      await fs.writeFile(
+        path.join(userConfigDir, 'state', 'baseline-user-context-token-metrics.json'),
+        JSON.stringify({
+          systemPromptTokens: 5000,
+          systemToolsTokens: 25000,
+          autocompactBufferTokens: 50000,
+          capturedAt: Date.now(),
+          capturedFrom: 'context_command',
+          sessionId: 'test',
+        })
+      )
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        userConfigDir,
+        projectDir: projectRoot,
+        hookInput: createTestHookInput({
+          totalInputTokens: 50000,
+          totalOutputTokens: 10000,
+        }),
+      })
+
+      const result = await service.render()
+      expect(result.viewModel.tokenUsageActual).toBe('60k')
+    })
+  })
+
+  describe('warning display with colors', () => {
+    it('applies yellow ANSI formatting to setup warning when colors enabled', async () => {
+      const notRunSetupService: MinimalSetupStatusService = {
+        getSetupState: () => Promise.resolve('not-run' as const),
+        getEffectiveApiKeyHealth: () => Promise.resolve('healthy' as const),
+        shouldAutoConfigureProject: () => Promise.resolve(false),
+      }
+
+      const service = createStatuslineService({
+        stateService,
+        setupService: notRunSetupService,
+        sessionId,
+        cwd: '/test',
+        useColors: true,
+      })
+
+      const result = await service.render()
+      expect(result.text).toContain('\x1b[33m')
+      expect(result.text).toContain('\x1b[0m')
     })
   })
 })

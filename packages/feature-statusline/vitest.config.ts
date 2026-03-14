@@ -27,6 +27,12 @@ export default defineConfig({
         // Barrel exports - just re-exports, no runtime logic
         'src/index.ts',
       ],
+      thresholds: {
+        statements: 90,
+        branches: 85,
+        functions: 90,
+        lines: 90,
+      },
     },
   },
 })

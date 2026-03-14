@@ -68,4 +68,10 @@ describe('truncatePath', () => {
   it('handles single segment that fits', () => {
     expect(truncatePath('project', 10)).toBe('project')
   })
+
+  it('falls back to prefix-truncate when first segment has no room in 3+ segment path', () => {
+    // With very small maxLength, the fixed part "/…/last" leaves no room for first segment
+    // This triggers the availableForFirst <= 1 branch
+    expect(truncatePath('aaa/bbb/ccc', 5)).toBe('…/ccc')
+  })
 })
