@@ -38,6 +38,37 @@ describe('ReminderEvents', () => {
       expect(event.payload.priority).toBeUndefined()
       expect(event.payload.persistent).toBeUndefined()
     })
+
+    it('should include classificationResult when provided', () => {
+      const event = ReminderEvents.reminderConsumed(
+        { sessionId: 'sess-123', hook: 'Stop' },
+        {
+          reminderName: 'verify-completion',
+          reminderReturned: true,
+          blocking: true,
+          classificationResult: {
+            category: 'CLAIMING_COMPLETION',
+            confidence: 0.92,
+            shouldBlock: true,
+          },
+        }
+      )
+
+      expect(event.payload.classificationResult).toEqual({
+        category: 'CLAIMING_COMPLETION',
+        confidence: 0.92,
+        shouldBlock: true,
+      })
+    })
+
+    it('should omit classificationResult when not provided', () => {
+      const event = ReminderEvents.reminderConsumed(
+        { sessionId: 'sess-123' },
+        { reminderName: 'test', reminderReturned: true }
+      )
+
+      expect(event.payload.classificationResult).toBeUndefined()
+    })
   })
 
   // Note: reminderStaged stays in @sidekick/core (used by staging-service.ts)

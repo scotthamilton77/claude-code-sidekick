@@ -867,6 +867,12 @@ export interface ReminderConsumedPayload {
   blocking?: boolean
   priority?: number
   persistent?: boolean
+  /** For verify-completion: the LLM classification result */
+  classificationResult?: {
+    category: string
+    confidence: number
+    shouldBlock: boolean
+  }
 }
 
 /** Payload for `reminder:cleared` — reminders were bulk-cleared. */
