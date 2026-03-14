@@ -143,7 +143,7 @@ describe('parseTimelineEvents', () => {
   it('merges events from both cli.log and sidekickd.log sorted by time', async () => {
     const cliLines = [
       makeLogLine({ time: 3000, type: 'reminder:staged' }),
-      makeLogLine({ time: 1000, type: 'decision:recorded', decision: 'testing', reason: 'passes' }),
+      makeLogLine({ time: 1000, type: 'decision:recorded', decision: 'skip-tests', reason: 'passes' }),
     ].join('\n')
 
     const daemonLines = [

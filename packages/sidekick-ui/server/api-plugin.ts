@@ -39,6 +39,15 @@ export function sessionsApiPlugin(): Plugin {
           const sessionsMatch = req.url.match(/^\/api\/projects\/([^/]+)\/sessions$/)
           if (sessionsMatch && req.method === 'GET') {
             const projectId = decodeURIComponent(sessionsMatch[1])
+
+            // Validate projectId format (alphanumeric, hyphens, dots, underscores)
+            if (!/^[a-zA-Z0-9._-]+$/.test(projectId)) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: `Invalid project ID format: ${projectId}` }))
+              return
+            }
+
             const project = await getProjectById(REGISTRY_ROOT, projectId)
 
             if (!project) {
@@ -61,6 +70,22 @@ export function sessionsApiPlugin(): Plugin {
           if (timelineMatch && req.method === 'GET') {
             const projectId = decodeURIComponent(timelineMatch[1])
             const sessionId = decodeURIComponent(timelineMatch[2])
+
+            // Validate projectId format (alphanumeric, hyphens, dots, underscores)
+            if (!/^[a-zA-Z0-9._-]+$/.test(projectId)) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: `Invalid project ID format: ${projectId}` }))
+              return
+            }
+
+            // Validate sessionId format (UUID)
+            if (!/^[a-f0-9-]+$/i.test(sessionId)) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: `Invalid session ID format: ${sessionId}` }))
+              return
+            }
 
             const project = await getProjectById(REGISTRY_ROOT, projectId)
             if (!project) {
