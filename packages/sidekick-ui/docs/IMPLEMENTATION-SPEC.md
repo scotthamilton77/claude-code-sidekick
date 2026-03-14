@@ -1228,7 +1228,70 @@ Balances perceptible real-time feel against unnecessary re-renders. The debounce
 | sidekick-n4lx epic (1000+ event lag) | §5.2 | Virtual scrolling at 200-event threshold via TanStack Virtual |
 
 ## 6. Component-to-Type Wiring
-<!-- Placeholder: sidekick-e4374d53 -->
+
+Section 6 maps each v2 prototype React component to its target `@sidekick/types` data source, identifies transformation functions needed, and flags gaps where no canonical type exists yet.
+
+> **Scope**: This section defines the wiring spec. Transformation function implementations belong to the implementation epic (sidekick-43a8b12e).
+
+### 6.1 Component Inventory & Type Mapping
+
+The v2 prototype contains 19 React components organized by panel. Each row identifies the canonical `@sidekick/types` type(s) that will feed the component's props and whether a transformation function is needed to bridge the backend data shape to the component's prop interface.
+
+**Import path conventions:**
+- `@sidekick/types` — barrel re-export (types.ts in `packages/sidekick-ui/src/types.ts`, to be replaced by canonical imports)
+- `@sidekick/types/events` — `TranscriptLine`, `SidekickEvent`, `LEDState`, `StateSnapshot`, `Session`, `Project`, `TimelineFilter`, `NavigationState`
+- `@sidekick/types/services/state` — `SessionStateSnapshot`, `SessionSummaryState`, `SessionPersonaState`, and all 20 state file types (§3.3)
+
+#### Session Selector Panel
+
+| # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
+|---|-----------|-------|----------------|-------------|-----------------|
+| 1 | `SessionSelector` | Session Selector | `SessionListResponse`, `Session`, `Project` | `@sidekick/types` | Yes |
+
+#### Summary Strip
+
+| # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
+|---|-----------|-------|----------------|-------------|-----------------|
+| 2 | `SummaryStrip` | Summary Strip | `Session` | `@sidekick/types` | No |
+
+#### Transcript Panel
+
+| # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
+|---|-----------|-------|----------------|-------------|-----------------|
+| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | `@sidekick/types` | Yes |
+| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | `@sidekick/types` | Yes |
+| 5 | `LEDGutter` | Transcript | `LEDState` | `@sidekick/types` | Yes |
+| 6 | `LEDColorKey` | Transcript | _(none — static UI)_ | — | No |
+| 7 | `SearchFilterBar` | Transcript | `NavigationState` | `@sidekick/types` | No |
+
+#### Timeline Panel
+
+| # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
+|---|-----------|-------|----------------|-------------|-----------------|
+| 8 | `Timeline` | Timeline | `SidekickEvent[]`, `TimelineFilter` | `@sidekick/types` | Yes |
+| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` | `@sidekick/types` | No |
+| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | `@sidekick/types` | No |
+
+#### Detail Panel
+
+| # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
+|---|-----------|-------|----------------|-------------|-----------------|
+| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | `@sidekick/types` | Yes |
+| 12 | `DetailHeader` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 13 | `ToolDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 14 | `DecisionDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 15 | `ReminderDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 16 | `ErrorDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
+| 17 | `StateTab` | Detail | `SessionStateSnapshot` (§3.7) | `@sidekick/types` | Yes |
+
+#### Shared / Layout
+
+| # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
+|---|-----------|-------|----------------|-------------|-----------------|
+| 18 | `PanelHeader` | Shared | _(none — UI-only)_ | — | No |
+| 19 | `CompressedLabel` | Shared | _(none — UI-only)_ | — | No |
+
+> **Verification**: 19 components total. Every `.tsx` file under `packages/sidekick-ui/src/components/` (excluding `App.tsx` and `main.tsx`) is represented.
 
 ## 7. New Feature Integration
 This section specifies the UI integration for each new feature identified in PHASE2-AUDIT §3.3. Features are organized by tier (critical gaps → important enhancements → future work). Each Tier 1 and Tier 2 feature defines its data source, component placement, interaction pattern, and backend readiness.
