@@ -11,12 +11,12 @@ Parse Claude Code session transcripts and render them in the existing Transcript
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | D13 | Parent transcript only, no subagent drill-down | TB3 scope — subagent drill-down deferred to `claude-code-sidekick-0wf` |
-| D14 | Import `@sidekick/core` for parsing | Reuse `normalizeEntry()` + content extractors; project will need chokidar/pino eventually |
+| D14 | Self-contained parser (no `@sidekick/core` import) | Importing `@sidekick/core` breaks Vite config chain — inline ~50 lines of parsing logic instead |
 | D15 | Include `isSidechain: true` entries | Sidechain contains Sidekick SessionStart activity worth showing |
 | D16 | Defer Sidekick event interleaving | Pure conversation turns only; interleaving deferred to `claude-code-sidekick-mcs` |
 | D17 | Deterministic line IDs: `transcript-{lineNumber}-{blockIndex}` | Stable IDs enable future scroll-sync with timeline |
 | D18 | Read entire file, no streaming | Acceptable for TB3; pagination deferred to `claude-code-sidekick-bpo` |
-| D19 | Skip `queue-operation` entries early | 99%+ of lines are queue noise; check type field before full parse |
+| D19 | Skip `queue-operation` entries early | 99%+ of lines are queue noise; skip immediately after JSON.parse via Set lookup |
 
 ## Data Flow
 
@@ -29,7 +29,7 @@ Parse Claude Code session transcripts and render them in the existing Transcript
   │ 1. Resolve file path (dir/bare) │
   │ 2. Read JSONL, split lines      │
   │ 3. Skip noise (queue-operation) │
-  │ 4. normalizeEntry() from core   │
+  │ 4. Inline entry processing      │
   │ 5. Map → TranscriptLine[]       │
   │ 6. Handle compaction boundaries │
   └─────────────────────────────────┘
@@ -56,7 +56,7 @@ Two transcript layouts exist:
 ~/.claude/projects/{projectId}/{sessionId}.jsonl
 ```
 
-Try directory first, fall back to bare file, return 404 if neither exists.
+Try directory first, fall back to bare file, return `null` if neither exists (route returns 200 with empty lines).
 
 ## Entry Type Mapping
 
@@ -111,10 +111,10 @@ Try directory first, fall back to bare file, return 404 if neither exists.
 
 | Case | Handling |
 |------|----------|
-| No transcript file | 404 → UI shows "No transcript available" |
+| No transcript file | 200 with `{ lines: [] }` → UI shows "No transcript available" |
 | Very large file (47MB+) | Read entire for TB3; pagination deferred |
 | Malformed JSON lines | Skip silently |
-| `queue-operation` dominance | Skip early before full JSON parse |
+| `queue-operation` dominance | Skip immediately after JSON.parse via Set lookup |
 | `isMeta: true` | Include, mark visually |
 | `isCompactSummary: true` | Include, mark as summary |
 | Empty transcript | 200 with `{ lines: [] }` |

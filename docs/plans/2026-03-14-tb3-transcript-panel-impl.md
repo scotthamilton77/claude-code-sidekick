@@ -6,7 +6,7 @@
 
 **Architecture:** Vite dev server reads JSONL transcript files, parses line-by-line, maps to `TranscriptLine[]` via a new `transcript-api.ts` module. A new `useTranscript()` React hook fetches from a new API route. The existing `Transcript.tsx` and `TranscriptLine.tsx` components render the data — they already handle all needed line types.
 
-**Tech Stack:** TypeScript, Vite dev server middleware, React hooks, `@sidekick/core` content extractors
+**Tech Stack:** TypeScript, Vite dev server middleware, React hooks, inline content extractors (self-contained per D14)
 
 **Reference Docs:**
 - `docs/plans/2026-03-14-tb3-transcript-panel-design.md` — Design decisions D13-D19

@@ -47,6 +47,16 @@ function formatToolInput(toolName?: string, input?: Record<string, unknown>): st
   return ''
 }
 
+/** Only allow http/https URLs to prevent javascript: injection */
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function formatTime(ts: number): string {
   const d = new Date(ts)
   return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -197,7 +207,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
         )}
 
         {/* PR link URL */}
-        {line.type === 'pr-link' && line.prUrl && (
+        {line.type === 'pr-link' && line.prUrl && isSafeUrl(line.prUrl) && (
           <a
             href={line.prUrl}
             target="_blank"
