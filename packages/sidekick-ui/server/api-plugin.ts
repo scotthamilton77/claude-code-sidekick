@@ -1,7 +1,9 @@
+import { access } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
 import { listProjects, getProjectById, listSessions } from './sessions-api.js'
+import { parseTimelineEvents } from './timeline-api.js'
 
 /** Sidekick project registry root (user-scope) */
 const REGISTRY_ROOT = join(homedir(), '.sidekick', 'projects')
@@ -49,6 +51,39 @@ export function sessionsApiPlugin(): Plugin {
             const sessions = await listSessions(project.projectDir, project.active)
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ sessions }))
+            return
+          }
+
+          // GET /api/projects/:projectId/sessions/:sessionId/timeline
+          const timelineMatch = req.url.match(
+            /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/timeline$/
+          )
+          if (timelineMatch && req.method === 'GET') {
+            const projectId = decodeURIComponent(timelineMatch[1])
+            const sessionId = decodeURIComponent(timelineMatch[2])
+
+            const project = await getProjectById(REGISTRY_ROOT, projectId)
+            if (!project) {
+              res.statusCode = 404
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: `Project not found: ${projectId}` }))
+              return
+            }
+
+            // Verify session directory exists
+            const sessionDir = join(project.projectDir, '.sidekick', 'sessions', sessionId)
+            try {
+              await access(sessionDir)
+            } catch {
+              res.statusCode = 404
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: `Session not found: ${sessionId}` }))
+              return
+            }
+
+            const events = await parseTimelineEvents(project.projectDir, sessionId)
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ events }))
             return
           }
 

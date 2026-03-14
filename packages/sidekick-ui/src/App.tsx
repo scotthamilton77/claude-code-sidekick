@@ -1,6 +1,7 @@
 import { useReducer, useEffect } from 'react'
 import { NavigationContext, initialState, navigationReducer } from './hooks/useNavigation'
 import { useSessions } from './hooks/useSessions'
+import { useTimeline } from './hooks/useTimeline'
 import { SessionSelector } from './components/SessionSelector'
 import { SummaryStrip } from './components/SummaryStrip'
 import { Timeline } from './components/timeline/Timeline'
@@ -10,6 +11,11 @@ import { DetailPanel } from './components/detail/DetailPanel'
 function App() {
   const [state, dispatch] = useReducer(navigationReducer, initialState)
   const { projects, loading, error } = useSessions()
+
+  const { events: timelineEvents, loading: timelineLoading } = useTimeline(
+    state.selectedProjectId,
+    state.selectedSessionId
+  )
 
   // Derive selected data from state
   const selectedProject = projects.find(p => p.id === state.selectedProjectId)
@@ -72,7 +78,7 @@ function App() {
               <div className="flex-1 flex overflow-hidden">
                 {/* Timeline — fixed width, never compresses */}
                 <div className="w-60 flex-shrink-0 border-r border-slate-200 dark:border-slate-700 overflow-hidden">
-                  <Timeline events={selectedSession.sidekickEvents} />
+                  <Timeline events={timelineEvents} loading={timelineLoading} />
                 </div>
 
                 {/* Transcript — shrinks when detail open */}

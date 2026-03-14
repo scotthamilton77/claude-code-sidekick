@@ -7,9 +7,10 @@ import { TimelineEventItem } from './TimelineEvent'
 
 interface TimelineProps {
   events: SidekickEvent[]
+  loading?: boolean
 }
 
-export function Timeline({ events }: TimelineProps) {
+export function Timeline({ events, loading }: TimelineProps) {
   const { state, dispatch } = useNavigation()
 
   const isEventDimmed = useCallback(
@@ -25,7 +26,11 @@ export function Timeline({ events }: TimelineProps) {
     <div className="h-full flex flex-col">
       <TimelineFilterBar />
       <div className="flex-1 overflow-y-auto py-1">
-        {events.map(event => (
+        {loading ? (
+          <div className="flex items-center justify-center h-32 text-xs text-slate-400">Loading events…</div>
+        ) : events.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-xs text-slate-400">No events</div>
+        ) : events.map(event => (
           <TimelineEventItem
             key={event.id}
             event={event}

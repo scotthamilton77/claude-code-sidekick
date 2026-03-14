@@ -199,5 +199,8 @@ export async function listSessions(projectDir: string, isProjectActive = false):
     sessions.push({ id: dirent.name, title, date, status, persona, intent, intentConfidence })
   }
 
+  // Sort newest first (by ISO date string, descending)
+  sessions.sort((a, b) => b.date.localeCompare(a.date))
+
   return sessions
 }
