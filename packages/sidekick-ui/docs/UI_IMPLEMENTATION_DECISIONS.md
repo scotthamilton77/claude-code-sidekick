@@ -130,4 +130,86 @@ Each decision follows this structure:
 
 **Rationale:** Changing the `Session` type would ripple through all components. Empty collections are truthful (we haven't loaded the data yet) and components handle empty arrays naturally.
 
-**Deferred work:** TB2 populates `transcriptLines` and `sidekickEvents`. TB3+ populates `ledStates` and `stateSnapshots`.
+**Deferred work:** TB2 populates `sidekickEvents`. TB3+ populates `transcriptLines`, `ledStates`, and `stateSnapshots`.
+
+---
+
+### D8: Fresh minimal NDJSON parser, not archived parser (2026-03-14)
+
+**Decision:** Write a fresh ~50-line NDJSON parser for TB2 instead of resurrecting the archived `NdjsonStreamParser` from `.archive/src/lib/log-parser.ts`.
+
+**Context:** TB2 needs to parse `.sidekick/logs/cli.log` and `sidekickd.log` to extract timeline events.
+
+**Alternatives considered:**
+1. Resurrect archived `NdjsonStreamParser` — already built, handles streaming and Pino metadata
+2. Fresh minimal parser — purpose-built for current canonical event types
+
+**Rationale:** The archived parser predates the 32 canonical event types and `CanonicalEvent<T>` type system. Adapting it would mean retrofitting legacy abstractions. A fresh parser that speaks the current type language is ~50 lines and trivially testable. When streaming is needed (SSE), revisit the `NdjsonStreamParser` pattern then.
+
+**Deferred work:** None — streaming parser is a separate concern for SSE (see `claude-code-sidekick-zq8`).
+
+---
+
+### D9: `transcriptLineId` empty string placeholder (2026-03-14)
+
+**Decision:** Set `transcriptLineId: ''` on all `SidekickEvent` objects in TB2. Scroll-sync between Timeline and Transcript does nothing.
+
+**Context:** The `SidekickEvent` type has a required `transcriptLineId` field for scroll-sync. TB2 doesn't load transcript data.
+
+**Alternatives considered:**
+1. Empty string placeholder — sync dispatch fires, finds no match, nothing happens
+2. Use event ID as transcriptLineId — semantically misleading
+3. Make `transcriptLineId` optional — changes type contract for a temporary state
+
+**Rationale:** Option 1 is simplest with zero type or component changes. The Timeline already handles the case where no transcript line matches. When transcript data is loaded in TB3+, replace the empty string with correlated line IDs.
+
+**Deferred work:** Transcript line correlation for scroll-sync. See `claude-code-sidekick-sz6`.
+
+---
+
+### D10: Payload-aware label generator (2026-03-14)
+
+**Decision:** Generate human-readable timeline labels by inspecting both event `type` and `payload`, not just the type string.
+
+**Context:** The Timeline column is narrow. Each event needs a concise, informative `label`.
+
+**Alternatives considered:**
+1. Static type-to-label map (`'reminder:staged' → 'Reminder Staged'`) — simple but repetitive
+2. Payload-aware generator (`'reminder:staged' + payload → 'Staged: vc-build'`) — richer, more useful
+
+**Rationale:** A timeline full of identical "Reminder Staged" entries provides no value. Payload-aware labels like "Staged: vc-build" vs "Staged: pause-and-reflect" tell a meaningful story at a glance. ~40 lines with a switch on event type.
+
+**Deferred work:** None.
+
+---
+
+### D11: Parser and transformer in server/ only (2026-03-14)
+
+**Decision:** NDJSON parsing and event transformation live in `packages/sidekick-ui/server/`, not in a shared module or separate package.
+
+**Context:** The client receives clean `SidekickEvent[]` from the API — it never touches raw NDJSON.
+
+**Alternatives considered:**
+1. Server-only — co-located with API route, simple
+2. Shared `src/lib/` module — available to both server and client
+3. Separate `@sidekick/log-parser` package — maximum reuse across monorepo
+
+**Rationale:** TB2 is server-side parsing with a REST endpoint. No client-side parsing needed. A new monorepo package for ~50 lines is over-engineering. If SSE arrives and the client needs to parse raw event lines, extract to a shared module then.
+
+**Deferred work:** Extract to shared module if/when client-side parsing is needed (SSE). See `claude-code-sidekick-zq8`.
+
+---
+
+### D12: Empty timeline shows "no events" message (2026-03-14)
+
+**Decision:** When a session has no timeline events, display a "No events" message instead of an empty panel.
+
+**Context:** Silent empty states confuse users — they can't tell if the timeline is loading, broken, or genuinely empty.
+
+**Alternatives considered:**
+1. Silent empty state — filter bar with nothing below
+2. Explicit "No events" message
+
+**Rationale:** Users need feedback. An empty panel looks like a bug. A brief message confirms the system is working, there's just nothing to show.
+
+**Deferred work:** None.
