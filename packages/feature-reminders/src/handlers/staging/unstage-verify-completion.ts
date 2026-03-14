@@ -140,7 +140,12 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         await daemonCtx.staging.deleteReminder('Stop', vcId)
         logEvent(
           daemonCtx.logger,
-          ReminderEvents.reminderUnstaged(eventContext, { reminderName: vcId, hookName: 'Stop', reason })
+          ReminderEvents.reminderUnstaged(eventContext, {
+            reminderName: vcId,
+            hookName: 'Stop',
+            reason,
+            triggeredBy: unverifiedState?.hasUnverifiedChanges ? 'cycle_limit' : 'no_unverified_changes',
+          })
         )
       }
       daemonCtx.logger.debug('VC unstage: deleted all VC reminders')

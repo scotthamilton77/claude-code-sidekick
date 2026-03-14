@@ -224,7 +224,7 @@ async function handleBashCommand(
       daemonCtx.logger,
       ReminderEvents.reminderUnstaged(
         { sessionId },
-        { reminderName: reminderId, hookName: 'Stop', reason: 'tool_verified' }
+        { reminderName: reminderId, hookName: 'Stop', reason: 'tool_verified', triggeredBy: 'verification_passed' }
       )
     )
     anyUnstaged = true
@@ -248,7 +248,12 @@ async function handleBashCommand(
         daemonCtx.logger,
         ReminderEvents.reminderUnstaged(
           { sessionId },
-          { reminderName: ReminderIds.VERIFY_COMPLETION, hookName: 'Stop', reason: 'all_tools_verified' }
+          {
+            reminderName: ReminderIds.VERIFY_COMPLETION,
+            hookName: 'Stop',
+            reason: 'all_tools_verified',
+            triggeredBy: 'verification_passed',
+          }
         )
       )
       daemonCtx.logger.info('All VC tools verified, unstaged wrapper', { sessionId })

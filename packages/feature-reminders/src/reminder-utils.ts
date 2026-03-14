@@ -138,7 +138,11 @@ export async function stageReminder(
   reminder: StagedReminder,
   enrichment?: StagingEnrichment
 ): Promise<void> {
-  await ctx.staging.stageReminder(hookName, reminder.name, reminder, enrichment)
+  if (enrichment) {
+    await ctx.staging.stageReminder(hookName, reminder.name, reminder, enrichment)
+  } else {
+    await ctx.staging.stageReminder(hookName, reminder.name, reminder)
+  }
   ctx.logger.debug('Staged reminder', { hookName, reminderName: reminder.name, priority: reminder.priority })
 }
 
