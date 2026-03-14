@@ -646,6 +646,61 @@ additionalContext: "Lint needed"
         expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
       })
     })
+
+    describe('reminder:not-staged events', () => {
+      it('should emit not-staged event when reactivation skipped (same turn)', async () => {
+        registerStagePauseAndReflect(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+
+        // First trigger at tool 60 - stages P&R
+        const event60 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 60, toolCount: 60 })
+        await handler?.handler(event60, ctx as unknown as import('@sidekick/types').HandlerContext)
+        expect(staging.getRemindersForHook('PreToolUse')).toHaveLength(1)
+
+        // Simulate consumption
+        staging.addConsumedReminder('PreToolUse', 'pause-and-reflect', {
+          name: 'pause-and-reflect',
+          blocking: true,
+          priority: 80,
+          persistent: false,
+          stagedAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 60, toolCount: 60 },
+        })
+        await staging.deleteReminder('PreToolUse', 'pause-and-reflect')
+
+        logger.reset()
+
+        // At tool 80 same turn: 80 - 60 = 20 < 60 threshold, should NOT re-stage
+        const event80 = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 80, toolCount: 80 })
+        await handler?.handler(event80, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('same_turn')
+        expect(notStagedEvents[0].meta?.reminderName).toBe('pause-and-reflect')
+      })
+
+      it('should emit not-staged event when tools below threshold', async () => {
+        registerStagePauseAndReflect(ctx)
+
+        const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+
+        // toolsThisTurn = 10 is below default threshold of 60
+        const event = createTestTranscriptEvent({ turnCount: 1, toolsThisTurn: 10, toolCount: 10 })
+        await handler?.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('below_threshold')
+        expect(notStagedEvents[0].meta?.reminderName).toBe('pause-and-reflect')
+        expect(notStagedEvents[0].meta?.threshold).toBe(60)
+        expect(notStagedEvents[0].meta?.currentValue).toBe(10)
+      })
+    })
   })
 
   describe('registerStageDefaultUserPrompt', () => {

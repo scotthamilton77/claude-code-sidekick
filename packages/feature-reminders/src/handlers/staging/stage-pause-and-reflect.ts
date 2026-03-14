@@ -9,7 +9,9 @@
  * @see docs/design/FEATURE-REMINDERS.md
  */
 import type { RuntimeContext } from '@sidekick/core'
+import { logEvent } from '@sidekick/core'
 import { isTranscriptEvent, type PRBaselineState } from '@sidekick/types'
+import { ReminderEvents } from '../../events.js'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { createRemindersState } from '../../state.js'
@@ -59,12 +61,42 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
           metrics.turnCount > lastConsumed.stagedAt.turnCount ||
           metrics.toolsThisTurn >= effectiveBaseline + config.pause_and_reflect_threshold
 
-        if (!shouldReactivate) return undefined
+        if (!shouldReactivate) {
+          logEvent(
+            ctx.logger,
+            ReminderEvents.reminderNotStaged(
+              { sessionId: event.context?.sessionId ?? '' },
+              {
+                reminderName: 'pause-and-reflect',
+                hookName: 'PreToolUse',
+                reason: 'same_turn',
+                triggeredBy: 'tool_result',
+              }
+            )
+          )
+          return undefined
+        }
       }
 
       // Check threshold relative to baseline
       const toolsSinceBaseline = metrics.toolsThisTurn - effectiveBaseline
-      if (toolsSinceBaseline < config.pause_and_reflect_threshold) return undefined
+      if (toolsSinceBaseline < config.pause_and_reflect_threshold) {
+        logEvent(
+          ctx.logger,
+          ReminderEvents.reminderNotStaged(
+            { sessionId: event.context?.sessionId ?? '' },
+            {
+              reminderName: 'pause-and-reflect',
+              hookName: 'PreToolUse',
+              reason: 'below_threshold',
+              threshold: config.pause_and_reflect_threshold,
+              currentValue: toolsSinceBaseline,
+              triggeredBy: 'tool_result',
+            }
+          )
+        )
+        return undefined
+      }
 
       // Note: Unstaging verify-completion is now handled by orchestrator.onReminderStaged()
       // in staging-handler-utils.ts after this handler returns the staging action.
