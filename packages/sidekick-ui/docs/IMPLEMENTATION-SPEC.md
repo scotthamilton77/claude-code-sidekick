@@ -15,7 +15,7 @@ PHASE2-AUDIT.md      — Gap analysis (@sidekick/types vs UI, API audit, new fea
 IMPLEMENTATION-SPEC.md — This document (data contracts, API design, component wiring)
 ```
 
-MONITORING-UI.md is deprecated and retained for historical context only.
+MONITORING-UI.md is a historical document and not used for implementation decisions.
 
 ### Scope
 
@@ -51,7 +51,7 @@ This eliminates translation layers — the daemon announces state transitions us
 
 ### 2.2 Naming Convention
 
-Canonical event names use `category:action` format. This replaces the current kebab-case UI types (`reminder-staged`) and PascalCase logging types (`ReminderStaged`).
+Canonical event names use `category:action` format (e.g., `reminder:staged`, `session-summary:start`).
 
 **Categories:** `reminder`, `session-summary`, `session-title`, `intent`, `snarky-message`, `resume-message`, `persona`, `statusline`, `decision`, `hook`, `event`, `daemon`, `ipc`, `config`, `session`, `transcript`, `error`
 
@@ -76,7 +76,7 @@ The visibility is part of the type definition in `@sidekick/types`. The UI reads
 
 ### 2.4 Canonical Event Table
 
-Every event type in the unified vocabulary, organized by category. The **Emitter** column indicates which process writes the event to its log file. The **Status** column indicates whether this is an existing event being renamed or a new event the emitter must start producing.
+Every event type in the unified vocabulary, organized by category. The **Emitter** column indicates which process writes the event to its log file.
 
 > **Payload structure:** Canonical event payloads are **flat** — all fields live directly under `payload`, not nested in `state`/`metadata` sub-objects. This is a deliberate simplification from the current `LoggingEventBase` structure, which nests fields under `payload.state` and `payload.metadata`. The flattening happens at the canonical event boundary.
 >
@@ -84,44 +84,44 @@ Every event type in the unified vocabulary, organized by category. The **Emitter
 
 #### Timeline Events (user-visible state changes)
 
-| # | Canonical Name | Visibility | Emitter | Status | Current Source | Payload (key fields) |
-|---|---------------|------------|---------|--------|---------------|---------------------|
-| 1 | `reminder:staged` | `timeline` | daemon | **rename** | `ReminderStaged` | `reminderName`, `hookName`, `blocking`, `priority`, `persistent` |
-| 2 | `reminder:unstaged` | `timeline` | daemon | **new** | _(no event — `ctx.staging.deleteReminder()` is silent)_ | `reminderName`, `hookName`, `reason` |
-| 3 | `reminder:consumed` | `timeline` | cli | **rename** | `ReminderConsumed` | `reminderName`, `reminderReturned`, `blocking?`, `priority?`, `persistent?` |
-| 4 | `reminder:cleared` | `timeline` | daemon | **rename** | `RemindersCleared` | `clearedCount`, `hookNames?`, `reason` |
-| 5 | `decision:recorded` | `timeline` | daemon | **new** | _(logger.info calls with `decision` field, not structured events)_ | `decision`, `reason`, `detail` |
-| 6 | `session-summary:start` | `timeline` | daemon | **new** | _(implicit — LLM call begins)_ | `reason`, `countdown` |
-| 7 | `session-summary:finish` | `timeline` | daemon | **rename+split** | `SummaryUpdated` | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
-| 8 | `session-title:changed` | `timeline` | daemon | **new (extracted)** | _(buried in `SummaryUpdated.metadata.old_title`)_ | `previousValue`, `newValue`, `confidence` |
-| 9 | `intent:changed` | `timeline` | daemon | **new (extracted)** | _(buried in `SummaryUpdated.metadata.old_intent`)_ | `previousValue`, `newValue`, `confidence` |
-| 10 | `snarky-message:start` | `timeline` | daemon | **new** | _(implicit — task begins)_ | `sessionId` |
-| 11 | `snarky-message:finish` | `timeline` | daemon | **new** | _(state file written, no event)_ | `generatedMessage` |
-| 12 | `resume-message:start` | `timeline` | daemon | **rename** | `ResumeGenerating` | `title_confidence`, `intent_confidence` |
-| 13 | `resume-message:finish` | `timeline` | daemon | **rename** | `ResumeUpdated` | `snarky_comment`, `timestamp` |
-| 14 | `persona:selected` | `timeline` | daemon | **new** | _(state file written via `summaryState.sessionPersona.write()`)_ | `personaId`, `selectionMethod` (`pinned` \| `handoff` \| `random`), `poolSize` |
-| 15 | `persona:changed` | `timeline` | daemon | **new** | _(persona reminders staged, no discrete event)_ | `personaFrom`, `personaTo`, `reason` |
-| 16 | `statusline:rendered` | `timeline` | cli | **rename** | `StatuslineRendered` | `displayMode`, `staleData`, `model?`, `tokens?`, `durationMs` |
+| # | Canonical Name | Visibility | Emitter | Current Source | Payload (key fields) |
+|---|---------------|------------|---------|---------------|---------------------|
+| 1 | `reminder:staged` | `timeline` | daemon | `ReminderStaged` | `reminderName`, `hookName`, `blocking`, `priority`, `persistent` |
+| 2 | `reminder:unstaged` | `timeline` | daemon | _(no event — `ctx.staging.deleteReminder()` is silent)_ | `reminderName`, `hookName`, `reason` |
+| 3 | `reminder:consumed` | `timeline` | cli | `ReminderConsumed` | `reminderName`, `reminderReturned`, `blocking?`, `priority?`, `persistent?` |
+| 4 | `reminder:cleared` | `timeline` | daemon | `RemindersCleared` | `clearedCount`, `hookNames?`, `reason` |
+| 5 | `decision:recorded` | `timeline` | daemon | _(logger.info calls with `decision` field, not structured events)_ | `decision`, `reason`, `detail` |
+| 6 | `session-summary:start` | `timeline` | daemon | _(implicit — LLM call begins)_ | `reason`, `countdown` |
+| 7 | `session-summary:finish` | `timeline` | daemon | `SummaryUpdated` | `session_title`, `session_title_confidence`, `latest_intent`, `latest_intent_confidence`, `processing_time_ms`, `pivot_detected` |
+| 8 | `session-title:changed` | `timeline` | daemon | _(buried in `SummaryUpdated.metadata.old_title`)_ | `previousValue`, `newValue`, `confidence` |
+| 9 | `intent:changed` | `timeline` | daemon | _(buried in `SummaryUpdated.metadata.old_intent`)_ | `previousValue`, `newValue`, `confidence` |
+| 10 | `snarky-message:start` | `timeline` | daemon | _(implicit — task begins)_ | `sessionId` |
+| 11 | `snarky-message:finish` | `timeline` | daemon | _(state file written, no event)_ | `generatedMessage` |
+| 12 | `resume-message:start` | `timeline` | daemon | `ResumeGenerating` | `title_confidence`, `intent_confidence` |
+| 13 | `resume-message:finish` | `timeline` | daemon | `ResumeUpdated` | `snarky_comment`, `timestamp` |
+| 14 | `persona:selected` | `timeline` | daemon | _(state file written via `summaryState.sessionPersona.write()`)_ | `personaId`, `selectionMethod` (`pinned` \| `handoff` \| `random`), `poolSize` |
+| 15 | `persona:changed` | `timeline` | daemon | _(persona reminders staged, no discrete event)_ | `personaFrom`, `personaTo`, `reason` |
+| 16 | `statusline:rendered` | `timeline` | cli | `StatuslineRendered` | `displayMode`, `staleData`, `model?`, `tokens?`, `durationMs` |
 
 #### Log-Only Events (internal machinery)
 
-| # | Canonical Name | Visibility | Emitter | Status | Current Source | Payload (key fields) |
-|---|---------------|------------|---------|--------|---------------|---------------------|
-| 17 | `hook:received` | `both` | cli | **rename** | `HookReceived` | `hook`†, `cwd?`, `mode?` |
-| 18 | `hook:completed` | `both` | cli | **rename** | `HookCompleted` | `hook`†, `durationMs`, `reminderReturned?`, `responseType?` |
-| 19 | `event:received` | `log` | daemon | **rename** | `EventReceived` | `eventKind`, `eventType`, `hook` |
-| 20 | `event:processed` | `log` | daemon | **rename** | `EventProcessed` | `handlerId`, `success`, `durationMs`, `error?` |
-| 21 | `daemon:starting` | `log` | daemon | **rename** | `DaemonStarting` | `projectDir`, `pid` |
-| 22 | `daemon:started` | `log` | daemon | **rename** | `DaemonStarted` | `startupDurationMs` |
-| 23 | `ipc:started` | `log` | daemon | **rename** | `IpcServerStarted` | `socketPath` |
-| 24 | `config:watcher-started` | `log` | daemon | **rename** | `ConfigWatcherStarted` | `projectDir`, `watchedFiles` |
-| 25 | `session:eviction-started` | `log` | daemon | **rename** | `SessionEvictionStarted` | `intervalMs` |
-| 26 | `session-summary:skipped` | `log` | daemon | **rename** | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
-| 27 | `resume-message:skipped` | `log` | daemon | **rename** | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
-| 28 | `statusline:error` | `both` | cli | **rename** | `StatuslineError` | `reason`, `file?`, `fallbackUsed`, `error?` |
-| 29 | `transcript:emitted` | `log` | daemon | **rename** | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
-| 30 | `transcript:pre-compact` | `log` | daemon | **rename** | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
-| 31 | `error:occurred` | `both` | both | **new** | _(structured error event)_ | `errorMessage`, `errorStack?`, `source` |
+| # | Canonical Name | Visibility | Emitter | Current Source | Payload (key fields) |
+|---|---------------|------------|---------|---------------|---------------------|
+| 17 | `hook:received` | `both` | cli | `HookReceived` | `hook`†, `cwd?`, `mode?` |
+| 18 | `hook:completed` | `both` | cli | `HookCompleted` | `hook`†, `durationMs`, `reminderReturned?`, `responseType?` |
+| 19 | `event:received` | `log` | daemon | `EventReceived` | `eventKind`, `eventType`, `hook` |
+| 20 | `event:processed` | `log` | daemon | `EventProcessed` | `handlerId`, `success`, `durationMs`, `error?` |
+| 21 | `daemon:starting` | `log` | daemon | `DaemonStarting` | `projectDir`, `pid` |
+| 22 | `daemon:started` | `log` | daemon | `DaemonStarted` | `startupDurationMs` |
+| 23 | `ipc:started` | `log` | daemon | `IpcServerStarted` | `socketPath` |
+| 24 | `config:watcher-started` | `log` | daemon | `ConfigWatcherStarted` | `projectDir`, `watchedFiles` |
+| 25 | `session:eviction-started` | `log` | daemon | `SessionEvictionStarted` | `intervalMs` |
+| 26 | `session-summary:skipped` | `log` | daemon | `SummarySkipped` | `countdown`, `countdown_threshold`, `reason` |
+| 27 | `resume-message:skipped` | `log` | daemon | `ResumeSkipped` | `title_confidence`, `intent_confidence`, `min_confidence`, `reason` |
+| 28 | `statusline:error` | `both` | cli | `StatuslineError` | `reason`, `file?`, `fallbackUsed`, `error?` |
+| 29 | `transcript:emitted` | `log` | daemon | `TranscriptEventEmitted` | `eventType`, `lineNumber`, `uuid?`, `toolName?` |
+| 30 | `transcript:pre-compact` | `log` | daemon | `PreCompactCaptured` | `snapshotPath`, `lineCount` |
+| 31 | `error:occurred` | `both` | both | _(structured error event)_ | `errorMessage`, `errorStack?`, `source` |
 
 > **†** `hook` is currently stored in `EventLogContext` (the `context` object), not in `payload`. Canonical events flatten this into the payload for consistency — the `hook` field moves from `context.hook` to `payload.hook`.
 
@@ -1317,12 +1317,12 @@ interface SessionSelectorProps {
 
 **DetailPanel** — Needs transformation. Props: `{ line: TranscriptLine; lines: TranscriptLine[]; stateSnapshots: StateSnapshot[] }`. `TranscriptLine[]` from T-1; `StateSnapshot[]` from T-5.
 
-**StateTab** — Needs type extension. Props: `{ snapshots: StateSnapshot[]; currentTimestamp: number }`. The current `StateSnapshot` uses `Record<string, unknown>` for state fields. Must be replaced with `SessionStateSnapshot` from `@sidekick/types` (§3.7) once the canonical type is extended with the 8 missing fields.
+**StateTab** — Uses `SessionStateSnapshot` from `@sidekick/types` (§3.7).
 
 ```typescript
 /** Updated props after canonical type extension (§3.7) */
 interface StateTabProps {
-  snapshots: SessionStateSnapshot[]  // replaces local StateSnapshot
+  snapshots: SessionStateSnapshot[]  // from @sidekick/types (§3.7)
   currentTimestamp: number
 }
 ```
@@ -1421,7 +1421,7 @@ function assembleStateSnapshots(
 
 **Output**: `SessionStateSnapshot[]` consumed by `StateTab`, `DetailPanel`.
 
-**Logic**: Assemble a `SessionStateSnapshot` by reading each `StateFileResponse<T>.data` value and assigning it to the corresponding field on the snapshot. The snapshot timestamp is the maximum `fileMtime` across all constituent files. If the SSE push (§4.2.4) delivers a file change notification, the affected field is updated in the existing snapshot and a new snapshot is appended with the updated timestamp, preserving historical snapshots for time-travel (§5.2). The `StateTab` component's `findSnapshotAtTime()` helper then selects the appropriate snapshot for a given transcript line timestamp. The 7 state files currently shown in `STATE_FILE_LABELS` map (`sessionSummary`, `sessionPersona`, `snarkyMessage`, `resumeMessage`, `transcriptMetrics`, `llmMetrics`, `summaryCountdown`) expand to all 20 state file types (§3.3) after the canonical type extension (§3.7).
+**Logic**: Assemble a `SessionStateSnapshot` by reading each `StateFileResponse<T>.data` value and assigning it to the corresponding field on the snapshot. The snapshot timestamp is the maximum `fileMtime` across all constituent files. If the SSE push (§4.2.4) delivers a file change notification, the affected field is updated in the existing snapshot and a new snapshot is appended with the updated timestamp, preserving historical snapshots for time-travel (§5.2). The `StateTab` component's `findSnapshotAtTime()` helper then selects the appropriate snapshot for a given transcript line timestamp. The `STATE_FILE_LABELS` map covers all 20 state file types (§3.3).
 
 **Consumers**: `StateTab` (#17), `DetailPanel` (#11)
 
@@ -1451,7 +1451,7 @@ The gaps above form a dependency chain with two other sections:
 
 - **§7 (Feature Integration Tiers)** defines which gaps are addressed at each tier. Tier 1 critical gaps (§7.1) include LLM call events (G-5 partial) and task queue visibility (G-5 partial). Tier 2 features add persona detail views and pre-compaction snapshots. Components with G-5 gaps can render with `--` fallback values until the corresponding feature tier is implemented.
 
-- **§3.7 (SessionStateSnapshot extension)** blocks G-2 and G-6. The canonical type must be extended with 8 fields before `StateTab` can display typed state data instead of `Record<string, unknown>`.
+- `SessionStateSnapshot` (§3.7) must include all session state fields for `StateTab` to display typed data for G-2 and G-6.
 
 ### 6.5 Requirements Traceability
 

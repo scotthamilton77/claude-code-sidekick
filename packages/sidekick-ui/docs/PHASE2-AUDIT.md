@@ -41,7 +41,7 @@ Transcript Logging Events:
 
 ### 1.2 Types Handled by UI
 
-Current UI event types (packages/sidekick-ui/src/types.ts — 16 Sidekick event types):
+UI event types (`@sidekick/types` — 16 canonical event types):
 1. 'reminder:staged' — ReminderDetail component
 2. 'reminder:unstaged' — ReminderDetail component
 3. 'reminder:consumed' — ReminderDetail component
