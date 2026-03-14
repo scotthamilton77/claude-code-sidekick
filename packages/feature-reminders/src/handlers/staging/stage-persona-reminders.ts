@@ -173,6 +173,17 @@ export async function stagePersonaRemindersForSession(
   options?: { includeChangedReminder?: boolean }
 ): Promise<void> {
   if (!isPersonaInjectionEnabled(ctx)) {
+    logEvent(
+      ctx.logger,
+      ReminderEvents.reminderNotStaged(
+        { sessionId },
+        {
+          reminderName: 'remember-your-persona',
+          hookName: 'PreToolUse',
+          reason: 'feature_disabled',
+        }
+      )
+    )
     await clearPersonaReminders(ctx, sessionId)
     ctx.logger.debug('Persona injection disabled by config, cleaned up reminders', { sessionId })
     return
@@ -181,6 +192,17 @@ export async function stagePersonaRemindersForSession(
   const persona = await loadPersonaForSession(ctx, sessionId)
 
   if (!persona) {
+    logEvent(
+      ctx.logger,
+      ReminderEvents.reminderNotStaged(
+        { sessionId },
+        {
+          reminderName: 'remember-your-persona',
+          hookName: 'PreToolUse',
+          reason: 'no_persona',
+        }
+      )
+    )
     await clearPersonaReminders(ctx, sessionId)
     ctx.logger.debug('Persona cleared or disabled, unstaged persona reminders', { sessionId })
     return

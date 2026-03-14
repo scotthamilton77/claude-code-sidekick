@@ -2419,5 +2419,80 @@ additionalContext: "Your persona has changed to: {{persona_name}}"
         expect(result.data).toEqual({ personaId: null })
       })
     })
+
+    describe('reminder:not-staged events', () => {
+      it('should emit not-staged when persona injection disabled', async () => {
+        const config = new MockConfigService()
+        config.set({
+          features: {
+            'session-summary': {
+              enabled: true,
+              settings: {
+                personas: {
+                  injectPersonaIntoClaude: false,
+                },
+              },
+            },
+          },
+        })
+
+        const stateService = new MockStateService('/tmp/claude/test-persona-not-staged-disabled')
+        const ctxWithConfig = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          config,
+          paths: {
+            projectDir: '/tmp/claude/test-persona-not-staged-disabled',
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        setupPersonaState(stateService, 'skippy')
+        setupPersonaLoader('skippy', testPersona)
+
+        logger.reset()
+
+        await stagePersonaRemindersForSession(ctxWithConfig, sessionId)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('feature_disabled')
+        expect(notStagedEvents[0].meta?.reminderName).toBe('remember-your-persona')
+      })
+
+      it('should emit not-staged when no persona loaded', async () => {
+        // No persona state written — stateService returns null
+        const stateService = new MockStateService('/tmp/claude/test-persona-not-staged-none')
+        const ctxWithState = createMockDaemonContext({
+          staging,
+          logger,
+          handlers,
+          assets,
+          stateService,
+          paths: {
+            projectDir: '/tmp/claude/test-persona-not-staged-none',
+            userConfigDir: '/mock/user',
+            projectConfigDir: '/mock/project-config',
+          },
+        })
+
+        logger.reset()
+
+        await stagePersonaRemindersForSession(ctxWithState, sessionId)
+
+        const notStagedEvents = logger.recordedLogs.filter(
+          (log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged'
+        )
+        expect(notStagedEvents).toHaveLength(1)
+        expect(notStagedEvents[0].meta?.reason).toBe('no_persona')
+        expect(notStagedEvents[0].meta?.reminderName).toBe('remember-your-persona')
+      })
+    })
   })
 })
