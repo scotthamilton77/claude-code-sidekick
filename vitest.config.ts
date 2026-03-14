@@ -62,7 +62,10 @@ export default defineConfig({
         // === sidekick-cli ===
         'packages/sidekick-cli/src/index.ts', // Barrel file
         'packages/sidekick-cli/src/bin.ts', // CLI entrypoint only
-        'packages/sidekick-cli/src/commands/**', // CLI dispatch layer
+        'packages/sidekick-cli/src/commands/setup.ts', // Barrel re-export to setup/index.ts
+        'packages/sidekick-cli/src/commands/setup/index.ts', // Interactive wizard (tested via setup.test.ts for doctor/force)
+        'packages/sidekick-cli/src/commands/setup/prompts.ts', // Interactive readline UI
+        'packages/sidekick-cli/src/commands/setup/user-profile-setup.ts', // Interactive wizard step
 
         // === shared-providers ===
         'packages/shared-providers/src/index.ts', // Barrel file
