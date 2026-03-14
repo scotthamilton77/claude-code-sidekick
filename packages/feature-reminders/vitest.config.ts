@@ -23,7 +23,6 @@ export default defineConfig({
         '**/dist/**',
         'vitest.config.ts',
         'src/index.ts',
-        'src/types.ts',
         'src/events.ts',
         'src/handlers/*/index.ts',
         'src/handlers/consumption/inject-*.ts',
