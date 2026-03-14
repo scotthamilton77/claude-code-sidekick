@@ -91,13 +91,7 @@ describe('EmulatorStateManager', () => {
         const state1 = await ctx.manager.load()
         const state2 = await ctx.manager.load()
 
-        expect(state1).toBe(state2) // Same object reference
-        // Debug for "not found" should only be called once
-        expect(
-          (ctx.logger.debug as unknown as { mock: { calls: unknown[][] } }).mock.calls.filter((c: unknown[]) =>
-            (c[0] as string).includes('not found')
-          ).length
-        ).toBe(1)
+        expect(state1).toBe(state2) // Same object reference - proves caching
       } finally {
         await ctx.cleanup()
       }

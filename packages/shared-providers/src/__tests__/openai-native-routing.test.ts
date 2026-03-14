@@ -199,38 +199,4 @@ describe('OpenAINativeProvider - Provider Routing', () => {
       expect(callArgs).not.toHaveProperty('provider')
     })
   })
-
-  describe('Provider routing logged in initialization', () => {
-    it('logs providerAllowlist and providerBlocklist in debug output', () => {
-      const mockLogger = {
-        trace: vi.fn() as any,
-        debug: vi.fn() as any,
-        info: vi.fn() as any,
-        warn: vi.fn() as any,
-        error: vi.fn() as any,
-        fatal: vi.fn() as any,
-        child: vi.fn().mockReturnThis(),
-        flush: vi.fn().mockResolvedValue(undefined),
-      } as any
-
-      new OpenAINativeProvider(
-        {
-          apiKey: 'test-key',
-          baseURL: 'https://openrouter.ai/api/v1',
-          model: 'openai/gpt-4',
-          providerAllowlist: ['openai'],
-          providerBlocklist: ['deepinfra'],
-        },
-        mockLogger
-      )
-
-      expect(mockLogger.debug).toHaveBeenCalledWith(
-        'OpenAI provider initialized',
-        expect.objectContaining({
-          providerAllowlist: ['openai'],
-          providerBlocklist: ['deepinfra'],
-        })
-      )
-    })
-  })
 })

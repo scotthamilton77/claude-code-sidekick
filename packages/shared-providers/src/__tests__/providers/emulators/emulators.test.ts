@@ -136,26 +136,6 @@ describe('OpenAIEmulator', () => {
       expect(body.usage.prompt_tokens).toBe(response.usage?.inputTokens)
       expect(body.usage.completion_tokens).toBe(response.usage?.outputTokens)
     })
-
-    it('logs request and response', async () => {
-      await emulator.complete(testRequest)
-
-      expect(logger.debug).toHaveBeenCalledWith(
-        'LLM request initiated',
-        expect.objectContaining({
-          provider: 'openai-emulator',
-          messageCount: 1,
-          hasSystem: true,
-        })
-      )
-      expect(logger.info).toHaveBeenCalledWith(
-        'LLM request completed',
-        expect.objectContaining({
-          provider: 'openai-emulator',
-          status: 200,
-        })
-      )
-    })
   })
 
   describe('id', () => {

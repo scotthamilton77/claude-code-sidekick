@@ -66,6 +66,7 @@ export default defineConfig({
 
         // === shared-providers ===
         'packages/shared-providers/src/index.ts', // Barrel file
+        'packages/shared-providers/src/validation.ts', // Calls external APIs - excluded from default runs
         'packages/shared-providers/src/providers/emulators/**', // LLM test emulators (test infrastructure)
 
         // === sidekick-daemon ===
