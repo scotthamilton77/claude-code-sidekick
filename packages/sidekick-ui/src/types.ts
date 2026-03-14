@@ -155,6 +155,7 @@ export interface Session {
   id: string
   title: string
   date: string
+  dateRaw: string  // ISO 8601 from API, for reliable comparison
   branch: string
   projectId: string
   persona?: string
