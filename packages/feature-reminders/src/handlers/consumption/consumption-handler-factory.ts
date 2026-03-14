@@ -41,8 +41,23 @@ export interface ResponseBuilderParams extends OnConsumeParams {
   supportsBlocking: boolean
 }
 
+/** Enrichment metadata that can be attached to the reminder:consumed event */
+export interface ConsumedEventEnrichment {
+  classificationResult?: {
+    category: string
+    confidence: number
+    shouldBlock: boolean
+  }
+}
+
+/** Result from a response builder, optionally including event enrichment metadata */
+export interface ResponseBuilderResult {
+  response: HookResponse
+  enrichment?: ConsumedEventEnrichment
+}
+
 /** Response builder strategy function */
-export type ResponseBuilder = (params: ResponseBuilderParams) => Promise<HookResponse>
+export type ResponseBuilder = (params: ResponseBuilderParams) => Promise<HookResponse | ResponseBuilderResult>
 
 /**
  * Build the default response from a reminder's properties.
@@ -125,9 +140,21 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
       }
 
       // Build response using strategy or default (primary reminder for backward compat)
-      let response = buildResponse
-        ? await buildResponse({ reminder: primary, reader, cliCtx, sessionId, event, supportsBlocking })
-        : buildDefaultResponse(primary, supportsBlocking)
+      let enrichment: ConsumedEventEnrichment | undefined
+      let response: HookResponse
+      if (buildResponse) {
+        const result = await buildResponse({ reminder: primary, reader, cliCtx, sessionId, event, supportsBlocking })
+        if ('response' in result && typeof result.response === 'object') {
+          // ResponseBuilderResult with enrichment
+          response = (result as ResponseBuilderResult).response
+          enrichment = (result as ResponseBuilderResult).enrichment
+        } else {
+          // Plain HookResponse (backward compatible)
+          response = result as HookResponse
+        }
+      } else {
+        response = buildDefaultResponse(primary, supportsBlocking)
+      }
 
       // Append additionalContext from secondary reminders (primary is already in response)
       const secondaryContexts = reminders
@@ -159,6 +186,7 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
             blocking: response.blocking ?? false,
             priority: primary.priority,
             persistent: primary.persistent,
+            ...enrichment,
           }
         )
       )
