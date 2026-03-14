@@ -189,7 +189,8 @@ describe('throttle-restage handlers use invocation-time context', () => {
           toolsThisTurn: 1,
           toolCount: 3,
         }),
-      })
+      }),
+      undefined
     )
   })
 
