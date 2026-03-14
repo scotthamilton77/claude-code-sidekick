@@ -110,15 +110,16 @@ describeIntegration('claude-cli /context integration', () => {
 
     // Parse and verify structure
     const contextEntry = JSON.parse(contextOutputLine!)
-    const stdout = (contextEntry.message?.content ?? contextEntry.content) as string
+    const stdout = contextEntry.message?.content ?? contextEntry.content
+    expect(typeof stdout).toBe('string')
 
     // Verify expected markers
     expect(stdout).toContain('<local-command-stdout>')
     expect(stdout).toContain('System prompt')
     expect(stdout).toContain('System tools')
 
-    // Verify token count format: "18k / 200k (9%)"
-    expect(stdout).toMatch(/\d+\.?\d*k?\s*\/\s*\d+\.?\d*k?\s*\(/i)
+    // Verify token count format: "18k / 200k (9%)" or "166k/200k tokens (83%)"
+    expect(stdout).toMatch(/\d+\.?\d*k?\s*\/\s*\d+\.?\d*k?\s*\w*\s*\(/i)
   })
 
   it('parses /context output from transcript', async () => {
@@ -137,8 +138,10 @@ describeIntegration('claude-cli /context integration', () => {
       }
     })
 
+    expect(contextLine).toBeDefined()
     const entry = JSON.parse(contextLine!)
-    const stdout = (entry.message?.content ?? entry.content) as string
+    const stdout = entry.message?.content ?? entry.content
+    expect(typeof stdout).toBe('string')
 
     // Verify it has parseable format
     // Either markdown table (| Category | Tokens |) or visual format (Category: Xk tokens)
