@@ -8,7 +8,7 @@ const tsconfigRootDir = path.dirname(fileURLToPath(import.meta.url))
 export default tseslint.config(
   ...tseslint.configs.recommended,
   {
-    ignores: ['dist', 'node_modules', 'docs', 'coverage', '.archive', '**/*.d.ts', '**/*.js', '**/*.mjs'],
+    ignores: ['dist', 'node_modules', 'docs', 'coverage', '.archive', 'e2e', 'playwright.config.ts', '**/*.d.ts', '**/*.js', '**/*.mjs'],
   },
   {
     files: ['src/**/*.{ts,tsx}'],
