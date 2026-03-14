@@ -1162,6 +1162,47 @@ describe('Structured Logging', () => {
       expect(event.payload.reminderName).toBe('test-reminder')
     })
 
+    it('should include optional enrichment fields when provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-enrich' },
+        {
+          reminderName: 'vc-build',
+          hookName: 'Stop',
+          blocking: true,
+          priority: 80,
+          persistent: false,
+          reason: 'threshold_reached',
+          triggeredBy: 'file_edit',
+          thresholdState: { current: 3, threshold: 3 },
+        }
+      )
+
+      expect(event.payload.reason).toBe('threshold_reached')
+      expect(event.payload.triggeredBy).toBe('file_edit')
+      expect(event.payload.thresholdState).toEqual({ current: 3, threshold: 3 })
+    })
+
+    it('should omit enrichment fields when not provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-basic' },
+        {
+          reminderName: 'test',
+          hookName: 'Stop',
+          blocking: false,
+          priority: 50,
+          persistent: true,
+        }
+      )
+
+      expect(event.payload.reason).toBeUndefined()
+      expect(event.payload.triggeredBy).toBeUndefined()
+      expect(event.payload.thresholdState).toBeUndefined()
+    })
+
     it('should create DaemonStarting events with project dir and pid', async () => {
       const { LogEvents } = await import('../structured-logging')
 
