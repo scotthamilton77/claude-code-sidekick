@@ -30,6 +30,9 @@ export type TranscriptLineType =
   | 'tool-use'
   | 'tool-result'
   | 'compaction'
+  | 'turn-duration'    // system/turn_duration entries
+  | 'api-error'        // system/api_error entries
+  | 'pr-link'          // pr-link entries
   | SidekickEventType
 
 // A single line in the transcript
@@ -82,6 +85,23 @@ export interface TranscriptLine {
 
   // snarky-message:finish / resume-message:finish
   generatedMessage?: string
+
+  // turn-duration
+  durationMs?: number
+
+  // api-error
+  retryAttempt?: number
+  maxRetries?: number
+
+  // pr-link
+  prUrl?: string
+  prNumber?: number
+
+  // metadata flags (from Claude Code transcript entries)
+  model?: string
+  isSidechain?: boolean
+  isCompactSummary?: boolean
+  isMeta?: boolean
 }
 
 // ============================================================================
