@@ -120,6 +120,16 @@ export const StagedReminderSchema = z.object({
   stagedAt: StagingMetricsSchema.optional(),
 })
 
+/** Optional enrichment metadata passed through to `reminder:staged` events. */
+export interface StagingEnrichment {
+  /** Why this reminder was staged */
+  reason?: string
+  /** What action triggered the staging */
+  triggeredBy?: string
+  /** For threshold-gated reminders: state at time of staging */
+  thresholdState?: { current: number; threshold: number }
+}
+
 /**
  * Staging service interface.
  * Handles atomic file staging for the reminder system.
@@ -131,7 +141,12 @@ export interface StagingService {
    * Stage a reminder for a specific hook.
    * Uses atomic writes (temp file + rename).
    */
-  stageReminder(hookName: string, reminderName: string, data: StagedReminder): Promise<void>
+  stageReminder(
+    hookName: string,
+    reminderName: string,
+    data: StagedReminder,
+    enrichment?: StagingEnrichment
+  ): Promise<void>
 
   /**
    * Read a staged reminder.
