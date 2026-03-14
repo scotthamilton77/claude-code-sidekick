@@ -29,7 +29,7 @@
  * @see packages/feature-reminders/src/cli-staging-reader.ts
  */
 
-import { join } from 'node:path'
+import { join, basename } from 'node:path'
 
 // ============================================================================
 // Path Construction
@@ -64,18 +64,18 @@ export function getReminderPath(stateDir: string, sessionId: string, hookName: s
 // ============================================================================
 
 /**
- * Validate a path segment to prevent path traversal attacks.
- * Rejects segments containing path separators, parent directory references,
- * or hidden file prefixes.
+ * Validate that a string is a safe single path segment (no traversal).
  *
- * @param segment - The path segment to validate
- * @returns true if valid, false otherwise
+ * Rejects empty strings, `.`, `..`, strings containing path separators,
+ * and strings where basename differs from the input. Only allows
+ * alphanumeric characters, dots, hyphens, and underscores.
  */
-export function isValidPathSegment(segment: string): boolean {
-  if (!segment) return false
-  if (segment.includes('..') || segment.includes('/') || segment.includes('\\')) return false
-  if (segment.startsWith('.')) return false
-  return true
+export function isValidPathSegment(s: string): boolean {
+  if (s === '') return false
+  if (s === '.' || s === '..') return false
+  if (s.includes('/') || s.includes('\\')) return false
+  if (basename(s) !== s) return false
+  return /^[a-zA-Z0-9._-]+$/.test(s)
 }
 
 /**
@@ -87,14 +87,8 @@ export function isValidPathSegment(segment: string): boolean {
  * @throws Error if segment is invalid
  */
 export function validatePathSegment(segment: string, name: string): void {
-  if (!segment) {
-    throw new Error(`${name} cannot be empty`)
-  }
-  if (segment.includes('..') || segment.includes('/') || segment.includes('\\')) {
-    throw new Error(`Invalid ${name}: path traversal characters not allowed`)
-  }
-  if (segment.startsWith('.')) {
-    throw new Error(`Invalid ${name}: cannot start with '.'`)
+  if (!isValidPathSegment(segment)) {
+    throw new Error(`Invalid ${name}: must be a non-empty alphanumeric string without path separators`)
   }
 }
 

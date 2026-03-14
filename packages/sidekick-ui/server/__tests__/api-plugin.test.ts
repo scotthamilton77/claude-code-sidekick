@@ -28,7 +28,7 @@ vi.mock('node:fs/promises', () => ({
 import { sessionsApiPlugin, isValidPathSegment } from '../api-plugin.js'
 
 // Helper: capture the middleware from the plugin
-type MiddlewareFn = (req: IncomingMessage, res: ServerResponse, next: () => void) => void
+type MiddlewareFn = (req: IncomingMessage, res: ServerResponse, next: () => void) => void | Promise<void>
 
 function getMiddleware(): MiddlewareFn {
   let captured: MiddlewareFn | undefined
@@ -108,7 +108,7 @@ describe('isValidPathSegment', () => {
 
 describe('sessionsApiPlugin middleware', () => {
   describe('path traversal rejection', () => {
-    it('rejects projectId ".." in sessions route (URL-normalized to non-match)', async () => {
+    it('falls through when projectId ".." is URL-normalized away in sessions route', async () => {
       // new URL normalizes /api/projects/%2E%2E/sessions → /api/sessions
       // which doesn't match any route, so next() is called
       const mw = getMiddleware()
@@ -117,7 +117,7 @@ describe('sessionsApiPlugin middleware', () => {
       expect(next).toHaveBeenCalled()
     })
 
-    it('rejects projectId "." in sessions route (URL-normalized to non-match)', async () => {
+    it('falls through when projectId "." is URL-normalized away in sessions route', async () => {
       // new URL normalizes /api/projects/./sessions → /api/projects/sessions
       const mw = getMiddleware()
       const { req, res, next } = createMocks('GET', '/api/projects/./sessions')
@@ -135,7 +135,7 @@ describe('sessionsApiPlugin middleware', () => {
       expect(next).not.toHaveBeenCalled()
     })
 
-    it('rejects projectId ".." in timeline route (URL-normalized to non-match)', async () => {
+    it('falls through when projectId ".." is URL-normalized away in timeline route', async () => {
       const mw = getMiddleware()
       const { req, res, next } = createMocks(
         'GET',
@@ -163,6 +163,14 @@ describe('sessionsApiPlugin middleware', () => {
       await mw(req, res, next)
       expect(mockRes.statusCode).toBe(200)
       expect(mockGetProjectById).toHaveBeenCalled()
+    })
+
+    it('returns 400 for malformed percent-encoding in projectId', async () => {
+      const mw = getMiddleware()
+      const { req, res, mockRes, next } = createMocks('GET', '/api/projects/%E0%A4%A/sessions')
+      await mw(req, res, next)
+      expect(mockRes.statusCode).toBe(400)
+      expect(next).not.toHaveBeenCalled()
     })
   })
 

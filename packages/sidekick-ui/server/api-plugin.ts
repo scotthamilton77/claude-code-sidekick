@@ -1,26 +1,33 @@
 import { access } from 'node:fs/promises'
+import type { ServerResponse } from 'node:http'
 import { homedir } from 'node:os'
-import { join, basename } from 'node:path'
+import { join } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
+import { isValidPathSegment } from '@sidekick/core'
 import { listProjects, getProjectById, listSessions } from './sessions-api.js'
 import { parseTimelineEvents } from './timeline-api.js'
+
+// Re-export for test compatibility
+export { isValidPathSegment } from '@sidekick/core'
 
 /** Sidekick project registry root (user-scope) */
 const REGISTRY_ROOT = join(homedir(), '.sidekick', 'projects')
 
+/** Write a JSON error response. */
+function sendError(res: ServerResponse, status: number, message: string): void {
+  res.statusCode = status
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ error: message }))
+}
+
 /**
- * Validate that a string is a safe single path segment (no traversal).
- *
- * Rejects empty strings, `.`, `..`, strings containing path separators,
- * and strings where basename differs from the input. Only allows
- * alphanumeric characters, dots, hyphens, and underscores.
+ * Decode a URI component and validate it as a safe path segment.
+ * Returns the decoded string, or null if invalid.
+ * Throws URIError for malformed percent-encoding (caller should catch as 400).
  */
-export function isValidPathSegment(s: string): boolean {
-  if (s === '') return false
-  if (s === '.' || s === '..') return false
-  if (s.includes('/') || s.includes('\\')) return false
-  if (basename(s) !== s) return false
-  return /^[a-zA-Z0-9._-]+$/.test(s)
+function validateAndDecode(encoded: string): string | null {
+  const decoded = decodeURIComponent(encoded)
+  return isValidPathSegment(decoded) ? decoded : null
 }
 
 /**
@@ -29,6 +36,7 @@ export function isValidPathSegment(s: string): boolean {
  * Routes:
  *   GET /api/projects — list all registered projects
  *   GET /api/projects/:id/sessions — list sessions for a project
+ *   GET /api/projects/:projectId/sessions/:sessionId/timeline — timeline events
  */
 export function sessionsApiPlugin(): Plugin {
   return {
@@ -41,10 +49,10 @@ export function sessionsApiPlugin(): Plugin {
           return
         }
 
-        // Strip query string for route matching
-        const { pathname } = new URL(req.url!, 'http://localhost')
-
         try {
+          // Strip query string for route matching
+          const { pathname } = new URL(req.url!, 'http://localhost')
+
           // GET /api/projects
           if (pathname === '/api/projects' && req.method === 'GET') {
             const projects = await listProjects(REGISTRY_ROOT)
@@ -56,22 +64,15 @@ export function sessionsApiPlugin(): Plugin {
           // GET /api/projects/:id/sessions
           const sessionsMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions$/)
           if (sessionsMatch && req.method === 'GET') {
-            const projectId = decodeURIComponent(sessionsMatch[1])
-
-            // Validate projectId format (safe path segment)
-            if (!isValidPathSegment(projectId)) {
-              res.statusCode = 400
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Invalid project ID format: ${projectId}` }))
+            const projectId = validateAndDecode(sessionsMatch[1])
+            if (!projectId) {
+              sendError(res, 400, `Invalid project ID format`)
               return
             }
 
             const project = await getProjectById(REGISTRY_ROOT, projectId)
-
             if (!project) {
-              res.statusCode = 404
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Project not found: ${projectId}` }))
+              sendError(res, 404, `Project not found: ${projectId}`)
               return
             }
 
@@ -86,30 +87,21 @@ export function sessionsApiPlugin(): Plugin {
             /^\/api\/projects\/([^/]+)\/sessions\/([^/]+)\/timeline$/
           )
           if (timelineMatch && req.method === 'GET') {
-            const projectId = decodeURIComponent(timelineMatch[1])
-            const sessionId = decodeURIComponent(timelineMatch[2])
-
-            // Validate projectId format (safe path segment)
-            if (!isValidPathSegment(projectId)) {
-              res.statusCode = 400
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Invalid project ID format: ${projectId}` }))
+            const projectId = validateAndDecode(timelineMatch[1])
+            if (!projectId) {
+              sendError(res, 400, `Invalid project ID format`)
               return
             }
 
-            // Validate sessionId format (safe path segment)
-            if (!isValidPathSegment(sessionId)) {
-              res.statusCode = 400
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Invalid session ID format: ${sessionId}` }))
+            const sessionId = validateAndDecode(timelineMatch[2])
+            if (!sessionId) {
+              sendError(res, 400, `Invalid session ID format`)
               return
             }
 
             const project = await getProjectById(REGISTRY_ROOT, projectId)
             if (!project) {
-              res.statusCode = 404
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Project not found: ${projectId}` }))
+              sendError(res, 404, `Project not found: ${projectId}`)
               return
             }
 
@@ -118,9 +110,7 @@ export function sessionsApiPlugin(): Plugin {
             try {
               await access(sessionDir)
             } catch {
-              res.statusCode = 404
-              res.setHeader('Content-Type', 'application/json')
-              res.end(JSON.stringify({ error: `Session not found: ${sessionId}` }))
+              sendError(res, 404, `Session not found: ${sessionId}`)
               return
             }
 
@@ -133,9 +123,11 @@ export function sessionsApiPlugin(): Plugin {
           // Unknown /api/ route
           next()
         } catch (err) {
-          res.statusCode = 500
-          res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ error: String(err) }))
+          if (err instanceof URIError) {
+            sendError(res, 400, `Malformed URL encoding`)
+            return
+          }
+          sendError(res, 500, String(err))
         }
       })
     },

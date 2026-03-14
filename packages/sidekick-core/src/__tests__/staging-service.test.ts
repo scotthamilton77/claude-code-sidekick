@@ -397,7 +397,7 @@ describe('SessionScopedStagingService (via createService)', () => {
       const reminder = createTestReminder()
 
       await expect(service.stageReminder('Hook/Nested', 'Reminder', reminder)).rejects.toThrow(
-        'Invalid hookName: path traversal characters not allowed'
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
@@ -406,7 +406,7 @@ describe('SessionScopedStagingService (via createService)', () => {
       const reminder = createTestReminder()
 
       await expect(service.stageReminder('..', 'Reminder', reminder)).rejects.toThrow(
-        'Invalid hookName: path traversal characters not allowed'
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
@@ -415,24 +415,24 @@ describe('SessionScopedStagingService (via createService)', () => {
       const reminder = createTestReminder()
 
       await expect(service.stageReminder('PreToolUse', '../escaped', reminder)).rejects.toThrow(
-        'Invalid reminderName: path traversal characters not allowed'
+        'Invalid reminderName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
-    it('should reject hookName starting with dot', async () => {
+    it('should allow hookName starting with dot (isValidPathSegment permits it)', async () => {
       const service = createService(testDir)
       const reminder = createTestReminder()
 
-      await expect(service.stageReminder('.hidden', 'Reminder', reminder)).rejects.toThrow(
-        "Invalid hookName: cannot start with '.'"
-      )
+      await expect(service.stageReminder('.hidden', 'Reminder', reminder)).resolves.not.toThrow()
     })
 
     it('should reject empty hookName', async () => {
       const service = createService(testDir)
       const reminder = createTestReminder()
 
-      await expect(service.stageReminder('', 'Reminder', reminder)).rejects.toThrow('hookName cannot be empty')
+      await expect(service.stageReminder('', 'Reminder', reminder)).rejects.toThrow(
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
+      )
     })
 
     it('should reject backslash in paths (Windows-style)', async () => {
@@ -440,7 +440,7 @@ describe('SessionScopedStagingService (via createService)', () => {
       const reminder = createTestReminder()
 
       await expect(service.stageReminder('Hook\\Nested', 'Reminder', reminder)).rejects.toThrow(
-        'Invalid hookName: path traversal characters not allowed'
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
       )
     })
   })
@@ -680,7 +680,7 @@ describe('StagingServiceCore', () => {
       const core = createCore(testDir)
 
       await expect(core.stageReminder('session-1', '../escape', 'Reminder', createTestReminder())).rejects.toThrow(
-        'Invalid hookName: path traversal characters not allowed'
+        'Invalid hookName: must be a non-empty alphanumeric string without path separators'
       )
     })
 
@@ -688,7 +688,7 @@ describe('StagingServiceCore', () => {
       const core = createCore(testDir)
 
       await expect(core.stageReminder('session-1', 'PreToolUse', '../escape', createTestReminder())).rejects.toThrow(
-        'Invalid reminderName: path traversal characters not allowed'
+        'Invalid reminderName: must be a non-empty alphanumeric string without path separators'
       )
     })
   })
