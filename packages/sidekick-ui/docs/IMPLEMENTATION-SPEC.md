@@ -1293,6 +1293,73 @@ The v2 prototype contains 19 React components organized by panel. Each row ident
 
 > **Verification**: 19 components total. Every `.tsx` file under `packages/sidekick-ui/src/components/` (excluding `App.tsx` and `main.tsx`) is represented.
 
+### 6.2 Props Interface Definitions
+
+Each component's props are categorized by alignment with `@sidekick/types`:
+- **Aligned** — props already match a canonical type; one-liner reference
+- **Needs new interface** — props require a new or modified interface; defined inline
+- **Needs type extension** — canonical type exists but is missing fields; references §3.7 and §6.4
+- **UI-only** — no backend data dependency; pure presentation
+
+#### UI-Only Components (no backend data)
+
+**CompressedLabel** — UI-only. Props: `{ text: string; onClick?: () => void }`. Pure presentation helper for collapsed panel labels.
+
+**PanelHeader** — UI-only. Props: `{ title: string; expanded: boolean; onToggle: () => void; collapseDirection: 'left' | 'right'; children?: ReactNode }`. Layout chrome with no data dependency.
+
+**LEDColorKey** — UI-only. No props. Static legend for LED indicator colors; all data is hardcoded in the component.
+
+#### Aligned Components (props match canonical types directly)
+
+**SummaryStrip** — Aligned. Props: `{ session: Session }`. The `Session` type from `@sidekick/types` already contains all fields the component reads (`persona`, `intent`, `intentConfidence`, `contextWindowPct`, `taskQueueCount`, `tokenCount`, `costUsd`, `durationSec`, `status`).
+
+**TimelineEventItem** — Aligned. Props: `{ event: SidekickEvent; isSynced: boolean; isDimmed: boolean; onClick: () => void }`. The `SidekickEvent` type matches directly. `isSynced`, `isDimmed`, and `onClick` are UI interaction props derived from `NavigationState`.
+
+**TimelineFilterBar** — Aligned. No external props; reads `NavigationState` via `useNavigation()` hook. Uses `TimelineFilter` type directly.
+
+**SearchFilterBar** — Aligned. No external props; reads `NavigationState` via `useNavigation()` hook. Dispatches `SET_SEARCH` action.
+
+**DetailHeader** — Aligned. Props: `{ line: TranscriptLine; currentIndex: number; totalCount: number; activeTab: 'details' | 'state'; onTabChange: (tab) => void; onPrev: () => void; onNext: () => void; onClose: () => void }`. Uses `TranscriptLine` directly; navigation props are UI-local.
+
+**ToolDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `toolName`, `toolDurationMs`, `toolInput` fields directly from `TranscriptLine`.
+
+**DecisionDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `decisionCategory`, `decisionReasoning` fields directly from `TranscriptLine`.
+
+**ReminderDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `reminderId`, `reminderBlocking`, `content` fields directly from `TranscriptLine`.
+
+**ErrorDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `errorMessage`, `errorStack` fields directly from `TranscriptLine`.
+
+#### Components Needing Transformation (props fed by transformation functions)
+
+**SessionSelector** — Needs transformation. Current props: `{ projects: Project[] }`. The backend serves `SessionListResponse` (§3.2), which returns flat `SessionListEntry[]` grouped by project. Transformation T-4 (§6.3) groups entries into `Project[]` with nested `Session[]`.
+
+```typescript
+/** Current props — remain unchanged after wiring */
+interface SessionSelectorProps {
+  projects: Project[]  // populated by T-4 from SessionListResponse (§3.2)
+}
+```
+
+**Transcript** — Needs transformation. Current props: `{ lines: TranscriptLine[]; ledStates: Map<string, LEDState>; scrollToLineId: string | null }`. `TranscriptLine[]` is populated by T-1 (log parsing). `ledStates` is populated by T-2 (LED assembly).
+
+**TranscriptLineCard** — Needs transformation. Props: `{ line: TranscriptLine; isSelected: boolean; isSynced: boolean; onClick: () => void }`. The `TranscriptLine` is produced by T-1; UI interaction props derive from `NavigationState`.
+
+**LEDGutter** — Needs transformation. Props: `{ ledState: LEDState }`. The `LEDState` for each transcript line is assembled by T-2 from multiple state file sources.
+
+**Timeline** — Needs transformation. Props: `{ events: SidekickEvent[] }`. `SidekickEvent[]` is derived by T-3 from canonical log events.
+
+**DetailPanel** — Needs transformation. Props: `{ line: TranscriptLine; lines: TranscriptLine[]; stateSnapshots: StateSnapshot[] }`. `TranscriptLine[]` from T-1; `StateSnapshot[]` from T-5.
+
+**StateTab** — Needs type extension. Props: `{ snapshots: StateSnapshot[]; currentTimestamp: number }`. The current `StateSnapshot` uses `Record<string, unknown>` for state fields. Must be replaced with `SessionStateSnapshot` from `@sidekick/types` (§3.7) once the canonical type is extended with the 8 missing fields.
+
+```typescript
+/** Updated props after canonical type extension (§3.7) */
+interface StateTabProps {
+  snapshots: SessionStateSnapshot[]  // replaces local StateSnapshot
+  currentTimestamp: number
+}
+```
+
 ## 7. New Feature Integration
 This section specifies the UI integration for each new feature identified in PHASE2-AUDIT §3.3. Features are organized by tier (critical gaps → important enhancements → future work). Each Tier 1 and Tier 2 feature defines its data source, component placement, interaction pattern, and backend readiness.
 
