@@ -146,14 +146,16 @@ describe('stageUserProfileRemindersForSession', () => {
     // Also prevent file-system fallback from finding real YAML files
     const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
 
-    await stageUserProfileRemindersForSession(ctx, 'test-session')
+    try {
+      await stageUserProfileRemindersForSession(ctx, 'test-session')
 
-    cwdSpy.mockRestore()
-
-    expect(mockLogger.wasLoggedAtLevel('Failed to resolve user-profile reminder', 'warn')).toBe(true)
-    // No reminders should be staged
-    expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
-    expect(staging.getRemindersForHook('SessionStart')).toHaveLength(0)
+      expect(mockLogger.wasLoggedAtLevel('Failed to resolve user-profile reminder', 'warn')).toBe(true)
+      // No reminders should be staged
+      expect(staging.getRemindersForHook('UserPromptSubmit')).toHaveLength(0)
+      expect(staging.getRemindersForHook('SessionStart')).toHaveLength(0)
+    } finally {
+      cwdSpy.mockRestore()
+    }
   })
 })
 
