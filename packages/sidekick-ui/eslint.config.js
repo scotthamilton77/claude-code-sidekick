@@ -34,6 +34,16 @@ export default tseslint.config(
     },
   },
   {
+    // Playwright e2e tests and config
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.e2e.json',
+        tsconfigRootDir,
+      },
+    },
+  },
+  {
     // JS config files - no type-aware linting
     files: ['*.config.js'],
     languageOptions: {

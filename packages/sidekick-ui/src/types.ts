@@ -155,6 +155,7 @@ export interface Session {
 export interface Project {
   id: string
   name: string
+  projectDir?: string
   sessions: Session[]
 }
 
@@ -162,12 +163,7 @@ export interface Project {
 // Timeline Filter
 // ============================================================================
 
-export type TimelineFilter =
-  | 'reminders'
-  | 'decisions'
-  | 'session-analysis'
-  | 'statusline'
-  | 'errors'
+export type TimelineFilter = 'reminders' | 'decisions' | 'session-analysis' | 'statusline' | 'errors'
 
 export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter> = {
   'reminder:staged': 'reminders',
