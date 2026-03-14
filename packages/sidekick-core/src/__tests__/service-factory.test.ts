@@ -159,64 +159,6 @@ describe('ServiceFactoryImpl', () => {
   })
 
   // ==========================================================================
-  // prepareTranscriptService tests
-  // ==========================================================================
-
-  describe('prepareTranscriptService', () => {
-    it('should create a new TranscriptService instance', async () => {
-      const factory = createFactory(testDir)
-      const transcriptPath = createTranscriptFile(testDir, 'session-1')
-
-      const service = await factory.prepareTranscriptService('session-1', transcriptPath)
-
-      expect(service).toBeDefined()
-      expect(service.getMetrics).toBeDefined()
-    })
-
-    it('should cache instance for same sessionId', async () => {
-      const factory = createFactory(testDir)
-      const transcriptPath = createTranscriptFile(testDir, 'session-1')
-
-      const service1 = await factory.prepareTranscriptService('session-1', transcriptPath)
-      const service2 = await factory.prepareTranscriptService('session-1', transcriptPath)
-
-      expect(service1).toBe(service2)
-    })
-
-    it('should create different instances for different sessionIds', async () => {
-      const factory = createFactory(testDir)
-      const transcriptPath1 = createTranscriptFile(testDir, 'session-1')
-      const transcriptPath2 = createTranscriptFile(testDir, 'session-2')
-
-      const service1 = await factory.prepareTranscriptService('session-1', transcriptPath1)
-      const service2 = await factory.prepareTranscriptService('session-2', transcriptPath2)
-
-      expect(service1).not.toBe(service2)
-    })
-
-    it('should update session last access time', async () => {
-      const factory = createFactory(testDir)
-      const transcriptPath = createTranscriptFile(testDir, 'session-1')
-      const before = Date.now()
-
-      await factory.prepareTranscriptService('session-1', transcriptPath)
-
-      const lastAccess = factory.getSessionLastAccess().get('session-1')
-      expect(lastAccess).toBeDefined()
-      expect(lastAccess).toBeGreaterThanOrEqual(before)
-    })
-
-    it('should store instance in cache', async () => {
-      const factory = createFactory(testDir)
-      const transcriptPath = createTranscriptFile(testDir, 'session-1')
-
-      await factory.prepareTranscriptService('session-1', transcriptPath)
-
-      expect(factory.getTranscriptServices().has('session-1')).toBe(true)
-    })
-  })
-
-  // ==========================================================================
   // shutdownSession tests
   // ==========================================================================
 

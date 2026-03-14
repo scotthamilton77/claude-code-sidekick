@@ -342,4 +342,150 @@ describe('HandlerRegistryImpl', () => {
       expect(registry.getHandlerCount()).toBe(0) // Just verifying no crash
     })
   })
+
+  describe('transcript event content extraction', () => {
+    it('extracts string content from human message', async () => {
+      let receivedPayload: Record<string, unknown> | undefined
+
+      registry.register({
+        id: 'content-capture',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+        handler: (event) => {
+          receivedPayload = (event as { payload: Record<string, unknown> }).payload
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = { type: 'human', message: { content: 'Hello world' } }
+      await registry.emitTranscriptEvent('UserPrompt', entry, 1)
+
+      expect(receivedPayload?.content).toBe('Hello world')
+    })
+
+    it('extracts content from array of text blocks', async () => {
+      let receivedPayload: Record<string, unknown> | undefined
+
+      registry.register({
+        id: 'content-capture',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['AssistantMessage'] },
+        handler: (event) => {
+          receivedPayload = (event as { payload: Record<string, unknown> }).payload
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = {
+        type: 'assistant',
+        message: { content: [{ text: 'Part 1' }, { text: 'Part 2' }] },
+      }
+      await registry.emitTranscriptEvent('AssistantMessage', entry, 1)
+
+      expect(receivedPayload?.content).toBe('Part 1\nPart 2')
+    })
+
+    it('returns undefined content when message has no content field', async () => {
+      let receivedPayload: Record<string, unknown> | undefined
+
+      registry.register({
+        id: 'content-capture',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+        handler: (event) => {
+          receivedPayload = (event as { payload: Record<string, unknown> }).payload
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = { type: 'human', message: {} }
+      await registry.emitTranscriptEvent('UserPrompt', entry, 1)
+
+      expect(receivedPayload?.content).toBeUndefined()
+    })
+
+    it('extracts toolName from tool_use entries', async () => {
+      let receivedPayload: Record<string, unknown> | undefined
+
+      registry.register({
+        id: 'tool-capture',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
+        handler: (event) => {
+          receivedPayload = (event as { payload: Record<string, unknown> }).payload
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = { type: 'tool_use', name: 'Read' }
+      await registry.emitTranscriptEvent('ToolCall', entry, 5)
+
+      expect(receivedPayload?.toolName).toBe('Read')
+    })
+
+    it('extracts toolName from tool_result entries', async () => {
+      let receivedPayload: Record<string, unknown> | undefined
+
+      registry.register({
+        id: 'tool-capture',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['ToolResult'] },
+        handler: (event) => {
+          receivedPayload = (event as { payload: Record<string, unknown> }).payload
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = { type: 'tool_result', tool_name: 'Bash' }
+      await registry.emitTranscriptEvent('ToolResult', entry, 6)
+
+      expect(receivedPayload?.toolName).toBe('Bash')
+    })
+
+    it('uses empty metrics when getMetrics is not provided', async () => {
+      const noMetricsRegistry = new HandlerRegistryImpl({
+        logger,
+        sessionId: 'test-session',
+      })
+
+      let receivedMetrics: unknown
+
+      noMetricsRegistry.register({
+        id: 'metrics-capture',
+        priority: 50,
+        filter: { kind: 'transcript', eventTypes: ['UserPrompt'] },
+        handler: (event) => {
+          const te = event as { metadata: { metrics: unknown } }
+          receivedMetrics = te.metadata.metrics
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = { type: 'human', message: { content: 'test' } }
+      await noMetricsRegistry.emitTranscriptEvent('UserPrompt', entry, 1)
+
+      const metrics = receivedMetrics as { turnCount: number; toolCount: number }
+      expect(metrics.turnCount).toBe(0)
+      expect(metrics.toolCount).toBe(0)
+    })
+
+    it('invokes all-filter handlers for transcript events', async () => {
+      const called: string[] = []
+
+      registry.register({
+        id: 'catch-all',
+        priority: 50,
+        filter: { kind: 'all' },
+        handler: () => {
+          called.push('catch-all')
+          return Promise.resolve()
+        },
+      })
+
+      const entry: TranscriptEntry = { type: 'human', message: { content: 'test' } }
+      await registry.emitTranscriptEvent('UserPrompt', entry, 1)
+
+      expect(called).toContain('catch-all')
+    })
+  })
 })

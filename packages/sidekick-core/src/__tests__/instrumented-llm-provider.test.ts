@@ -585,4 +585,94 @@ describe('InstrumentedLLMProvider', () => {
       expect(response.content).toBe('test response')
     })
   })
+
+  describe('debug dump', () => {
+    it('writes request and response YAML files when debugDumpEnabled', async () => {
+      const { readdirSync } = await import('node:fs')
+      const provider = createMockProvider({
+        complete: () =>
+          Promise.resolve({
+            content: 'debug response',
+            model: 'test-model',
+            usage: { inputTokens: 10, outputTokens: 5 },
+            rawResponse: { status: 200, body: '{}' },
+          }),
+      })
+
+      const sessionDir = join(tempDir, 'debug-session')
+      mkdirSync(sessionDir, { recursive: true })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateService,
+        sessionDir,
+        logger,
+        debugDumpEnabled: true,
+        profileParams: {
+          profileName: 'fast-lite',
+          provider: 'openrouter',
+          model: 'gemini-flash',
+          temperature: 0,
+          maxTokens: 1000,
+        },
+      })
+
+      await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
+
+      const debugDir = join(sessionDir, 'llm-debug')
+      const files = readdirSync(debugDir)
+      expect(files.some((f: string) => f.endsWith('-request.yaml'))).toBe(true)
+      expect(files.some((f: string) => f.endsWith('-response.yaml'))).toBe(true)
+    })
+
+    it('writes error dump when request fails with debugDumpEnabled', async () => {
+      const { readdirSync, readFileSync } = await import('node:fs')
+      const provider = createMockProvider({
+        complete: () => Promise.reject(new Error('API timeout')),
+      })
+
+      const sessionDir = join(tempDir, 'debug-error-session')
+      mkdirSync(sessionDir, { recursive: true })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateService,
+        sessionDir,
+        logger,
+        debugDumpEnabled: true,
+      })
+
+      await expect(instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })).rejects.toThrow(
+        'API timeout'
+      )
+
+      const debugDir = join(sessionDir, 'llm-debug')
+      const files = readdirSync(debugDir)
+      const responseFile = files.find((f: string) => f.endsWith('-response.yaml'))
+      expect(responseFile).toBeDefined()
+
+      const content = readFileSync(join(debugDir, responseFile!), 'utf-8')
+      expect(content).toContain('API timeout')
+    })
+
+    it('does not write debug dumps when debugDumpEnabled is false', async () => {
+      const { existsSync } = await import('node:fs')
+      const provider = createMockProvider()
+
+      const sessionDir = join(tempDir, 'no-debug-session')
+      mkdirSync(sessionDir, { recursive: true })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateService,
+        sessionDir,
+        logger,
+        debugDumpEnabled: false,
+      })
+
+      await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
+
+      expect(existsSync(join(sessionDir, 'llm-debug'))).toBe(false)
+    })
+  })
 })
