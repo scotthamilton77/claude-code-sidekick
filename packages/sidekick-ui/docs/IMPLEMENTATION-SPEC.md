@@ -1238,51 +1238,52 @@ Section 6 maps each v2 prototype React component to its target `@sidekick/types`
 The v2 prototype contains 19 React components organized by panel. Each row identifies the canonical `@sidekick/types` type(s) that will feed the component's props and whether a transformation function is needed to bridge the backend data shape to the component's prop interface.
 
 **Import path conventions:**
-- `@sidekick/types` — barrel re-export (types.ts in `packages/sidekick-ui/src/types.ts`, to be replaced by canonical imports)
-- `@sidekick/types/events` — `TranscriptLine`, `SidekickEvent`, `LEDState`, `StateSnapshot`, `Session`, `Project`, `TimelineFilter`, `NavigationState`
+- `@sidekick/types` — barrel re-export from `packages/types/src/index.ts`; all types available here
+- `@sidekick/types/events` — `SidekickEvent` (hook/transcript union), `HookEvent`, `TranscriptEvent`, `LoggingEvent`, `LogSource`, `EventLogContext`
 - `@sidekick/types/services/state` — `SessionStateSnapshot`, `SessionSummaryState`, `SessionPersonaState`, and all 20 state file types (§3.3)
+- UI-local (to migrate) — `TranscriptLine`, `SidekickEvent` (timeline), `LEDState`, `Session`, `Project`, `TimelineFilter`, `NavigationState`, `StateSnapshot` are currently in `packages/sidekick-ui/src/types.ts`. These are forward-looking types that will be added to `@sidekick/types` as part of §2.9 R1.
 
 #### Session Selector Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 1 | `SessionSelector` | Session Selector | `SessionListResponse`, `Session`, `Project` | `@sidekick/types` | Yes |
+| 1 | `SessionSelector` | Session Selector | `SessionListResponse` (§3.2), `Session`, `Project` | `Session`, `Project`: UI-local (to migrate) | Yes |
 
 #### Summary Strip
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 2 | `SummaryStrip` | Summary Strip | `Session` | `@sidekick/types` | No |
+| 2 | `SummaryStrip` | Summary Strip | `Session` | UI-local (to migrate) | No |
 
 #### Transcript Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | `@sidekick/types` | Yes |
-| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | `@sidekick/types` | Yes |
-| 5 | `LEDGutter` | Transcript | `LEDState` | `@sidekick/types` | Yes |
+| 3 | `Transcript` | Transcript | `TranscriptLine[]`, `Map<string, LEDState>` | UI-local (to migrate) | Yes |
+| 4 | `TranscriptLineCard` | Transcript | `TranscriptLine` | UI-local (to migrate) | Yes |
+| 5 | `LEDGutter` | Transcript | `LEDState` | UI-local (to migrate) | Yes |
 | 6 | `LEDColorKey` | Transcript | _(none — static UI)_ | — | No |
-| 7 | `SearchFilterBar` | Transcript | `NavigationState` | `@sidekick/types` | No |
+| 7 | `SearchFilterBar` | Transcript | `NavigationState` | UI-local (to migrate) | No |
 
 #### Timeline Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 8 | `Timeline` | Timeline | `SidekickEvent[]`, `TimelineFilter` | `@sidekick/types` | Yes |
-| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` | `@sidekick/types` | No |
-| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | `@sidekick/types` | No |
+| 8 | `Timeline` | Timeline | `SidekickEvent[]` (timeline), `TimelineFilter` | UI-local (to migrate) | Yes |
+| 9 | `TimelineEventItem` | Timeline | `SidekickEvent` (timeline) | UI-local (to migrate) | No |
+| 10 | `TimelineFilterBar` | Timeline | `TimelineFilter`, `NavigationState` | UI-local (to migrate) | No |
 
 #### Detail Panel
 
 | # | Component | Panel | Target Type(s) | Import Path | Transform Needed |
 |---|-----------|-------|----------------|-------------|-----------------|
-| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | `@sidekick/types` | Yes |
-| 12 | `DetailHeader` | Detail | `TranscriptLine` | `@sidekick/types` | No |
-| 13 | `ToolDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
-| 14 | `DecisionDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
-| 15 | `ReminderDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
-| 16 | `ErrorDetail` | Detail | `TranscriptLine` | `@sidekick/types` | No |
-| 17 | `StateTab` | Detail | `SessionStateSnapshot` (§3.7) | `@sidekick/types` | Yes |
+| 11 | `DetailPanel` | Detail | `TranscriptLine`, `TranscriptLine[]`, `StateSnapshot` | UI-local (to migrate) | Yes |
+| 12 | `DetailHeader` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
+| 13 | `ToolDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
+| 14 | `DecisionDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
+| 15 | `ReminderDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
+| 16 | `ErrorDetail` | Detail | `TranscriptLine` | UI-local (to migrate) | No |
+| 17 | `StateTab` | Detail | `SessionStateSnapshot` (§3.7) | `@sidekick/types/services/state` | Yes |
 
 #### Shared / Layout
 
@@ -1328,6 +1329,8 @@ Each component's props are categorized by alignment with `@sidekick/types`:
 **ReminderDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `reminderId`, `reminderBlocking`, `content` fields directly from `TranscriptLine`.
 
 **ErrorDetail** — Aligned. Props: `{ line: TranscriptLine }`. Reads `errorMessage`, `errorStack` fields directly from `TranscriptLine`.
+
+> **Note on detail sub-components**: `ToolDetail`, `DecisionDetail`, `ReminderDetail`, and `ErrorDetail` all receive a `TranscriptLine` directly from `DetailPanel` without transformation. The `TranscriptLine` interface carries all fields these components need as optional properties; `DetailPanel.DetailContent` dispatches to the correct sub-component based on `line.type`. No transformation function is needed.
 
 #### Components Needing Transformation (props fed by transformation functions)
 
@@ -1437,7 +1440,7 @@ function groupSessionsByProject(
 
 **Logic**: Group `SessionListEntry` items by project ID (derived from the session directory's parent). For each session, build a `Session` object by combining `SessionListEntry` metadata (id, path, lastModified) with enrichment data from `SessionStateSnapshot` (title from `summary.session_title`, persona from `sessionPersona.persona_id`, intent from `summary.latest_intent`, confidence scores, token counts, etc.). Sessions without state are assigned default values. Group sessions into `Project` objects with name derived from the project directory basename. Sort sessions within each project by `lastModified` descending (most recent first).
 
-**Consumers**: `SessionSelector` (#1), `SummaryStrip` (#2, via selected `Session`)
+**Consumers**: `SessionSelector` (#1). Note: `SummaryStrip` (#2) is a downstream consumer — it receives the selected `Session` object from `SessionSelector`, not `Project[]` directly.
 
 **Contracts**: Input: `SessionListResponse` (§3.2), `SessionStateSnapshot` (§3.7); output: `Project`, `Session` from `@sidekick/types`.
 
@@ -1459,24 +1462,6 @@ function assembleStateSnapshots(
 **Consumers**: `StateTab` (#17), `DetailPanel` (#11)
 
 **Contracts**: Input: `StateFileResponse<T>` (§3.3); output: `SessionStateSnapshot` (§3.7, extended).
-
-#### T-6: Log Events → Detail Component Props
-
-```typescript
-function extractDetailProps(
-  line: TranscriptLine
-): Record<string, unknown>
-```
-
-**Input**: A single `TranscriptLine` from T-1.
-
-**Output**: Typed props object consumed by the appropriate detail sub-component (`ToolDetail`, `DecisionDetail`, `ReminderDetail`, `ErrorDetail`).
-
-**Logic**: This is a thin pass-through — the `TranscriptLine` interface already carries all fields needed by each detail component as optional properties. The `DetailPanel.DetailContent` switch dispatches to the correct sub-component based on `line.type`. No data transformation is needed beyond the existing `TranscriptLine` field extraction. This entry exists for completeness: the transformation is the identity function on the `TranscriptLine` type, and the detail sub-components read fields directly. If future detail components need data beyond what `TranscriptLine` carries (e.g., linked state snapshots or cross-referenced events), T-6 would be extended to accept additional data sources.
-
-**Consumers**: `DetailPanel` (#11), `ToolDetail` (#13), `DecisionDetail` (#14), `ReminderDetail` (#15), `ErrorDetail` (#16)
-
-**Contracts**: Input/output: `TranscriptLine` from `@sidekick/types`.
 
 ### 6.4 Gap List — Components Without Backend Data Sources
 
@@ -1503,6 +1488,20 @@ The gaps above form a dependency chain with two other sections:
 - **§7 (Feature Integration Tiers)** defines which gaps are addressed at each tier. Tier 1 critical gaps (§7.1) include LLM call events (G-5 partial) and task queue visibility (G-5 partial). Tier 2 features add persona detail views and pre-compaction snapshots. Components with G-5 gaps can render with `--` fallback values until the corresponding feature tier is implemented.
 
 - **§3.7 (SessionStateSnapshot extension)** blocks G-2 and G-6. The canonical type must be extended with 8 fields before `StateTab` can display typed state data instead of `Record<string, unknown>`.
+
+### 6.5 Requirements Traceability
+
+| Requirement | Section | How Addressed |
+|---|---|---|
+| REQUIREMENTS.md §3 (Navigation Model) | §6.1, §6.3 T-4 | `SessionSelector` wired to `SessionListResponse`; T-4 groups sessions by project |
+| REQUIREMENTS.md F-3 (Session Timeline) | §6.1, §6.3 T-3 | `Timeline` and `TimelineEventItem` wired to `SidekickEvent[]` derived from log events |
+| REQUIREMENTS.md F-4 (Transcript View) | §6.1, §6.3 T-1 | `Transcript` and `TranscriptLineCard` wired to `TranscriptLine[]` parsed from NDJSON logs |
+| REQUIREMENTS.md F-5 (State Inspector) | §6.1, §6.3 T-5 | `StateTab` wired to `SessionStateSnapshot` assembled from state file responses |
+| REQUIREMENTS.md DP-2 (LED gutter) | §6.1, §6.3 T-2 | `LEDGutter` wired to `LEDState` assembled from staged reminders and verification tools state |
+| REQUIREMENTS.md DP-4 (Progressive drill-down) | §6.1, §6.2 | `DetailPanel` dispatches to aligned detail sub-components based on `TranscriptLine.type` |
+| REQUIREMENTS.md G-6 (Reminder System) | §6.3 T-2 | LED assembly reads `StagedRemindersSnapshot` and `VerificationToolsState` |
+| PHASE2-AUDIT §1.3 (type safety regression) | §6.2, §6.4 G-6 | `StateSnapshot` with `Record<string, unknown>` flagged for replacement with `SessionStateSnapshot` (§3.7) |
+| PHASE2-AUDIT §3.3 (new feature readiness) | §6.4 | Gap list identifies 9 blocking items; cross-references §2.9 backend work items and §7 feature tiers |
 
 ## 7. New Feature Integration
 This section specifies the UI integration for each new feature identified in PHASE2-AUDIT §3.3. Features are organized by tier (critical gaps → important enhancements → future work). Each Tier 1 and Tier 2 feature defines its data source, component placement, interaction pattern, and backend readiness.
