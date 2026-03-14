@@ -29,7 +29,7 @@ export default defineConfig({
         'src/index.ts', // Process entrypoint only
         'src/handlers/index.ts', // Barrel file - just re-exports
         'src/context-metrics/index.ts', // Barrel file - just re-exports
-        'src/context-metrics/types.ts', // Pure type re-exports, no runtime logic
+        'src/context-metrics/types.ts', // Re-exports Zod schemas and runtime defaults from @sidekick/types, plus internal interfaces
       ],
       thresholds: {
         statements: 90,

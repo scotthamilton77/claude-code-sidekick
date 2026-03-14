@@ -32,11 +32,9 @@ export default defineConfig({
         // Barrel files - only re-exports
         'src/index.ts',
         'src/state/index.ts',
-        // IPC service layer - requires Unix sockets, tested via integration
+        // IPC service layer - requires Unix sockets, cannot run in sandbox (EPERM); tested via INTEGRATION_TESTS=1
         'src/daemon-client.ts',
         'src/ipc-service.ts',
-        // Trivial project root resolver (3 lines of logic)
-        'src/project-root.ts',
       ],
       thresholds: {
         statements: 90,
