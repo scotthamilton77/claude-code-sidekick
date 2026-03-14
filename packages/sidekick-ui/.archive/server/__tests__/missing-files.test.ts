@@ -19,10 +19,11 @@ import type { ApiRequest } from '../types'
 describe('Missing file handling', () => {
   let testRoot: string
   let sessionsPath: string
+  let testCounter = 0
 
   beforeEach(() => {
-    // Create temporary test directory
-    testRoot = join(tmpdir(), `sidekick-test-${Date.now()}`)
+    // Create temporary test directory with counter to avoid Date.now() collisions
+    testRoot = join(tmpdir(), `sidekick-test-${Date.now()}-${testCounter++}`)
     sessionsPath = join(testRoot, 'sessions')
     mkdirSync(sessionsPath, { recursive: true })
   })
