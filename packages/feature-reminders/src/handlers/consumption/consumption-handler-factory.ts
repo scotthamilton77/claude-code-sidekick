@@ -146,8 +146,8 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         const result = await buildResponse({ reminder: primary, reader, cliCtx, sessionId, event, supportsBlocking })
         if ('response' in result && typeof result.response === 'object') {
           // ResponseBuilderResult with enrichment
-          response = (result as ResponseBuilderResult).response
-          enrichment = (result as ResponseBuilderResult).enrichment
+          response = result.response
+          enrichment = result.enrichment
         } else {
           // Plain HookResponse (backward compatible)
           response = result as HookResponse

@@ -333,9 +333,14 @@ async function ensureToolReminderStaged(
     return false
   }
 
-  await stageReminder(daemonCtx, 'Stop', {
-    ...reminder,
-    stagedAt: { timestamp: Date.now(), turnCount: 0, toolsThisTurn: 0, toolCount: 0 },
-  }, enrichment)
+  await stageReminder(
+    daemonCtx,
+    'Stop',
+    {
+      ...reminder,
+      stagedAt: { timestamp: Date.now(), turnCount: 0, toolsThisTurn: 0, toolCount: 0 },
+    },
+    enrichment
+  )
   return true
 }
