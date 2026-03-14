@@ -85,6 +85,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
               reminderName: vcId,
               hookName: 'Stop',
               reason: 'pause_and_reflect_cascade',
+              triggeredBy: 'cascade_from_pause_and_reflect',
             })
           )
         }
@@ -130,7 +131,12 @@ export class ReminderOrchestrator implements ReminderCoordinator {
           this.deps.logger,
           ReminderEvents.reminderUnstaged(
             { sessionId },
-            { reminderName: ReminderIds.PAUSE_AND_REFLECT, hookName: 'PreToolUse', reason: 'vc_consumed_cascade' }
+            {
+              reminderName: ReminderIds.PAUSE_AND_REFLECT,
+              hookName: 'PreToolUse',
+              reason: 'vc_consumed_cascade',
+              triggeredBy: 'cascade_from_verify_completion',
+            }
           )
         )
         this.deps.logger.debug('Unstaged P&R after VC consumed', { sessionId })
