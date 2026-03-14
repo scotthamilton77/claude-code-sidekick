@@ -323,19 +323,22 @@ describe('TaskEngine', () => {
     })
 
     it('should handle non-Error exceptions thrown by handler', async () => {
+      // Use maxConcurrency=1 so the failing task must complete (and error)
+      // before the recovery task starts — proves the engine actually recovers.
+      const sequentialEngine = new TaskEngine(logger, mockContextGetter, 1, 100)
       const completed = createDeferred()
-      engine.registerHandler('throws-string', () => {
+      sequentialEngine.registerHandler('throws-string', () => {
         throw 'string error' // eslint-disable-line @typescript-eslint/only-throw-error
       })
 
       // After the error, enqueue another task to verify engine recovers
-      engine.registerHandler('recovery', () => {
+      sequentialEngine.registerHandler('recovery', () => {
         completed.resolve()
         return Promise.resolve()
       })
 
-      engine.enqueue('throws-string', {})
-      engine.enqueue('recovery', {})
+      sequentialEngine.enqueue('throws-string', {})
+      sequentialEngine.enqueue('recovery', {})
 
       await completed.promise
     })
