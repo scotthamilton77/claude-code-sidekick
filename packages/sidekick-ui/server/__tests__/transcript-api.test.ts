@@ -631,8 +631,8 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].userSubtype).toBe('prompt')
   })
 
-  it('truncates long tool result output to 500 chars', async () => {
-    const longOutput = 'x'.repeat(1000)
+  it('preserves full tool result content without truncation', async () => {
+    const longOutput = 'x'.repeat(2000)
     setupTranscript(
       makeUserEntry([
         { type: 'tool_result', tool_use_id: 'tool-1', content: longOutput },
@@ -641,21 +641,7 @@ describe('parseTranscriptLines', () => {
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
-    expect(lines[0].toolOutput!.length).toBeLessThanOrEqual(501) // 500 + ellipsis char
-    expect(lines[0].toolOutput!.endsWith('\u2026')).toBe(true)
-  })
-
-  it('does not truncate tool result output under 500 chars', async () => {
-    const shortOutput = 'x'.repeat(200)
-    setupTranscript(
-      makeUserEntry([
-        { type: 'tool_result', tool_use_id: 'tool-1', content: shortOutput },
-      ])
-    )
-
-    const lines = await parseTranscriptLines('myproject', 'session-1')
-    expect(lines).toHaveLength(1)
-    expect(lines[0].toolOutput).toBe(shortOutput)
+    expect(lines[0].toolOutput).toBe(longOutput)
   })
 
   // Event interleaving tests

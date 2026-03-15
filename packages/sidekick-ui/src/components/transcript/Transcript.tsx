@@ -187,7 +187,20 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
                   line={line}
                   isSelected={state.selectedTranscriptLineId === line.id}
                   isSynced={state.syncedTranscriptLineId === line.id}
-                  onClick={() => dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })}
+                  onClick={() => {
+                    if (line.type === 'tool-use' && line.toolName === 'Agent' && line.agentId && state.selectedProjectId && state.selectedSessionId) {
+                      dispatch({
+                        type: 'OPEN_SUBAGENT',
+                        entry: {
+                          projectId: state.selectedProjectId,
+                          sessionId: state.selectedSessionId,
+                          agentId: line.agentId,
+                        },
+                      })
+                    } else {
+                      dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })
+                    }
+                  }}
                   pairNavigation={pair ? {
                     color: pair.color,
                     isToolUse: line.type === 'tool-use',

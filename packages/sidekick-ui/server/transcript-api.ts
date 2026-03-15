@@ -84,11 +84,6 @@ export interface ApiTranscriptLine {
   generatedMessage?: string
 }
 
-/** Truncate a string to a maximum length, appending ellipsis if needed. */
-function truncateString(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + '\u2026' : s
-}
-
 /** Raw entry types to skip entirely (noise). */
 const SKIP_TYPES = new Set(['queue-operation', 'file-history-snapshot', 'last-prompt', 'progress'])
 
@@ -223,7 +218,7 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
         timestamp,
         type: 'tool-result',
         toolUseId: b.tool_use_id as string,
-        toolOutput: truncateString(extractToolResultContent(b.content), 500),
+        toolOutput: extractToolResultContent(b.content),
         toolSuccess: !b.is_error,
         ...meta,
       })
@@ -409,19 +404,16 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry, index: number): ApiTr
     content: label,
   }
 
-  // Copy event-specific payload fields
-  if (payload.reminderName) line.reminderId = payload.reminderName as string
-  if (payload.reminderType) line.reminderId = payload.reminderType as string
+  // Copy event-specific payload fields (use ?? for fallback semantics)
+  line.reminderId = (payload.reminderName ?? payload.reminderType) as string | undefined
   if (payload.blocking === true) line.reminderBlocking = true
-  if (payload.category) line.decisionCategory = payload.category as string
-  if (payload.decision) line.decisionCategory = payload.decision as string
+  line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string
   if (payload.previousValue) line.previousValue = payload.previousValue as string
   if (payload.newValue) line.newValue = payload.newValue as string
   if (payload.confidence != null) line.confidence = payload.confidence as number
   if (payload.personaFrom) line.personaFrom = payload.personaFrom as string
-  if (payload.personaTo) line.personaTo = payload.personaTo as string
-  if (payload.personaId) line.personaTo = payload.personaId as string
+  line.personaTo = (payload.personaTo ?? payload.personaId) as string | undefined
   if (payload.displayMode) line.statuslineContent = payload.displayMode as string
   if (payload.errorMessage) line.errorMessage = payload.errorMessage as string
   if (payload.errorStack) line.errorStack = payload.errorStack as string
@@ -518,6 +510,20 @@ export async function parseTranscriptLines(
         lines = processPrLinkEntry(entry, lineIndex, timestamp)
         break
       default:
+        // Handle agent_progress: associate agentId with the most recent tool-use line
+        if (entryType === 'agent_progress') {
+          const data = entry.data as Record<string, unknown> | undefined
+          const agentId = data?.agentId as string | undefined
+          if (agentId) {
+            // Walk backwards to find the most recent tool-use line
+            for (let i = results.length - 1; i >= 0; i--) {
+              if (results[i].type === 'tool-use') {
+                results[i].agentId = agentId
+                break
+              }
+            }
+          }
+        }
         // Unknown type — skip
         lines = []
     }

@@ -14,6 +14,7 @@ type NavigationAction =
   | { type: 'TOGGLE_TRANSCRIPT_FILTER'; filter: TranscriptFilter }
   | { type: 'OPEN_SUBAGENT'; entry: SubagentChainEntry; depth?: number }
   | { type: 'CLOSE_SUBAGENT' }
+  | { type: 'CLOSE_SUBAGENT_AT'; index: number }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'TOGGLE_DARK_MODE' }
 
@@ -136,6 +137,9 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
 
     case 'CLOSE_SUBAGENT':
       return { ...state, subagentChain: state.subagentChain.slice(0, -1) }
+
+    case 'CLOSE_SUBAGENT_AT':
+      return { ...state, subagentChain: state.subagentChain.slice(0, action.index) }
 
     case 'SET_SEARCH':
       return { ...state, searchQuery: action.query }

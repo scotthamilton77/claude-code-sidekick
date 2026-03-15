@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 /**
- * The 16 Sidekick event types visible in the timeline UI.
+ * The 17 Sidekick event types visible in the timeline UI.
  * Mirrors TimelineSidekickEventType from src/types.ts — kept inline to avoid
  * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
  */
@@ -27,7 +27,7 @@ export interface TimelineEvent {
 }
 
 /**
- * The 16 event types visible in the timeline UI.
+ * The 17 event types visible in the timeline UI.
  * Any event type not in this set is filtered out.
  */
 const TIMELINE_EVENT_TYPES = new Set<string>([

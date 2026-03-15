@@ -110,9 +110,7 @@ function App() {
                     depth={index}
                     onClose={() => {
                       // Close this and all panels to the right
-                      for (let i = state.subagentChain.length - 1; i >= index; i--) {
-                        dispatch({ type: 'CLOSE_SUBAGENT' })
-                      }
+                      dispatch({ type: 'CLOSE_SUBAGENT_AT', index })
                     }}
                   />
                 ))}
