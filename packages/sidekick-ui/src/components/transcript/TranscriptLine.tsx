@@ -3,6 +3,7 @@ import {
   User,
   Bot,
   Terminal,
+  BookOpen,
   Scissors,
   AlertTriangle,
   Lightbulb,
@@ -88,6 +89,20 @@ interface TranscriptLineProps {
 function extractCommandName(content: string): string | null {
   const match = content.match(/<command-name>\/?([\w-]+)<\/command-name>/)
   return match ? match[1] : null
+}
+
+/** Extract skill name from content containing "Base directory for this skill:" path */
+function extractSkillName(content: string): string | null {
+  const match = content.match(/Base directory for this skill:.*\/skills\/([\w-]+)/)
+  return match ? match[1] : null
+}
+
+/** Derive a context-aware label for system-injection subtypes */
+function getSystemInjectionLabel(content: string): string {
+  if (content.includes('SessionStart')) return 'Session start hook'
+  if (content.includes('UserPromptSubmit')) return 'Prompt hook'
+  if (content.includes('<system-reminder>')) return 'System reminder'
+  return 'System injection'
 }
 
 const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set([
@@ -203,8 +218,38 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
     )
   }
 
-  // System injection / skill-content: collapsed by default, gray styling
-  if (line.type === 'user-message' && (line.userSubtype === 'system-injection' || line.userSubtype === 'skill-content')) {
+  // Skill content: purple collapsed pill with skill name
+  if (line.type === 'user-message' && line.userSubtype === 'skill-content') {
+    const skillName = extractSkillName(line.content ?? '') ?? 'unknown'
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer flex justify-center">
+        <div className="w-[60%]">
+        <div className={`rounded-lg px-2.5 py-1 bg-purple-50 dark:bg-purple-950/30 border-l-2 border border-purple-200 dark:border-purple-800 border-l-purple-400 dark:border-l-purple-500 ${
+          isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
+        }`}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowInjection(!showInjection) }}
+            className="flex items-center gap-1.5 w-full"
+          >
+            {showInjection ? <ChevronDown size={10} className="text-purple-400" /> : <ChevronRight size={10} className="text-purple-400" />}
+            <BookOpen size={10} className="text-purple-500 dark:text-purple-400" />
+            <span className="text-[10px] font-medium text-purple-600 dark:text-purple-400">Skill: {skillName}</span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </button>
+          {showInjection && line.content && (
+            <p className="text-[10px] font-mono text-purple-600/70 dark:text-purple-300/60 mt-1 leading-relaxed whitespace-pre-wrap line-clamp-[20]">
+              {line.content}
+            </p>
+          )}
+        </div>
+        </div>
+      </div>
+    )
+  }
+
+  // System injection: gray collapsed with context-aware label
+  if (line.type === 'user-message' && line.userSubtype === 'system-injection') {
+    const label = getSystemInjectionLabel(line.content ?? '')
     return (
       <div onClick={onClick} className="px-2 py-0.5 cursor-pointer flex justify-center">
         <div className="w-[60%]">
@@ -216,7 +261,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
             className="flex items-center gap-1.5 w-full"
           >
             {showInjection ? <ChevronDown size={10} className="text-gray-400" /> : <ChevronRight size={10} className="text-gray-400" />}
-            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">System injection</span>
+            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{label}</span>
             <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
           </button>
           {showInjection && line.content && (
