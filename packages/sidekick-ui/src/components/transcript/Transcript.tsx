@@ -16,6 +16,7 @@ interface TranscriptProps {
   error?: string | null
   ledStates?: Map<string, LEDState>  // deprecated — prefer line.ledState
   scrollToLineId: string | null
+  defaultModel?: string
 }
 
 function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
@@ -40,6 +41,7 @@ const TranscriptRow = memo(function TranscriptRow({
   gutterInfo,
   pairColor,
   pairIsToolUse,
+  defaultModel,
   onLineClick,
   onPairNavigate,
   onRef,
@@ -51,6 +53,7 @@ const TranscriptRow = memo(function TranscriptRow({
   gutterInfo?: GutterPairInfo
   pairColor?: string
   pairIsToolUse?: boolean
+  defaultModel?: string
   onLineClick: () => void
   onPairNavigate?: () => void
   onRef: (el: HTMLDivElement | null) => void
@@ -62,12 +65,12 @@ const TranscriptRow = memo(function TranscriptRow({
         <LEDGutter ledState={ledState} />
         {gutterInfo && (
           <div
-            className={`absolute left-1 w-1 ${
+            className={`absolute left-0 w-[3px] ${
               gutterInfo.role === 'start' ? 'top-1/2 bottom-0 rounded-t-full' :
               gutterInfo.role === 'end' ? 'top-0 bottom-1/2 rounded-b-full' :
               'top-0 bottom-0'
             }`}
-            style={{ backgroundColor: gutterInfo.color, opacity: 0.4 }}
+            style={{ backgroundColor: gutterInfo.color, opacity: 0.6 }}
           />
         )}
       </div>
@@ -79,6 +82,7 @@ const TranscriptRow = memo(function TranscriptRow({
           isSelected={isSelected}
           isSynced={isSynced}
           onClick={onLineClick}
+          defaultModel={defaultModel}
           pairNavigation={pairColor && onPairNavigate ? {
             color: pairColor,
             isToolUse: pairIsToolUse ?? false,
@@ -90,7 +94,7 @@ const TranscriptRow = memo(function TranscriptRow({
   )
 })
 
-export function Transcript({ lines, loading, error, ledStates, scrollToLineId }: TranscriptProps) {
+export function Transcript({ lines, loading, error, ledStates, scrollToLineId, defaultModel }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -187,6 +191,7 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
               gutterInfo={gutter}
               pairColor={pair?.color}
               pairIsToolUse={line.type === 'tool-use'}
+              defaultModel={defaultModel}
               onLineClick={() => {
                 if (line.type === 'tool-use' && line.toolName === 'Agent' && line.agentId && state.selectedProjectId && state.selectedSessionId) {
                   dispatch({
@@ -197,11 +202,14 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
                       agentId: line.agentId,
                     },
                   })
-                } else if (line.type in SIDEKICK_EVENT_TO_FILTER) {
-                  dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: line.id })
-                  setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
                 } else {
+                  // Open detail panel for all line types
                   dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })
+                  // For sidekick events, also scroll the timeline
+                  if (line.type in SIDEKICK_EVENT_TO_FILTER) {
+                    dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: line.id })
+                    setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
+                  }
                 }
               }}
               onPairNavigate={pair ? () => scrollToIndex(line.type === 'tool-use' ? pair.resultIndex : pair.useIndex) : undefined}

@@ -1,4 +1,4 @@
-import { useReducer, useEffect } from 'react'
+import { useReducer, useEffect, useMemo } from 'react'
 import { NavigationContext, initialState, navigationReducer } from './hooks/useNavigation'
 import { useSessions } from './hooks/useSessions'
 import { useTimeline } from './hooks/useTimeline'
@@ -27,6 +27,20 @@ function App() {
   const selectedProject = projects.find(p => p.id === state.selectedProjectId)
   const selectedSession = selectedProject?.sessions.find(s => s.id === state.selectedSessionId)
   const selectedLine = transcriptLines.find(l => l.id === state.selectedTranscriptLineId)
+
+  // Derive session default model (most common model across transcript lines)
+  const defaultModel = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const l of transcriptLines) {
+      if (l.model) counts.set(l.model, (counts.get(l.model) ?? 0) + 1)
+    }
+    let best = ''
+    let bestCount = 0
+    for (const [m, c] of counts) {
+      if (c > bestCount) { best = m; bestCount = c }
+    }
+    return best || undefined
+  }, [transcriptLines])
 
   const detailOpen = state.detailPanel.expanded && !!selectedLine
 
@@ -77,7 +91,7 @@ function App() {
           {/* Dashboard Area — visible when session selected */}
           {state.selectedSessionId && selectedSession && (
             <div className="flex-1 flex flex-col min-w-0">
-              <SummaryStrip session={selectedSession} />
+              <SummaryStrip session={selectedSession} defaultModel={defaultModel} />
 
               <div className="flex-1 flex overflow-hidden">
                 {/* Timeline — fixed width, never compresses */}
@@ -93,6 +107,7 @@ function App() {
                     error={transcriptError}
                     ledStates={selectedSession?.ledStates ?? new Map()}
                     scrollToLineId={state.syncedTranscriptLineId}
+                    defaultModel={defaultModel}
                   />
                 </div>
 

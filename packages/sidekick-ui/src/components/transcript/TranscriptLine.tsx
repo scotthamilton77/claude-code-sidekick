@@ -78,6 +78,7 @@ interface TranscriptLineProps {
   isSynced: boolean
   onClick: () => void
   pairNavigation?: PairNavigation
+  defaultModel?: string
 }
 
 /** Extract command name from content containing <command-name> tag */
@@ -134,20 +135,25 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
       return { label: `Persona chosen: ${line.personaTo ?? 'unknown'}` }
     case 'persona:changed':
       return { label: `Persona: ${line.personaFrom ?? '?'} → ${line.personaTo ?? '?'}` }
-    case 'statusline:rendered':
-      return { label: 'Statusline', detail: line.statuslineContent }
+    case 'statusline:rendered': {
+      // Split "resume message · 26 tokens · 38ms" into mode + stats
+      const parts = (line.statuslineContent ?? '').split(' · ')
+      const mode = parts[0] || 'unknown'
+      const stats = parts.slice(1).join(' · ')
+      return { label: `Statusline: ${mode}`, detail: stats || undefined }
+    }
     case 'error:occurred':
       return { label: `Error: ${line.errorMessage ?? 'unknown'}` }
     case 'hook:received':
-      return { label: `Hook: ${line.hookName ?? 'unknown'}` }
+      return { label: `Hook start: ${line.hookName ?? 'unknown'}` }
     case 'hook:completed':
-      return { label: `Hook done: ${line.hookName ?? 'unknown'}`, detail: line.hookDurationMs != null ? `${line.hookDurationMs}ms` : undefined }
+      return { label: `Hook finish: ${line.hookName ?? 'unknown'}`, detail: line.hookDurationMs != null ? `${line.hookDurationMs}ms` : undefined }
     default:
       return { label: line.content ?? line.type }
   }
 }
 
-export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNavigation }: TranscriptLineProps) {
+export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNavigation, defaultModel }: TranscriptLineProps) {
   const [showThinking, setShowThinking] = useState(false)
   const [showInjection, setShowInjection] = useState(false)
 
@@ -242,12 +248,11 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
         >
           <div className="flex items-center gap-1.5 min-w-0">
             <styles.Icon size={11} className={`${styles.iconColor} flex-shrink-0`} />
-            <span className={`text-[10px] font-medium ${styles.labelColor} truncate`}>{label}</span>
+            <span className={`text-[10px] font-medium ${styles.labelColor} truncate`}>
+              {label}{detail ? <span className="opacity-60 font-normal"> · {detail}</span> : null}
+            </span>
             <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
           </div>
-          {detail && (
-            <p className={`text-[10px] ${styles.labelColor} opacity-70 truncate mt-0.5 pl-4`}>{detail}</p>
-          )}
         </div>
         </div>
       </div>
@@ -299,10 +304,13 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
           {line.type === 'assistant-message' && !line.content && line.thinking && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">thinking</span>
           )}
-          {line.model && (
+          {line.model && line.model !== defaultModel && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded font-mono">
               {line.model.replace('claude-', '').split('-202')[0]}
             </span>
+          )}
+          {line.type === 'tool-use' && line.toolDurationMs != null && (
+            <span className="text-[9px] text-slate-400 tabular-nums">{line.toolDurationMs}ms</span>
           )}
           <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">
             {formatTime(line.timestamp)}
@@ -354,26 +362,13 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
           </div>
         )}
 
-        {/* Tool use details */}
-        {line.type === 'tool-use' && (
-          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-            <span className="font-mono">{line.toolName}</span>
-            {line.toolDurationMs != null && <span className="ml-2">{line.toolDurationMs}ms</span>}
-            {line.toolInput && (() => {
-              const preview = formatToolInput(line.toolName, line.toolInput)
-              return preview ? (
-                <CollapsibleContent
-                  content={JSON.stringify(line.toolInput, null, 2)}
-                  previewLines={2}
-                  previewChars={200}
-                  mono
-                  className="text-slate-400 dark:text-slate-500 mt-0.5"
-                  label="input"
-                />
-              ) : null
-            })()}
-          </div>
-        )}
+        {/* Tool use: inline smart preview */}
+        {line.type === 'tool-use' && line.toolInput && (() => {
+          const preview = formatToolInput(line.toolName, line.toolInput)
+          return preview ? (
+            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">{preview}</p>
+          ) : null
+        })()}
 
         {/* Tool result */}
         {line.type === 'tool-result' && line.toolOutput && (

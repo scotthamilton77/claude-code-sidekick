@@ -444,7 +444,16 @@ async function readSidekickEvents(projectDir: string, sessionId: string): Promis
       TIMELINE_EVENT_TYPES.has(entry.type)
   )
 
-  return filtered.map((entry) => sidekickEventToTranscriptLine(entry))
+  // Deduplicate IDs: if two events share the same timestamp+type, suffix with a counter.
+  // The first occurrence keeps the base ID (for timeline scroll-sync matching).
+  const seen = new Map<string, number>()
+  return filtered.map((entry) => {
+    const line = sidekickEventToTranscriptLine(entry)
+    const count = (seen.get(line.id) ?? 0) + 1
+    seen.set(line.id, count)
+    if (count > 1) line.id = `${line.id}-${count}`
+    return line
+  })
 }
 
 /**

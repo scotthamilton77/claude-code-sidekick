@@ -291,12 +291,12 @@ describe('generateLabel', () => {
 
   it('generates label for hook:received', () => {
     const result = generateLabel('hook:received', { hook: 'UserPromptSubmit' })
-    expect(result).toEqual({ label: 'Hook: UserPromptSubmit' })
+    expect(result).toEqual({ label: 'Hook start: UserPromptSubmit' })
   })
 
   it('generates label for hook:completed', () => {
     const result = generateLabel('hook:completed', { hook: 'UserPromptSubmit', durationMs: 42 })
-    expect(result).toEqual({ label: 'Hook done: UserPromptSubmit', detail: '42ms' })
+    expect(result).toEqual({ label: 'Hook finish: UserPromptSubmit', detail: '42ms' })
   })
 
   it('generates label for snarky-message:start', () => {

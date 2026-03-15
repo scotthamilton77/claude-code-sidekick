@@ -167,13 +167,13 @@ export function generateLabel(
     }
     case 'hook:received': {
       const hookName = (payload.hook as string) || 'unknown'
-      return { label: `Hook: ${hookName}` }
+      return { label: `Hook start: ${hookName}` }
     }
     case 'hook:completed': {
       const hookName = (payload.hook as string) || 'unknown'
       const durMs = payload.durationMs as number | undefined
       return {
-        label: `Hook done: ${hookName}`,
+        label: `Hook finish: ${hookName}`,
         ...(durMs != null ? { detail: `${durMs}ms` } : {}),
       }
     }
