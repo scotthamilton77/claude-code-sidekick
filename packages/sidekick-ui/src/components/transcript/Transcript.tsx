@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useMemo, memo, Fragment } from 'react'
-import type { TranscriptLine, LEDState, TranscriptFilter } from '../../types'
+import type { TranscriptLine, LEDState, TranscriptFilter, SidekickEvent } from '../../types'
 import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
+import { findNearestTimelineEvent } from '../../utils/findNearestTimelineEvent'
 import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
 import { useNavigation } from '../../hooks/useNavigation'
 import { SearchFilterBar } from './SearchFilterBar'
@@ -17,6 +18,7 @@ interface TranscriptProps {
   ledStates?: Map<string, LEDState>  // deprecated — prefer line.ledState
   scrollToLineId: string | null
   defaultModel?: string
+  timelineEvents?: SidekickEvent[]
 }
 
 function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
@@ -130,7 +132,7 @@ const TranscriptRow = memo(function TranscriptRow({
   prev.defaultModel === next.defaultModel
 )
 
-export function Transcript({ lines, loading, error, ledStates, scrollToLineId, defaultModel }: TranscriptProps) {
+export function Transcript({ lines, loading, error, ledStates, scrollToLineId, defaultModel, timelineEvents }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -241,10 +243,16 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId, d
                 } else {
                   // Open detail panel for all line types
                   dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })
-                  // For sidekick events, also scroll the timeline
+                  // Sync to timeline: Sidekick events use their own ID, Claude Code lines find nearest
                   if (line.type in SIDEKICK_EVENT_TO_FILTER) {
                     dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: line.id })
                     setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
+                  } else if (timelineEvents && timelineEvents.length > 0) {
+                    const nearest = findNearestTimelineEvent(timelineEvents, line.timestamp)
+                    if (nearest) {
+                      dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: nearest.transcriptLineId })
+                      setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
+                    }
                   }
                 }
               }}
