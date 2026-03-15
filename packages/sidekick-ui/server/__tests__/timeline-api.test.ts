@@ -69,7 +69,7 @@ describe('parseTimelineEvents', () => {
       type: 'reminder:staged',
       label: 'Staged: vc-build',
       detail: 'reason: tool_threshold',
-      transcriptLineId: '',
+      transcriptLineId: 'sidekick-1000-reminder:staged',
     })
   })
 

@@ -252,13 +252,17 @@ export async function parseTimelineEvents(
   // Convert to TimelineEvent[]
   return filtered.map((entry) => {
     const { label, detail } = generateLabel(entry.type, entry.payload || {})
+    // Use stable ID based on timestamp + type so timeline events can reference
+    // the corresponding transcript line (sidekick events interleaved in transcript
+    // use the same ID format).
+    const stableId = `sidekick-${entry.time}-${entry.type}`
     return {
       id: randomUUID(),
       timestamp: entry.time,
       type: entry.type as TimelineSidekickEventType,
       label,
       ...(detail !== undefined ? { detail } : {}),
-      transcriptLineId: '',
+      transcriptLineId: stableId,
     }
   })
 }

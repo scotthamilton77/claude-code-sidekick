@@ -160,13 +160,28 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
   const styles = getLineStyles(line)
   const isSidekickEvent = isSidekickEventType(line.type)
 
+  // Positioning: user prompts right-aligned, assistant left-aligned,
+  // tools indented, sidekick events offset left, system types full width
+  const isUserPrompt = line.type === 'user-message' && line.userSubtype === 'prompt'
+  const isAssistant = line.type === 'assistant-message'
+  const isTool = line.type === 'tool-use' || line.type === 'tool-result'
+
   return (
     <div
       onClick={onClick}
       className={`px-2 py-0.5 transition-all cursor-pointer ${
-        line.type === 'tool-use' || line.type === 'tool-result' ? 'ml-6' : ''
+        isUserPrompt ? 'flex justify-end' :
+        isAssistant ? 'ml-2' :
+        isTool ? 'ml-6' :
+        isSidekickEvent ? 'ml-[-2px]' : ''
       }`}
     >
+      <div className={
+        isUserPrompt ? 'w-[90%]' :
+        isAssistant ? 'w-[90%]' :
+        isTool ? 'w-[85%]' :
+        undefined
+      }>
       <div
         className={`rounded-lg px-2.5 py-1.5 transition-all ${styles.bg} ${styles.border} ${
           isSelected
@@ -306,6 +321,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
         {/* Sidekick event inline details */}
         {isSidekickEvent && renderSidekickDetail(line)}
       </div>
+      </div>
     </div>
   )
 }
@@ -437,7 +453,7 @@ function getLineStyles(line: TLine) {
     case 'reminder:cleared':
       return {
         bg: 'bg-rose-50/50 dark:bg-rose-950/20',
-        border: 'border border-rose-200 dark:border-rose-800/50',
+        border: 'border border-dashed border-rose-200 dark:border-rose-800/50',
         Icon: Bell,
         iconColor: 'text-rose-500',
         label: 'Reminder',
@@ -446,7 +462,7 @@ function getLineStyles(line: TLine) {
     case 'decision:recorded':
       return {
         bg: 'bg-amber-50/50 dark:bg-amber-950/20',
-        border: 'border border-amber-200 dark:border-amber-800/50',
+        border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
         Icon: Lightbulb,
         iconColor: 'text-amber-500',
         label: line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision',
@@ -456,7 +472,7 @@ function getLineStyles(line: TLine) {
     case 'session-summary:finish':
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
-        border: 'border border-purple-200 dark:border-purple-800/50',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: Play,
         iconColor: 'text-purple-500',
         label: line.type === 'session-summary:start' ? 'Summary ▶' : 'Summary ■',
@@ -466,7 +482,7 @@ function getLineStyles(line: TLine) {
     case 'intent:changed':
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
-        border: 'border border-purple-200 dark:border-purple-800/50',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: FileText,
         iconColor: 'text-purple-500',
         label: line.type === 'session-title:changed' ? 'Title Changed' : 'Intent Changed',
@@ -478,7 +494,7 @@ function getLineStyles(line: TLine) {
     case 'resume-message:finish':
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
-        border: 'border border-purple-200 dark:border-purple-800/50',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: line.type.includes('start') ? Play : Square,
         iconColor: 'text-purple-500',
         label: line.type.replace(/[:-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
@@ -488,7 +504,7 @@ function getLineStyles(line: TLine) {
     case 'persona:changed':
       return {
         bg: 'bg-pink-50/50 dark:bg-pink-950/20',
-        border: 'border border-pink-200 dark:border-pink-800/50',
+        border: 'border border-dashed border-pink-200 dark:border-pink-800/50',
         Icon: UserCog,
         iconColor: 'text-pink-500',
         label: line.type === 'persona:selected' ? 'Persona Selected' : 'Persona Changed',
@@ -497,7 +513,7 @@ function getLineStyles(line: TLine) {
     case 'statusline:rendered':
       return {
         bg: 'bg-teal-50/50 dark:bg-teal-950/20',
-        border: 'border border-teal-200 dark:border-teal-800/50',
+        border: 'border border-dashed border-teal-200 dark:border-teal-800/50',
         Icon: Gauge,
         iconColor: 'text-teal-500',
         label: 'Statusline',
@@ -506,7 +522,7 @@ function getLineStyles(line: TLine) {
     case 'error:occurred':
       return {
         bg: 'bg-red-50 dark:bg-red-950/30',
-        border: 'border-2 border-red-300 dark:border-red-800',
+        border: 'border-2 border-dashed border-red-300 dark:border-red-800',
         Icon: AlertTriangle,
         iconColor: 'text-red-500',
         label: 'Error',

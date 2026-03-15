@@ -376,12 +376,14 @@ function extractMetadata(
 /**
  * Convert a Sidekick NDJSON log entry to an ApiTranscriptLine.
  */
-function sidekickEventToTranscriptLine(entry: RawLogEntry, index: number): ApiTranscriptLine {
+function sidekickEventToTranscriptLine(entry: RawLogEntry, _index: number): ApiTranscriptLine {
   const payload = entry.payload ?? {}
   const { label } = generateLabel(entry.type, payload)
 
+  // Use stable ID based on timestamp + type so timeline scroll-sync can
+  // reference the same ID (timeline-api.ts generates matching transcriptLineId).
   const line: ApiTranscriptLine = {
-    id: `sidekick-${index}`,
+    id: `sidekick-${entry.time}-${entry.type}`,
     timestamp: entry.time,
     type: entry.type as ApiTranscriptLineType,
     content: label,
@@ -531,6 +533,16 @@ export async function parseTranscriptLines(
 
     return []
   })
+
+  // Clamp timestamps to preserve file order (JSONL sequence is authoritative).
+  // Out-of-order timestamps in the file must not cause visual reordering.
+  let lastTs = 0
+  for (const line of results) {
+    if (line.timestamp < lastTs) {
+      line.timestamp = lastTs
+    }
+    lastTs = line.timestamp
+  }
 
   // If projectDir provided, interleave Sidekick events and compute LED states
   if (projectDir) {

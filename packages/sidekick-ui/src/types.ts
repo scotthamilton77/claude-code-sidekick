@@ -222,7 +222,7 @@ export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter>
   'snarky-message:finish': 'session-analysis',
   'resume-message:start': 'session-analysis',
   'resume-message:finish': 'session-analysis',
-  'persona:selected': 'session-analysis',
+  'persona:selected': 'decisions',
   'persona:changed': 'session-analysis',
   'statusline:rendered': 'statusline',
   'error:occurred': 'errors',

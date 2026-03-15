@@ -37,7 +37,10 @@ describe('SIDEKICK_EVENT_TO_FILTER', () => {
     expect(SIDEKICK_EVENT_TO_FILTER['session-summary:finish']).toBe('session-analysis')
     expect(SIDEKICK_EVENT_TO_FILTER['session-title:changed']).toBe('session-analysis')
     expect(SIDEKICK_EVENT_TO_FILTER['intent:changed']).toBe('session-analysis')
-    expect(SIDEKICK_EVENT_TO_FILTER['persona:selected']).toBe('session-analysis')
+  })
+
+  it('should map persona:selected to decisions filter', () => {
+    expect(SIDEKICK_EVENT_TO_FILTER['persona:selected']).toBe('decisions')
   })
 
   it('should map snarky and resume message events to session-analysis filter', () => {

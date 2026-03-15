@@ -13,8 +13,8 @@ export function TimelineEventItem({ event, isSynced, onClick }: TimelineEventPro
       onClick={onClick}
       className={`w-full flex items-start gap-2 px-2 py-1 text-left rounded transition-all ${
         isSynced
-          ? 'bg-indigo-50 dark:bg-indigo-950 ring-1 ring-indigo-300 dark:ring-indigo-700'
-          : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+          ? 'ring-1 ring-slate-400 dark:ring-slate-500 bg-slate-50/50 dark:bg-slate-800/50'
+          : 'hover:ring-1 hover:ring-slate-300 dark:hover:ring-slate-600'
       }`}
     >
       {/* Time */}
