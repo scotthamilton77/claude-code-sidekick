@@ -625,11 +625,25 @@ function computeLEDStates(lines: ApiTranscriptLine[]): void {
         ;(state as Record<string, boolean>)[key] = true
         dirty = true
       }
-    } else if (line.type === 'reminder:unstaged' || line.type === 'reminder:consumed' || line.type === 'reminder:cleared') {
+    } else if (line.type === 'reminder:unstaged' || line.type === 'reminder:consumed') {
       const key = mapReminderToLED(line.reminderId)
       if (key && typeof state[key] === 'boolean') {
         ;(state as Record<string, boolean>)[key] = false
         dirty = true
+      }
+    } else if (line.type === 'reminder:cleared') {
+      if (!line.reminderId) {
+        // Clear-all: reset every boolean LED field
+        state.vcBuild = false; state.vcTypecheck = false
+        state.vcTest = false; state.vcLint = false
+        state.verifyCompletion = false; state.pauseAndReflect = false
+        dirty = true
+      } else {
+        const key = mapReminderToLED(line.reminderId)
+        if (key && typeof state[key] === 'boolean') {
+          ;(state as Record<string, boolean>)[key] = false
+          dirty = true
+        }
       }
     } else if (line.type === 'session-title:changed' && line.confidence != null) {
       const pct = Math.round(line.confidence * 100)

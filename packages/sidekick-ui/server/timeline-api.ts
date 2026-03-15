@@ -276,13 +276,15 @@ export async function parseTimelineEvents(
   // Sort by timestamp ascending
   filtered.sort((a, b) => a.time - b.time)
 
-  // Convert to TimelineEvent[]
+  // Convert to TimelineEvent[], deduplicating transcriptLineId for same-timestamp
+  // same-type events (mirrors the dedup scheme in readSidekickEvents).
+  const seen = new Map<string, number>()
   return filtered.map((entry) => {
     const { label, detail } = generateLabel(entry.type, entry.payload || {})
-    // Use stable ID based on timestamp + type so timeline events can reference
-    // the corresponding transcript line (sidekick events interleaved in transcript
-    // use the same ID format).
-    const stableId = `sidekick-${entry.time}-${entry.type}`
+    const baseId = `sidekick-${entry.time}-${entry.type}`
+    const count = (seen.get(baseId) ?? 0) + 1
+    seen.set(baseId, count)
+    const stableId = count > 1 ? `${baseId}-${count}` : baseId
     return {
       id: randomUUID(),
       timestamp: entry.time,

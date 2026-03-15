@@ -16,7 +16,6 @@ export function Timeline({ events, loading, error }: TimelineProps) {
   const eventRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   const visibleEvents = useMemo(() => {
-    if (state.timelineFilters.size === 0) return events
     return events.filter(event => {
       const filterCategory = SIDEKICK_EVENT_TO_FILTER[event.type]
       return filterCategory ? state.timelineFilters.has(filterCategory) : true
