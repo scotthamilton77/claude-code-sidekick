@@ -3,18 +3,19 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 /**
- * The 16 Sidekick event types visible in the timeline UI.
+ * The 19 Sidekick event types visible in the timeline UI.
  * Mirrors TimelineSidekickEventType from src/types.ts — kept inline to avoid
  * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
  */
 export type TimelineSidekickEventType =
-  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed'
+  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed' | 'reminder:cleared'
   | 'decision:recorded'
   | 'session-summary:start' | 'session-summary:finish' | 'session-title:changed' | 'intent:changed'
   | 'snarky-message:start' | 'snarky-message:finish' | 'resume-message:start' | 'resume-message:finish'
   | 'persona:selected' | 'persona:changed'
   | 'statusline:rendered'
   | 'error:occurred'
+  | 'hook:received' | 'hook:completed'
 
 /** Timeline event returned by the API. Matches SidekickEvent from src/types.ts. */
 export interface TimelineEvent {
@@ -27,13 +28,14 @@ export interface TimelineEvent {
 }
 
 /**
- * The 16 event types visible in the timeline UI.
+ * The 19 event types visible in the timeline UI.
  * Any event type not in this set is filtered out.
  */
-const TIMELINE_EVENT_TYPES = new Set<string>([
+export const TIMELINE_EVENT_TYPES = new Set<string>([
   'reminder:staged',
   'reminder:unstaged',
   'reminder:consumed',
+  'reminder:cleared',
   'decision:recorded',
   'session-summary:start',
   'session-summary:finish',
@@ -47,10 +49,12 @@ const TIMELINE_EVENT_TYPES = new Set<string>([
   'persona:changed',
   'statusline:rendered',
   'error:occurred',
+  'hook:received',
+  'hook:completed',
 ])
 
 /** Parsed raw log entry before conversion to SidekickEvent */
-interface RawLogEntry {
+export interface RawLogEntry {
   time: number
   type: string
   context?: { sessionId?: string }
@@ -79,6 +83,10 @@ export function generateLabel(
       const name = (payload.reminderName as string) || 'unknown'
       return { label: `Consumed: ${name}` }
     }
+    case 'reminder:cleared': {
+      const reminderType = (payload.reminderType as string) ?? 'all'
+      return { label: `Cleared: ${reminderType}` }
+    }
     case 'decision:recorded': {
       const decision = (payload.decision as string) || 'unknown'
       const reason = payload.reason as string | undefined
@@ -102,7 +110,7 @@ export function generateLabel(
     }
     case 'persona:selected': {
       const id = (payload.personaId as string) || 'unknown'
-      return { label: `Persona: ${id}` }
+      return { label: `Persona chosen: ${id}` }
     }
     case 'persona:changed': {
       const from = (payload.personaFrom as string) || 'unknown'
@@ -127,9 +135,14 @@ export function generateLabel(
       }
     }
     case 'session-summary:start':
-      return { label: 'Summary Started' }
-    case 'session-summary:finish':
-      return { label: 'Summary Complete' }
+      return { label: 'Summary Analysis Start' }
+    case 'session-summary:finish': {
+      const title = payload.title as string | undefined
+      return {
+        label: 'Summary Analysis Finish',
+        ...(title ? { detail: `"${title}"` } : {}),
+      }
+    }
     case 'resume-message:start':
       return { label: 'Resume Started' }
     case 'resume-message:finish': {
@@ -142,8 +155,27 @@ export function generateLabel(
     case 'statusline:rendered': {
       const mode = payload.displayMode as string | undefined
       const stale = payload.staleData as boolean | undefined
-      const detail = mode ? `${mode}${stale ? ' (stale)' : ''}` : undefined
+      const tokens = payload.tokens as number | undefined
+      const durMs = payload.durationMs as number | undefined
+      const parts: string[] = []
+      if (mode) parts.push(mode.replace(/_/g, ' '))
+      if (stale) parts.push('(stale)')
+      if (tokens) parts.push(`${tokens} tokens`)
+      if (durMs != null) parts.push(`${durMs}ms`)
+      const detail = parts.length > 0 ? parts.join(' · ') : undefined
       return { label: 'Statusline', ...(detail ? { detail } : {}) }
+    }
+    case 'hook:received': {
+      const hookName = (payload.hook as string) || 'unknown'
+      return { label: `Hook start: ${hookName}` }
+    }
+    case 'hook:completed': {
+      const hookName = (payload.hook as string) || 'unknown'
+      const durMs = payload.durationMs as number | undefined
+      return {
+        label: `Hook finish: ${hookName}`,
+        ...(durMs != null ? { detail: `${durMs}ms` } : {}),
+      }
     }
     default: {
       // Humanize: "some-unknown:type" → "Some Unknown Type"
@@ -159,7 +191,7 @@ export function generateLabel(
  * Read an NDJSON log file, returning parsed entries.
  * Returns empty array if the file doesn't exist or is empty.
  */
-async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
+export async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
   let content: string
   try {
     content = await readFile(filePath, 'utf-8')
@@ -201,7 +233,7 @@ async function readLogFile(filePath: string): Promise<RawLogEntry[]> {
  * Find all log files matching a prefix in the logs directory.
  * Handles pino-roll rotation: sidekick.log, sidekick.1.log, sidekick.2.log, etc.
  */
-async function findLogFiles(logsDir: string, prefix: string): Promise<string[]> {
+export async function findLogFiles(logsDir: string, prefix: string): Promise<string[]> {
   try {
     const files = await readdir(logsDir)
     return files
@@ -244,16 +276,22 @@ export async function parseTimelineEvents(
   // Sort by timestamp ascending
   filtered.sort((a, b) => a.time - b.time)
 
-  // Convert to TimelineEvent[]
+  // Convert to TimelineEvent[], deduplicating transcriptLineId for same-timestamp
+  // same-type events (mirrors the dedup scheme in readSidekickEvents).
+  const seen = new Map<string, number>()
   return filtered.map((entry) => {
     const { label, detail } = generateLabel(entry.type, entry.payload || {})
+    const baseId = `sidekick-${entry.time}-${entry.type}`
+    const count = (seen.get(baseId) ?? 0) + 1
+    seen.set(baseId, count)
+    const stableId = count > 1 ? `${baseId}-${count}` : baseId
     return {
       id: randomUUID(),
       timestamp: entry.time,
       type: entry.type as TimelineSidekickEventType,
       label,
       ...(detail !== undefined ? { detail } : {}),
-      transcriptLineId: '',
+      transcriptLineId: stableId,
     }
   })
 }

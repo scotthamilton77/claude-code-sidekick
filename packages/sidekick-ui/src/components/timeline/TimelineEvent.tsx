@@ -1,27 +1,20 @@
 import type { SidekickEvent } from '../../types'
-
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
+import { formatTime } from '../../utils/formatTime'
 
 interface TimelineEventProps {
   event: SidekickEvent
   isSynced: boolean
-  isDimmed: boolean
   onClick: () => void
 }
 
-export function TimelineEventItem({ event, isSynced, isDimmed, onClick }: TimelineEventProps) {
+export function TimelineEventItem({ event, isSynced, onClick }: TimelineEventProps) {
   return (
     <button
       onClick={onClick}
       className={`w-full flex items-start gap-2 px-2 py-1 text-left rounded transition-all ${
-        isDimmed ? 'opacity-20' : ''
-      } ${
         isSynced
-          ? 'bg-indigo-50 dark:bg-indigo-950 ring-1 ring-indigo-300 dark:ring-indigo-700'
-          : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+          ? 'ring-1 ring-slate-400 dark:ring-slate-500 bg-slate-50/50 dark:bg-slate-800/50'
+          : 'hover:ring-1 hover:ring-slate-300 dark:hover:ring-slate-600'
       }`}
     >
       {/* Time */}

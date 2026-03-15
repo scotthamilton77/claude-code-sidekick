@@ -1,11 +1,14 @@
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { findLogFiles, readLogFile, generateLabel, TIMELINE_EVENT_TYPES, type RawLogEntry, type TimelineSidekickEventType } from './timeline-api.js'
 
 /**
  * Transcript line types visible in the UI.
  * Mirrors TranscriptLineType from src/types.ts — kept inline to avoid
  * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
+ *
+ * Includes all 17 SidekickEventType values for interleaved events.
  */
 export type ApiTranscriptLineType =
   | 'user-message'
@@ -16,6 +19,9 @@ export type ApiTranscriptLineType =
   | 'turn-duration'
   | 'api-error'
   | 'pr-link'
+  | TimelineSidekickEventType
+
+export type ApiUserSubtype = 'prompt' | 'system-injection' | 'command' | 'skill-content'
 
 /** Transcript line returned by the API. Matches TranscriptLine from src/types.ts (subset). */
 export interface ApiTranscriptLine {
@@ -23,7 +29,9 @@ export interface ApiTranscriptLine {
   timestamp: number
   type: ApiTranscriptLineType
   content?: string
+  userSubtype?: ApiUserSubtype
   thinking?: string
+  toolUseId?: string
   toolName?: string
   toolInput?: Record<string, unknown>
   toolOutput?: string
@@ -40,11 +48,36 @@ export interface ApiTranscriptLine {
   isSidechain?: boolean
   isCompactSummary?: boolean
   isMeta?: boolean
-}
+  // subagent drill-down
+  agentId?: string
 
-/** Truncate a string to a maximum length, appending ellipsis if needed. */
-function truncateString(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + '\u2026' : s
+  // LED state (computed server-side during merge)
+  ledState?: {
+    vcBuild: boolean
+    vcTypecheck: boolean
+    vcTest: boolean
+    vcLint: boolean
+    verifyCompletion: boolean
+    pauseAndReflect: boolean
+    titleConfidence: 'red' | 'amber' | 'green'
+    titleConfidencePct: number
+  }
+  // Hook event fields
+  hookName?: string
+  hookDurationMs?: number
+  // Sidekick event fields
+  reminderId?: string
+  reminderBlocking?: boolean
+  decisionCategory?: string
+  decisionReasoning?: string
+  previousValue?: string
+  newValue?: string
+  confidence?: number
+  personaFrom?: string
+  personaTo?: string
+  statuslineContent?: string
+  errorStack?: string
+  generatedMessage?: string
 }
 
 /** Raw entry types to skip entirely (noise). */
@@ -115,6 +148,20 @@ function extractToolResultContent(content: unknown): string {
 }
 
 /**
+ * Classify a user message into subtypes for distinct rendering.
+ * Detection order matters: command > system-injection > prompt.
+ */
+function classifyUserSubtype(entry: Record<string, unknown>, content: string): ApiUserSubtype {
+  if (entry.isMeta === true) {
+    if (content.includes('<command-name>')) return 'command'
+    return 'system-injection'
+  }
+  if (content.includes('<system-reminder>')) return 'system-injection'
+  if (content.includes('<command-name>')) return 'command'
+  return 'prompt'
+}
+
+/**
  * Process content blocks from a user entry.
  * User entries can have string content (simple text) or array content
  * (text blocks, tool_result blocks, etc.).
@@ -132,6 +179,7 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
         timestamp,
         type: 'user-message',
         content,
+        userSubtype: classifyUserSubtype(entry, content),
         ...meta,
       },
     ]
@@ -151,11 +199,13 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
     const b = block as Record<string, unknown>
 
     if (b.type === 'text') {
+      const text = b.text as string
       lines.push({
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'user-message',
-        content: b.text as string,
+        content: text,
+        userSubtype: classifyUserSubtype(entry, text),
         ...meta,
       })
     } else if (b.type === 'tool_result') {
@@ -163,7 +213,8 @@ function processUserEntry(entry: Record<string, unknown>, lineIndex: number, tim
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'tool-result',
-        toolOutput: truncateString(extractToolResultContent(b.content), 500),
+        toolUseId: b.tool_use_id as string,
+        toolOutput: extractToolResultContent(b.content),
         toolSuccess: !b.is_error,
         ...meta,
       })
@@ -225,6 +276,7 @@ function processAssistantEntry(
         id: `transcript-${lineIndex}-${blockIndex}`,
         timestamp,
         type: 'tool-use',
+        toolUseId: b.id as string,
         toolName: b.name as string,
         toolInput: b.input as Record<string, unknown>,
         ...meta,
@@ -323,14 +375,157 @@ function extractMetadata(
   return result
 }
 
+
+/**
+ * Convert a Sidekick NDJSON log entry to an ApiTranscriptLine.
+ */
+function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
+  const payload = entry.payload ?? {}
+  const { label } = generateLabel(entry.type, payload)
+
+  // Use stable ID based on timestamp + type so timeline scroll-sync can
+  // reference the same ID (timeline-api.ts generates matching transcriptLineId).
+  const line: ApiTranscriptLine = {
+    id: `sidekick-${entry.time}-${entry.type}`,
+    timestamp: entry.time,
+    type: entry.type as ApiTranscriptLineType,
+    content: label,
+  }
+
+  // Copy event-specific payload fields (use ?? for fallback semantics)
+  line.reminderId = (payload.reminderName ?? payload.reminderType) as string | undefined
+  if (payload.blocking === true) line.reminderBlocking = true
+  line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
+  if (payload.reason) line.decisionReasoning = payload.reason as string
+  if (payload.previousValue) line.previousValue = payload.previousValue as string
+  if (payload.newValue) line.newValue = payload.newValue as string
+  if (payload.confidence != null) line.confidence = payload.confidence as number
+  if (payload.personaFrom) line.personaFrom = payload.personaFrom as string
+  line.personaTo = (payload.personaTo ?? payload.personaId) as string | undefined
+  // Statusline: build rich content from available fields
+  if (entry.type === 'statusline:rendered') {
+    const parts: string[] = []
+    if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
+    if (payload.staleData === true) parts.push('(stale)')
+    if (payload.tokens) parts.push(`${payload.tokens} tokens`)
+    if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
+    if (parts.length > 0) line.statuslineContent = parts.join(' · ')
+  }
+  // Hook events
+  if (payload.hook) line.hookName = payload.hook as string
+  if (payload.durationMs != null && entry.type === 'hook:completed') line.hookDurationMs = payload.durationMs as number
+  if (payload.errorMessage) line.errorMessage = payload.errorMessage as string
+  if (payload.errorStack) line.errorStack = payload.errorStack as string
+  if (payload.generatedMessage) line.generatedMessage = payload.generatedMessage as string
+  if (payload.snarky_comment) line.generatedMessage = payload.snarky_comment as string
+
+  return line
+}
+
+/**
+ * Read Sidekick events for a session from NDJSON log files.
+ */
+async function readSidekickEvents(projectDir: string, sessionId: string): Promise<ApiTranscriptLine[]> {
+  const logsDir = join(projectDir, '.sidekick', 'logs')
+
+  const [cliFiles, daemonFiles] = await Promise.all([
+    findLogFiles(logsDir, 'sidekick.'),
+    findLogFiles(logsDir, 'sidekickd.'),
+  ])
+
+  const allFiles = [...cliFiles, ...daemonFiles]
+  const fileResults = await Promise.all(allFiles.map(readLogFile))
+  const allEntries = fileResults.flat()
+
+  // Filter by sessionId and visible event types
+  const filtered = allEntries.filter(
+    (entry) =>
+      entry.context?.sessionId === sessionId &&
+      TIMELINE_EVENT_TYPES.has(entry.type)
+  )
+
+  // Deduplicate IDs: if two events share the same timestamp+type, suffix with a counter.
+  // The first occurrence keeps the base ID (for timeline scroll-sync matching).
+  const seen = new Map<string, number>()
+  return filtered.map((entry) => {
+    const line = sidekickEventToTranscriptLine(entry)
+    const count = (seen.get(line.id) ?? 0) + 1
+    seen.set(line.id, count)
+    if (count > 1) line.id = `${line.id}-${count}`
+    return line
+  })
+}
+
+/**
+ * Parse a JSONL transcript file into ApiTranscriptLine[].
+ * Shared core loop for both main transcripts and subagent transcripts.
+ *
+ * @param onExtra - Optional callback for entry types beyond user/assistant/system.
+ *   Receives the entry, its type, line index, timestamp, and accumulated results.
+ *   Return lines to add, or empty array to skip.
+ */
+function parseJsonlContent(
+  content: string,
+  onExtra?: (
+    entry: Record<string, unknown>,
+    entryType: string,
+    lineIndex: number,
+    timestamp: number,
+    results: ApiTranscriptLine[],
+  ) => ApiTranscriptLine[],
+): ApiTranscriptLine[] {
+  const results: ApiTranscriptLine[] = []
+  const rawLines = content.split('\n')
+
+  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
+    const trimmed = rawLines[lineIndex].trim()
+    if (!trimmed) continue
+
+    let entry: Record<string, unknown>
+    try {
+      entry = JSON.parse(trimmed) as Record<string, unknown>
+    } catch {
+      continue
+    }
+
+    const entryType = entry.type as string | undefined
+    if (!entryType) continue
+    if (SKIP_TYPES.has(entryType)) continue
+
+    const timestamp = parseTimestamp(entry.timestamp)
+
+    let lines: ApiTranscriptLine[]
+    switch (entryType) {
+      case 'user':
+        lines = processUserEntry(entry, lineIndex, timestamp)
+        break
+      case 'assistant':
+        lines = processAssistantEntry(entry, lineIndex, timestamp)
+        break
+      case 'system':
+        lines = processSystemEntry(entry, lineIndex, timestamp)
+        break
+      default:
+        lines = onExtra?.(entry, entryType, lineIndex, timestamp, results) ?? []
+    }
+
+    results.push(...lines)
+  }
+
+  return results
+}
+
 /**
  * Parse a Claude Code transcript JSONL file into ApiTranscriptLine[].
  *
- * Reads the JSONL file, skips noise entry types, and transforms each
- * relevant entry into one or more ApiTranscriptLine objects.
- * Returns lines in file order (no sorting).
+ * When projectDir is provided, also reads Sidekick NDJSON logs and
+ * interleaves events by timestamp.
  */
-export async function parseTranscriptLines(projectId: string, sessionId: string): Promise<ApiTranscriptLine[]> {
+export async function parseTranscriptLines(
+  projectId: string,
+  sessionId: string,
+  projectDir?: string,
+): Promise<ApiTranscriptLine[]> {
   const filePath = await resolveTranscriptPath(projectId, sessionId)
   if (!filePath) return []
 
@@ -343,51 +538,201 @@ export async function parseTranscriptLines(projectId: string, sessionId: string)
 
   if (!content.trim()) return []
 
-  const results: ApiTranscriptLine[] = []
-  const rawLines = content.split('\n')
+  const results = parseJsonlContent(content, (entry, entryType, lineIndex, timestamp, accumulated) => {
+    if (entryType === 'pr-link') return processPrLinkEntry(entry, lineIndex, timestamp)
 
-  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-    const trimmed = rawLines[lineIndex].trim()
-    if (!trimmed) continue
-
-    let entry: Record<string, unknown>
-    try {
-      entry = JSON.parse(trimmed) as Record<string, unknown>
-    } catch {
-      // Skip malformed JSON lines
-      continue
+    if (entryType === 'agent_progress') {
+      const data = entry.data as Record<string, unknown> | undefined
+      const agentId = data?.agentId as string | undefined
+      if (agentId) {
+        for (let i = accumulated.length - 1; i >= 0; i--) {
+          if (accumulated[i].type === 'tool-use') {
+            accumulated[i].agentId = agentId
+            break
+          }
+        }
+      }
     }
 
-    const entryType = entry.type as string | undefined
-    if (!entryType) continue
+    return []
+  })
 
-    // Skip noise types
-    if (SKIP_TYPES.has(entryType)) continue
-
-    const timestamp = parseTimestamp(entry.timestamp)
-
-    let lines: ApiTranscriptLine[]
-
-    switch (entryType) {
-      case 'user':
-        lines = processUserEntry(entry, lineIndex, timestamp)
-        break
-      case 'assistant':
-        lines = processAssistantEntry(entry, lineIndex, timestamp)
-        break
-      case 'system':
-        lines = processSystemEntry(entry, lineIndex, timestamp)
-        break
-      case 'pr-link':
-        lines = processPrLinkEntry(entry, lineIndex, timestamp)
-        break
-      default:
-        // Unknown type — skip
-        lines = []
+  // Clamp timestamps to preserve file order (JSONL sequence is authoritative).
+  // Out-of-order timestamps in the file must not cause visual reordering.
+  let lastTs = 0
+  for (const line of results) {
+    if (line.timestamp < lastTs) {
+      line.timestamp = lastTs
     }
+    lastTs = line.timestamp
+  }
 
-    results.push(...lines)
+  // If projectDir provided, interleave Sidekick events and compute LED states
+  if (projectDir) {
+    const sidekickLines = await readSidekickEvents(projectDir, sessionId)
+    results.push(...sidekickLines)
+    // Sort merged results by timestamp (stable sort preserves file order for same timestamp)
+    results.sort((a, b) => a.timestamp - b.timestamp)
+    // Compute LED states after merge
+    computeLEDStates(results)
   }
 
   return results
+}
+
+/** LED state fields tracked across transcript lines. */
+interface RunningLEDState {
+  vcBuild: boolean
+  vcTypecheck: boolean
+  vcTest: boolean
+  vcLint: boolean
+  verifyCompletion: boolean
+  pauseAndReflect: boolean
+  titleConfidence: 'red' | 'amber' | 'green'
+  titleConfidencePct: number
+}
+
+/** Map reminder names to LED state keys. */
+function mapReminderToLED(reminderId: string | undefined): keyof RunningLEDState | null {
+  switch (reminderId) {
+    case 'vc-build': return 'vcBuild'
+    case 'vc-typecheck': return 'vcTypecheck'
+    case 'vc-test': return 'vcTest'
+    case 'vc-lint': return 'vcLint'
+    case 'verify-completion': return 'verifyCompletion'
+    case 'pause-and-reflect': return 'pauseAndReflect'
+    default: return null
+  }
+}
+
+/**
+ * Walk the merged transcript top-to-bottom, computing LED states.
+ * Each line gets a snapshot of the current LED state after any mutations it causes.
+ */
+function computeLEDStates(lines: ApiTranscriptLine[]): void {
+  const state: RunningLEDState = {
+    vcBuild: false, vcTypecheck: false, vcTest: false, vcLint: false,
+    verifyCompletion: false, pauseAndReflect: false,
+    titleConfidence: 'green', titleConfidencePct: 85,
+  }
+  let currentSnapshot = { ...state }
+  let dirty = true  // first line always gets a fresh snapshot
+
+  for (const line of lines) {
+    if (line.type === 'reminder:staged') {
+      const key = mapReminderToLED(line.reminderId)
+      if (key && typeof state[key] === 'boolean') {
+        ;(state as Record<string, boolean>)[key] = true
+        dirty = true
+      }
+    } else if (line.type === 'reminder:unstaged' || line.type === 'reminder:consumed') {
+      const key = mapReminderToLED(line.reminderId)
+      if (key && typeof state[key] === 'boolean') {
+        ;(state as Record<string, boolean>)[key] = false
+        dirty = true
+      }
+    } else if (line.type === 'reminder:cleared') {
+      if (!line.reminderId) {
+        // Clear-all: reset every boolean LED field
+        state.vcBuild = false; state.vcTypecheck = false
+        state.vcTest = false; state.vcLint = false
+        state.verifyCompletion = false; state.pauseAndReflect = false
+        dirty = true
+      } else {
+        const key = mapReminderToLED(line.reminderId)
+        if (key && typeof state[key] === 'boolean') {
+          ;(state as Record<string, boolean>)[key] = false
+          dirty = true
+        }
+      }
+    } else if (line.type === 'session-title:changed' && line.confidence != null) {
+      const pct = Math.round(line.confidence * 100)
+      state.titleConfidencePct = pct
+      state.titleConfidence = pct >= 80 ? 'green' : pct >= 50 ? 'amber' : 'red'
+      dirty = true
+    }
+
+    if (dirty) {
+      currentSnapshot = { ...state }
+      dirty = false
+    }
+    line.ledState = currentSnapshot
+  }
+}
+
+// ============================================================================
+// Subagent Transcript Support
+// ============================================================================
+
+export interface SubagentMeta {
+  agentType?: string
+  worktreePath?: string
+  parentToolUseId?: string
+}
+
+export interface SubagentTranscriptResult {
+  lines: ApiTranscriptLine[]
+  meta: SubagentMeta
+}
+
+/**
+ * Resolve the path to a subagent's JSONL transcript file.
+ */
+function resolveSubagentPath(projectId: string, sessionId: string, agentId: string): string {
+  return join(homedir(), '.claude', 'projects', projectId, sessionId, 'subagents', `agent-${agentId}.jsonl`)
+}
+
+/**
+ * Parse a subagent's transcript and metadata.
+ * No Sidekick event interleaving or LED state computation.
+ */
+export async function parseSubagentTranscript(
+  projectId: string,
+  sessionId: string,
+  agentId: string,
+): Promise<SubagentTranscriptResult | null> {
+  const filePath = resolveSubagentPath(projectId, sessionId, agentId)
+
+  let content: string
+  try {
+    content = await readFile(filePath, 'utf-8')
+  } catch {
+    return null
+  }
+
+  if (!content.trim()) return { lines: [], meta: {} }
+
+  const lines = parseJsonlContent(content)
+
+  // Read meta.json if present
+  const metaPath = filePath.replace('.jsonl', '.meta.json')
+  let meta: SubagentMeta = {}
+  try {
+    const metaContent = await readFile(metaPath, 'utf-8')
+    const metaData = JSON.parse(metaContent) as Record<string, unknown>
+    meta = {
+      agentType: metaData.agentType as string | undefined,
+      worktreePath: metaData.worktreePath as string | undefined,
+      parentToolUseId: metaData.parentToolUseId as string | undefined,
+    }
+  } catch {
+    // No meta file or malformed — OK
+  }
+
+  return { lines, meta }
+}
+
+/**
+ * List available subagent IDs for a session.
+ */
+export async function listSubagents(projectId: string, sessionId: string): Promise<string[]> {
+  const subagentsDir = join(homedir(), '.claude', 'projects', projectId, sessionId, 'subagents')
+  try {
+    const files = await readdir(subagentsDir)
+    return files
+      .filter(f => f.startsWith('agent-') && f.endsWith('.jsonl'))
+      .map(f => f.replace(/^agent-/, '').replace(/\.jsonl$/, ''))
+  } catch {
+    return []
+  }
 }

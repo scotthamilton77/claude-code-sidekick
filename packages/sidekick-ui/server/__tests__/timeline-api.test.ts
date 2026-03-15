@@ -69,7 +69,7 @@ describe('parseTimelineEvents', () => {
       type: 'reminder:staged',
       label: 'Staged: vc-build',
       detail: 'reason: tool_threshold',
-      transcriptLineId: '',
+      transcriptLineId: 'sidekick-1000-reminder:staged',
     })
   })
 
@@ -94,7 +94,7 @@ describe('parseTimelineEvents', () => {
     const lines = [
       makeLogLine({ time: 1000, type: 'reminder:staged' }),
       makeLogLine({ time: 2000, type: 'daemon:started' }),
-      makeLogLine({ time: 3000, type: 'hook:invoked' }),
+      makeLogLine({ time: 3000, type: 'ipc:started' }),
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
@@ -162,6 +162,23 @@ describe('parseTimelineEvents', () => {
     expect(events.map((e) => e.timestamp)).toEqual([1000, 2000, 3000, 4000])
   })
 
+  it('includes reminder:cleared events', async () => {
+    const line = makeLogLine({
+      time: 1000,
+      type: 'reminder:cleared',
+      reminderType: 'vc-build',
+    })
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sidekick.1.log')) return Promise.resolve(line)
+      return Promise.resolve('')
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'session-1')
+    expect(events).toHaveLength(1)
+    expect(events[0].type).toBe('reminder:cleared')
+    expect(events[0].label).toBe('Cleared: vc-build')
+  })
+
   it('returns empty array when log directory does not exist', async () => {
     mockReaddir.mockRejectedValue(new Error('ENOENT'))
 
@@ -194,6 +211,16 @@ describe('generateLabel', () => {
     expect(result).toEqual({ label: 'Consumed: verify-completion' })
   })
 
+  it('generates label for reminder:cleared', () => {
+    const result = generateLabel('reminder:cleared', { reminderType: 'vc-build' })
+    expect(result).toEqual({ label: 'Cleared: vc-build' })
+  })
+
+  it('generates label for reminder:cleared with no reminderType', () => {
+    const result = generateLabel('reminder:cleared', {})
+    expect(result).toEqual({ label: 'Cleared: all' })
+  })
+
   it('generates label for decision:recorded', () => {
     const result = generateLabel('decision:recorded', { decision: 'skip-tests', reason: 'tests already passed' })
     expect(result).toEqual({ label: 'Decision: skip-tests', detail: 'tests already passed' })
@@ -211,7 +238,7 @@ describe('generateLabel', () => {
 
   it('generates label for persona:selected', () => {
     const result = generateLabel('persona:selected', { personaId: 'yoda' })
-    expect(result).toEqual({ label: 'Persona: yoda' })
+    expect(result).toEqual({ label: 'Persona chosen: yoda' })
   })
 
   it('generates label for persona:changed', () => {
@@ -233,12 +260,17 @@ describe('generateLabel', () => {
 
   it('generates label for session-summary:start', () => {
     const result = generateLabel('session-summary:start', {})
-    expect(result).toEqual({ label: 'Summary Started' })
+    expect(result).toEqual({ label: 'Summary Analysis Start' })
   })
 
   it('generates label for session-summary:finish', () => {
     const result = generateLabel('session-summary:finish', {})
-    expect(result).toEqual({ label: 'Summary Complete' })
+    expect(result).toEqual({ label: 'Summary Analysis Finish' })
+  })
+
+  it('generates label for session-summary:finish with title', () => {
+    const result = generateLabel('session-summary:finish', { title: 'Fix auth bug' })
+    expect(result).toEqual({ label: 'Summary Analysis Finish', detail: '"Fix auth bug"' })
   })
 
   it('generates label for resume-message:start', () => {
@@ -253,8 +285,18 @@ describe('generateLabel', () => {
   })
 
   it('generates label for statusline:rendered', () => {
-    const result = generateLabel('statusline:rendered', { displayMode: 'full', staleData: false })
-    expect(result).toEqual({ label: 'Statusline', detail: 'full' })
+    const result = generateLabel('statusline:rendered', { displayMode: 'session_summary', staleData: false, tokens: 3200, durationMs: 145 })
+    expect(result).toEqual({ label: 'Statusline', detail: 'session summary · 3200 tokens · 145ms' })
+  })
+
+  it('generates label for hook:received', () => {
+    const result = generateLabel('hook:received', { hook: 'UserPromptSubmit' })
+    expect(result).toEqual({ label: 'Hook start: UserPromptSubmit' })
+  })
+
+  it('generates label for hook:completed', () => {
+    const result = generateLabel('hook:completed', { hook: 'UserPromptSubmit', durationMs: 42 })
+    expect(result).toEqual({ label: 'Hook finish: UserPromptSubmit', detail: '42ms' })
   })
 
   it('generates label for snarky-message:start', () => {

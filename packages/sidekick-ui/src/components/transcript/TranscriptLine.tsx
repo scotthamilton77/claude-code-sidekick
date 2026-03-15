@@ -16,8 +16,11 @@ import {
   ChevronRight,
   Clock,
   GitPullRequest,
+  Zap,
 } from 'lucide-react'
 import type { TranscriptLine as TLine, TranscriptLineType } from '../../types'
+import { formatTime } from '../../utils/formatTime'
+import { CollapsibleContent } from './CollapsibleContent'
 
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '\u2026' : s
@@ -40,6 +43,9 @@ function formatToolInput(toolName?: string, input?: Record<string, unknown>): st
   if (toolName === 'Agent' && typeof input.description === 'string') {
     return truncate(input.description, 200)
   }
+  if (toolName === 'Skill' && typeof input.skill === 'string') {
+    return truncate(input.skill, 200)
+  }
   // Fallback: show first string value
   for (const val of Object.values(input)) {
     if (typeof val === 'string') return truncate(val, 150)
@@ -57,15 +63,16 @@ function isSafeUrl(url: string): boolean {
   }
 }
 
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
-
 function formatDuration(ms?: number): string {
   if (ms == null) return '?'
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
+}
+
+interface PairNavigation {
+  color: string
+  isToolUse: boolean
+  onNavigate: () => void
 }
 
 interface TranscriptLineProps {
@@ -73,10 +80,85 @@ interface TranscriptLineProps {
   isSelected: boolean
   isSynced: boolean
   onClick: () => void
+  pairNavigation?: PairNavigation
+  defaultModel?: string
 }
 
-export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: TranscriptLineProps) {
+/** Extract command name from content containing <command-name> tag */
+function extractCommandName(content: string): string | null {
+  const match = content.match(/<command-name>\/?([\w-]+)<\/command-name>/)
+  return match ? match[1] : null
+}
+
+const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set([
+  'user-message', 'assistant-message', 'tool-use', 'tool-result',
+  'compaction', 'turn-duration', 'api-error', 'pr-link',
+])
+
+function isSidekickEventType(type: TranscriptLineType): boolean {
+  return !CLAUDE_CODE_TYPES.has(type)
+}
+
+/** Build single-line label + optional detail for sidekick events */
+function buildSidekickSingleLine(line: TLine): { label: string; detail?: string } {
+  switch (line.type) {
+    case 'reminder:staged':
+      return { label: `Staged ${line.reminderId ?? 'unknown'}`, detail: line.reminderBlocking ? 'blocking' : undefined }
+    case 'reminder:unstaged':
+      return { label: `Unstaged ${line.reminderId ?? 'unknown'}` }
+    case 'reminder:consumed':
+      return { label: `Consumed ${line.reminderId ?? 'unknown'}` }
+    case 'reminder:cleared':
+      return { label: `Cleared ${line.reminderId ?? 'all'}` }
+    case 'decision:recorded':
+      return { label: `Decision: ${line.decisionCategory ?? 'unknown'}`, detail: line.decisionReasoning }
+    case 'session-summary:start':
+      return { label: 'Summary Analysis Start' }
+    case 'session-summary:finish':
+      return { label: 'Summary Analysis Finish', detail: line.newValue ? `"${line.newValue}"` : undefined }
+    case 'session-title:changed':
+      return {
+        label: `Title → "${line.newValue ?? 'unknown'}"`,
+        detail: line.confidence != null ? `${Math.round(line.confidence * 100)}%` : undefined,
+      }
+    case 'intent:changed':
+      return {
+        label: `Intent → "${line.newValue ?? 'unknown'}"`,
+        detail: line.confidence != null ? `${Math.round(line.confidence * 100)}%` : undefined,
+      }
+    case 'snarky-message:start':
+      return { label: 'Snarky Message…' }
+    case 'snarky-message:finish':
+      return { label: 'Snarky Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+    case 'resume-message:start':
+      return { label: 'Resume Message…' }
+    case 'resume-message:finish':
+      return { label: 'Resume Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+    case 'persona:selected':
+      return { label: `Persona chosen: ${line.personaTo ?? 'unknown'}` }
+    case 'persona:changed':
+      return { label: `Persona: ${line.personaFrom ?? '?'} → ${line.personaTo ?? '?'}` }
+    case 'statusline:rendered': {
+      // Split "resume message · 26 tokens · 38ms" into mode + stats
+      const parts = (line.statuslineContent ?? '').split(' · ')
+      const mode = parts[0] || 'unknown'
+      const stats = parts.slice(1).join(' · ')
+      return { label: `Statusline: ${mode}`, detail: stats || undefined }
+    }
+    case 'error:occurred':
+      return { label: `Error: ${line.errorMessage ?? 'unknown'}` }
+    case 'hook:received':
+      return { label: `Hook start: ${line.hookName ?? 'unknown'}` }
+    case 'hook:completed':
+      return { label: `Hook finish: ${line.hookName ?? 'unknown'}`, detail: line.hookDurationMs != null ? `${line.hookDurationMs}ms` : undefined }
+    default:
+      return { label: line.content ?? line.type }
+  }
+}
+
+export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNavigation, defaultModel }: TranscriptLineProps) {
   const [showThinking, setShowThinking] = useState(false)
+  const [showInjection, setShowInjection] = useState(false)
 
   // Compaction gets special full-width divider treatment
   if (line.type === 'compaction') {
@@ -103,16 +185,109 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
     )
   }
 
+  // Command subtype: compact pill with terminal-green accent
+  if (line.type === 'user-message' && line.userSubtype === 'command') {
+    const cmdName = extractCommandName(line.content ?? '') ?? 'command'
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer">
+        <div className={`rounded-lg px-2.5 py-1 bg-slate-50 dark:bg-slate-800/50 border border-emerald-300 dark:border-emerald-700 ${
+          isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
+        }`}>
+          <div className="flex items-center gap-1.5">
+            <Terminal size={11} className="text-emerald-500" />
+            <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400">/{cmdName}</span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // System injection / skill-content: collapsed by default, gray styling
+  if (line.type === 'user-message' && (line.userSubtype === 'system-injection' || line.userSubtype === 'skill-content')) {
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer flex justify-center">
+        <div className="w-[60%]">
+        <div className={`rounded-lg px-2.5 py-1 bg-gray-50 dark:bg-gray-900/50 border-l-2 border border-gray-200 dark:border-gray-700 border-l-gray-400 dark:border-l-gray-500 ${
+          isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
+        }`}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowInjection(!showInjection) }}
+            className="flex items-center gap-1.5 w-full"
+          >
+            {showInjection ? <ChevronDown size={10} className="text-gray-400" /> : <ChevronRight size={10} className="text-gray-400" />}
+            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">System injection</span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </button>
+          {showInjection && line.content && (
+            <p className="text-[10px] font-mono text-gray-500 dark:text-gray-400 mt-1 leading-relaxed whitespace-pre-wrap line-clamp-[20]">
+              {line.content}
+            </p>
+          )}
+        </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isSidekick = isSidekickEventType(line.type)
+
+  // Sidekick events: single-line compact, center-justified 60% width
+  if (isSidekick) {
+    const styles = getLineStyles(line)
+    const { label, detail } = buildSidekickSingleLine(line)
+
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer flex justify-center">
+        <div className="w-[60%]">
+        <div
+          className={`rounded-lg px-2.5 py-1 transition-all ${styles.bg} ${styles.border} ${
+            isSelected
+              ? 'ring-2 ring-indigo-400 dark:ring-indigo-500'
+              : isSynced
+                ? 'ring-2 ring-amber-400 dark:ring-amber-500'
+                : ''
+          }`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <styles.Icon size={11} className={`${styles.iconColor} flex-shrink-0`} />
+            <span className={`text-[10px] font-medium ${styles.labelColor} truncate`}>
+              {label}{detail ? <span className="opacity-60 font-normal"> · {detail}</span> : null}
+            </span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </div>
+        </div>
+        </div>
+      </div>
+    )
+  }
+
   const styles = getLineStyles(line)
-  const isSidekickEvent = isSidekickEventType(line.type)
+
+  // Positioning: user prompts right-aligned, assistant left-aligned,
+  // tools indented, system types center-justified 60% width
+  const isUserPrompt = line.type === 'user-message' && line.userSubtype === 'prompt'
+  const isAssistant = line.type === 'assistant-message'
+  const isTool = line.type === 'tool-use' || line.type === 'tool-result'
+  const isSystemType = line.type === 'turn-duration' || line.type === 'api-error' || line.type === 'pr-link'
 
   return (
     <div
       onClick={onClick}
       className={`px-2 py-0.5 transition-all cursor-pointer ${
-        line.type === 'tool-use' || line.type === 'tool-result' ? 'ml-6' : ''
+        isUserPrompt ? 'flex justify-end' :
+        isAssistant ? 'ml-2' :
+        isTool ? 'ml-6' :
+        isSystemType ? 'flex justify-center' : ''
       }`}
     >
+      <div className={
+        isUserPrompt ? 'w-[90%]' :
+        isAssistant ? 'w-[90%]' :
+        isTool ? 'w-[85%]' :
+        isSystemType ? 'w-[60%]' :
+        undefined
+      }>
       <div
         className={`rounded-lg px-2.5 py-1.5 transition-all ${styles.bg} ${styles.border} ${
           isSelected
@@ -125,17 +300,26 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
         {/* Header: icon + label + time */}
         <div className="flex items-center gap-1.5">
           <styles.Icon size={11} className={styles.iconColor} />
-          <span className={`text-[10px] font-medium ${styles.labelColor}`}>{styles.label}</span>
+          <span className={`text-[10px] font-medium ${styles.labelColor} truncate`}>
+            {styles.label}
+            {line.type === 'tool-use' && line.toolInput && (() => {
+              const preview = formatToolInput(line.toolName, line.toolInput)
+              return preview ? <span className="font-mono font-normal opacity-75">: {truncate(preview, 80)}</span> : null
+            })()}
+          </span>
           {line.isSidechain && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">sidechain</span>
           )}
           {line.type === 'assistant-message' && !line.content && line.thinking && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">thinking</span>
           )}
-          {line.model && (
+          {line.model && line.model !== defaultModel && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded font-mono">
               {line.model.replace('claude-', '').split('-202')[0]}
             </span>
+          )}
+          {line.type === 'tool-use' && line.toolDurationMs != null && (
+            <span className="text-[9px] text-slate-400 tabular-nums">{line.toolDurationMs}ms</span>
           )}
           <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">
             {formatTime(line.timestamp)}
@@ -143,7 +327,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
         </div>
 
         {/* Content */}
-        {line.content && !isSidekickEvent && (
+        {line.content && (
           <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed line-clamp-3 mt-0.5">
             {line.content}
           </p>
@@ -151,9 +335,15 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
 
         {/* Thinking-only assistant message — show thinking as primary content */}
         {line.type === 'assistant-message' && !line.content && line.thinking && (
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5 pl-3 border-l-2 border-slate-200 dark:border-slate-700 italic line-clamp-3">
-            {line.thinking}
-          </p>
+          <div className="pl-3 border-l-2 border-slate-200 dark:border-slate-700 mt-0.5">
+            <CollapsibleContent
+              content={line.thinking}
+              previewLines={3}
+              previewChars={300}
+              className="text-slate-500 dark:text-slate-400 italic"
+              label="thinking"
+            />
+          </div>
         )}
 
         {/* Thinking block (collapsible) — only when there IS text content */}
@@ -170,35 +360,38 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
           </button>
         )}
         {showThinking && line.thinking && (
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed mt-1 pl-3 border-l-2 border-slate-200 dark:border-slate-700 italic line-clamp-5">
-            {line.thinking}
-          </p>
-        )}
-
-        {/* Tool use details */}
-        {line.type === 'tool-use' && (
-          <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-            <span className="font-mono">{line.toolName}</span>
-            {line.toolDurationMs != null && <span className="ml-2">{line.toolDurationMs}ms</span>}
-            {line.toolInput &&
-              (() => {
-                const preview = formatToolInput(line.toolName, line.toolInput)
-                return preview ? (
-                  <p className="font-mono text-slate-400 dark:text-slate-500 mt-0.5 line-clamp-2">{preview}</p>
-                ) : null
-              })()}
+          <div className="pl-3 border-l-2 border-slate-200 dark:border-slate-700 mt-1">
+            <CollapsibleContent
+              content={line.thinking}
+              previewLines={5}
+              previewChars={500}
+              className="text-slate-500 dark:text-slate-400 italic"
+              label="thinking"
+            />
           </div>
         )}
 
         {/* Tool result */}
         {line.type === 'tool-result' && line.toolOutput && (
-          <p
-            className={`text-[10px] font-mono mt-0.5 line-clamp-2 ${
-              line.toolSuccess === false ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'
-            }`}
+          <CollapsibleContent
+            content={line.toolOutput}
+            previewLines={3}
+            previewChars={300}
+            mono
+            className={line.toolSuccess === false ? 'text-red-600 dark:text-red-400 mt-0.5' : 'text-slate-500 dark:text-slate-400 mt-0.5'}
+            label="output"
+          />
+        )}
+
+        {/* Tool pair navigation link */}
+        {pairNavigation && (line.type === 'tool-use' || line.type === 'tool-result') && (
+          <button
+            onClick={(e) => { e.stopPropagation(); pairNavigation.onNavigate() }}
+            className="text-[9px] mt-0.5 hover:underline"
+            style={{ color: pairNavigation.color }}
           >
-            {line.toolOutput}
-          </p>
+            {pairNavigation.isToolUse ? '→ result' : '← call'}
+          </button>
         )}
 
         {/* API error message */}
@@ -218,97 +411,10 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick }: Tran
             {line.prUrl}
           </a>
         )}
-
-        {/* Sidekick event inline details */}
-        {isSidekickEvent && renderSidekickDetail(line)}
+      </div>
       </div>
     </div>
   )
-}
-
-function isSidekickEventType(type: TranscriptLineType): boolean {
-  return ![
-    'user-message',
-    'assistant-message',
-    'tool-use',
-    'tool-result',
-    'compaction',
-    'turn-duration',
-    'api-error',
-    'pr-link',
-  ].includes(type)
-}
-
-function renderSidekickDetail(line: TLine) {
-  switch (line.type) {
-    case 'reminder:staged':
-    case 'reminder:unstaged':
-    case 'reminder:consumed':
-      return (
-        <div className="flex items-center gap-2 text-[10px] mt-0.5">
-          <span
-            className={`px-1 py-0.5 rounded font-medium ${
-              line.type === 'reminder:staged'
-                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                : line.type === 'reminder:consumed'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-            }`}
-          >
-            {line.type.split(':').pop()}
-          </span>
-          <span className="font-mono text-slate-500">{line.reminderId}</span>
-          {line.reminderBlocking && <span className="text-red-400 font-medium">blocking</span>}
-        </div>
-      )
-
-    case 'decision:recorded':
-      return line.decisionReasoning ? (
-        <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 italic line-clamp-2">
-          {line.decisionReasoning}
-        </p>
-      ) : null
-
-    case 'session-title:changed':
-    case 'intent:changed':
-      return (
-        <div className="text-[10px] text-slate-500 mt-0.5">
-          {line.previousValue && <span className="line-through mr-1">{line.previousValue}</span>}
-          {line.newValue && <span className="font-medium text-slate-700 dark:text-slate-300">{line.newValue}</span>}
-          {line.confidence != null && <span className="ml-2 text-slate-400">{Math.round(line.confidence * 100)}%</span>}
-        </div>
-      )
-
-    case 'persona:selected':
-    case 'persona:changed':
-      return (
-        <div className="text-[10px] text-slate-500 mt-0.5">
-          {line.personaFrom && <span className="line-through mr-1">{line.personaFrom}</span>}
-          {line.personaTo && <span className="font-medium text-pink-600 dark:text-pink-400">{line.personaTo}</span>}
-        </div>
-      )
-
-    case 'statusline:rendered':
-      return line.statuslineContent ? (
-        <p className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5 font-mono">{line.statuslineContent}</p>
-      ) : null
-
-    case 'error:occurred':
-      return line.errorMessage ? (
-        <p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5 font-mono">{line.errorMessage}</p>
-      ) : null
-
-    case 'snarky-message:finish':
-    case 'resume-message:finish':
-      return line.generatedMessage ? (
-        <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5 italic line-clamp-2">
-          "{line.generatedMessage}"
-        </p>
-      ) : null
-
-    default:
-      return null
-  }
 }
 
 function getLineStyles(line: TLine) {
@@ -353,9 +459,10 @@ function getLineStyles(line: TLine) {
     case 'reminder:staged':
     case 'reminder:unstaged':
     case 'reminder:consumed':
+    case 'reminder:cleared':
       return {
         bg: 'bg-rose-50/50 dark:bg-rose-950/20',
-        border: 'border border-rose-200 dark:border-rose-800/50',
+        border: 'border border-dashed border-rose-200 dark:border-rose-800/50',
         Icon: Bell,
         iconColor: 'text-rose-500',
         label: 'Reminder',
@@ -364,7 +471,7 @@ function getLineStyles(line: TLine) {
     case 'decision:recorded':
       return {
         bg: 'bg-amber-50/50 dark:bg-amber-950/20',
-        border: 'border border-amber-200 dark:border-amber-800/50',
+        border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
         Icon: Lightbulb,
         iconColor: 'text-amber-500',
         label: line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision',
@@ -374,20 +481,20 @@ function getLineStyles(line: TLine) {
     case 'session-summary:finish':
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
-        border: 'border border-purple-200 dark:border-purple-800/50',
-        Icon: Play,
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
+        Icon: line.type === 'session-summary:start' ? Play : Square,
         iconColor: 'text-purple-500',
-        label: line.type === 'session-summary:start' ? 'Summary ▶' : 'Summary ■',
+        label: line.type === 'session-summary:start' ? 'Summary Analysis' : 'Summary Analysis',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'session-title:changed':
     case 'intent:changed':
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
-        border: 'border border-purple-200 dark:border-purple-800/50',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: FileText,
         iconColor: 'text-purple-500',
-        label: line.type === 'session-title:changed' ? 'Title Changed' : 'Intent Changed',
+        label: line.type === 'session-title:changed' ? 'Title' : 'Intent',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'snarky-message:start':
@@ -396,26 +503,34 @@ function getLineStyles(line: TLine) {
     case 'resume-message:finish':
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
-        border: 'border border-purple-200 dark:border-purple-800/50',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: line.type.includes('start') ? Play : Square,
         iconColor: 'text-purple-500',
-        label: line.type.replace(/[:-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: line.type.includes('snarky') ? 'Snarky' : 'Resume',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'persona:selected':
+      return {
+        bg: 'bg-amber-50/50 dark:bg-amber-950/20',
+        border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
+        Icon: UserCog,
+        iconColor: 'text-amber-500',
+        label: 'Persona Chosen',
+        labelColor: 'text-amber-600 dark:text-amber-400',
+      }
     case 'persona:changed':
       return {
-        bg: 'bg-pink-50/50 dark:bg-pink-950/20',
-        border: 'border border-pink-200 dark:border-pink-800/50',
+        bg: 'bg-purple-50/50 dark:bg-purple-950/20',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: UserCog,
-        iconColor: 'text-pink-500',
-        label: line.type === 'persona:selected' ? 'Persona Selected' : 'Persona Changed',
-        labelColor: 'text-pink-600 dark:text-pink-400',
+        iconColor: 'text-purple-500',
+        label: 'Persona Changed',
+        labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'statusline:rendered':
       return {
         bg: 'bg-teal-50/50 dark:bg-teal-950/20',
-        border: 'border border-teal-200 dark:border-teal-800/50',
+        border: 'border border-dashed border-teal-200 dark:border-teal-800/50',
         Icon: Gauge,
         iconColor: 'text-teal-500',
         label: 'Statusline',
@@ -424,11 +539,21 @@ function getLineStyles(line: TLine) {
     case 'error:occurred':
       return {
         bg: 'bg-red-50 dark:bg-red-950/30',
-        border: 'border-2 border-red-300 dark:border-red-800',
+        border: 'border-2 border-dashed border-red-300 dark:border-red-800',
         Icon: AlertTriangle,
         iconColor: 'text-red-500',
         label: 'Error',
         labelColor: 'text-red-600 dark:text-red-400',
+      }
+    case 'hook:received':
+    case 'hook:completed':
+      return {
+        bg: 'bg-sky-50/50 dark:bg-sky-950/20',
+        border: 'border border-dashed border-sky-200 dark:border-sky-800/50',
+        Icon: Zap,
+        iconColor: 'text-sky-500',
+        label: 'Hook',
+        labelColor: 'text-sky-600 dark:text-sky-400',
       }
     case 'turn-duration':
       return {

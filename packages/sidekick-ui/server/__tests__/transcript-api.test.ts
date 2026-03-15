@@ -92,6 +92,26 @@ function makePrLinkEntry(overrides: Record<string, unknown> = {}): string {
   })
 }
 
+// Mock timeline-api dependencies for interleaving tests
+const mockFindLogFiles = vi.fn()
+const mockReadLogFile = vi.fn()
+
+vi.mock('../timeline-api.js', async () => {
+  const actual = await vi.importActual<typeof import('../timeline-api.js')>('../timeline-api.js')
+  return {
+    ...actual,
+    findLogFiles: (...args: unknown[]) => mockFindLogFiles(...args),
+    readLogFile: (...args: unknown[]) => mockReadLogFile(...args),
+  }
+})
+
+beforeEach(() => {
+  mockFindLogFiles.mockClear()
+  mockReadLogFile.mockClear()
+  // Default: no log files found
+  mockFindLogFiles.mockResolvedValue([])
+})
+
 // Import after mocks
 import { resolveTranscriptPath, parseTranscriptLines } from '../transcript-api.js'
 
@@ -287,6 +307,7 @@ describe('parseTranscriptLines', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('compaction')
     expect(lines[0].compactionTokensBefore).toBe(85000)
+    expect(lines[0].compactionTokensAfter).toBe(42000)
   })
 
   it('parses system/turn_duration -> turn-duration with durationMs', async () => {
@@ -513,8 +534,105 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].isCompactSummary).toBe(true)
   })
 
-  it('truncates long tool result output to 500 chars', async () => {
-    const longOutput = 'x'.repeat(1000)
+  // User message subtype classification
+  it('classifies plain user message as prompt subtype', async () => {
+    setupTranscript(makeUserEntry('Hello, world!'))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('prompt')
+  })
+
+  it('classifies isMeta user message as system-injection', async () => {
+    setupTranscript(makeUserEntry('Some meta content', { isMeta: true }))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('system-injection')
+  })
+
+  it('classifies isMeta message with command-name as command', async () => {
+    setupTranscript(
+      makeUserEntry('<command-name>/commit</command-name>\ncommit content', { isMeta: true })
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('command')
+  })
+
+  it('classifies message with system-reminder as system-injection', async () => {
+    setupTranscript(
+      makeUserEntry('Some text\n<system-reminder>reminder content</system-reminder>')
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('system-injection')
+  })
+
+  it('classifies non-meta message with command-name as command', async () => {
+    setupTranscript(
+      makeUserEntry('<command-name>/clear</command-name>')
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('command')
+  })
+
+  // toolUseId capture
+  it('captures toolUseId from tool_use blocks', async () => {
+    setupTranscript(
+      makeAssistantEntry([
+        { type: 'tool_use', id: 'toolu_abc123', name: 'Read', input: { file_path: '/foo.ts' } },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('tool-use')
+    expect(lines[0].toolUseId).toBe('toolu_abc123')
+  })
+
+  it('captures toolUseId from tool_result blocks', async () => {
+    setupTranscript(
+      makeUserEntry([
+        { type: 'tool_result', tool_use_id: 'toolu_abc123', content: 'file contents' },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('tool-result')
+    expect(lines[0].toolUseId).toBe('toolu_abc123')
+  })
+
+  it('pairs tool_use and tool_result by matching toolUseId', async () => {
+    const content = [
+      makeAssistantEntry([
+        { type: 'tool_use', id: 'toolu_xyz', name: 'Bash', input: { command: 'ls' } },
+      ]),
+      makeUserEntry([
+        { type: 'tool_result', tool_use_id: 'toolu_xyz', content: 'output' },
+      ]),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(2)
+    expect(lines[0].toolUseId).toBe('toolu_xyz')
+    expect(lines[1].toolUseId).toBe('toolu_xyz')
+  })
+
+  it('classifies array text blocks with correct subtypes', async () => {
+    setupTranscript(
+      makeUserEntry([
+        { type: 'text', text: 'Hello, world!' },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('prompt')
+  })
+
+  it('preserves full tool result content without truncation', async () => {
+    const longOutput = 'x'.repeat(2000)
     setupTranscript(
       makeUserEntry([
         { type: 'tool_result', tool_use_id: 'tool-1', content: longOutput },
@@ -523,20 +641,51 @@ describe('parseTranscriptLines', () => {
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
-    expect(lines[0].toolOutput!.length).toBeLessThanOrEqual(501) // 500 + ellipsis char
-    expect(lines[0].toolOutput!.endsWith('\u2026')).toBe(true)
+    expect(lines[0].toolOutput).toBe(longOutput)
   })
 
-  it('does not truncate tool result output under 500 chars', async () => {
-    const shortOutput = 'x'.repeat(200)
-    setupTranscript(
-      makeUserEntry([
-        { type: 'tool_result', tool_use_id: 'tool-1', content: shortOutput },
-      ])
-    )
+  // Event interleaving tests
+  it('interleaves Sidekick events when projectDir is provided', async () => {
+    // Set up Claude Code transcript with entries at t=1000 and t=3000
+    setupTranscript([
+      makeUserEntry('Hello', { timestamp: '2025-01-15T10:00:01.000Z' }),
+      makeAssistantEntry(
+        [{ type: 'text', text: 'Hi' }],
+        { timestamp: '2025-01-15T10:00:03.000Z' }
+      ),
+    ].join('\n'))
+
+    // Set up Sidekick events at t=2000 (between the two Claude Code entries)
+    // findLogFiles is called twice (cli + daemon prefix), return file only for cli
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:00:02.000Z').getTime(),
+        type: 'reminder:staged',
+        context: { sessionId: 'session-1' },
+        payload: { reminderName: 'vc-build', reason: 'tool_threshold' },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    expect(lines).toHaveLength(3)
+    // Should be sorted by timestamp: user(1s) → sidekick(2s) → assistant(3s)
+    expect(lines[0].type).toBe('user-message')
+    expect(lines[1].type).toBe('reminder:staged')
+    expect(lines[1].reminderId).toBe('vc-build')
+    expect(lines[2].type).toBe('assistant-message')
+  })
+
+  it('returns only Claude Code lines when no projectDir', async () => {
+    setupTranscript(makeUserEntry('Hello'))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
-    expect(lines[0].toolOutput).toBe(shortOutput)
+    expect(lines[0].type).toBe('user-message')
+    // Should not have called findLogFiles
+    expect(mockFindLogFiles).not.toHaveBeenCalled()
   })
 })

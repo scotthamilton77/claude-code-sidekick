@@ -1,11 +1,12 @@
 // ============================================================================
-// Sidekick Event Types (16 types — what Sidekick itself did)
+// Sidekick Event Types (19 types — what Sidekick itself did)
 // ============================================================================
 
 export type SidekickEventType =
   | 'reminder:staged'
   | 'reminder:unstaged'
   | 'reminder:consumed'
+  | 'reminder:cleared'
   | 'decision:recorded'
   | 'session-summary:start'
   | 'session-summary:finish'
@@ -19,6 +20,14 @@ export type SidekickEventType =
   | 'persona:changed'
   | 'statusline:rendered'
   | 'error:occurred'
+  | 'hook:received'
+  | 'hook:completed'
+
+// ============================================================================
+// User Message Subtypes
+// ============================================================================
+
+export type UserSubtype = 'prompt' | 'system-injection' | 'command' | 'skill-content'
 
 // ============================================================================
 // Transcript Line Types (conversation + Sidekick events inline)
@@ -42,8 +51,17 @@ export interface TranscriptLine {
   type: TranscriptLineType
   content?: string
 
+  // user-message subtype classification
+  userSubtype?: UserSubtype
+
   // assistant-message
   thinking?: string
+
+  // tool pairing
+  toolUseId?: string
+
+  // subagent drill-down
+  agentId?: string
 
   // tool-use
   toolName?: string
@@ -86,6 +104,10 @@ export interface TranscriptLine {
   // snarky-message:finish / resume-message:finish
   generatedMessage?: string
 
+  // hook:received / hook:completed
+  hookName?: string
+  hookDurationMs?: number
+
   // turn-duration
   durationMs?: number
 
@@ -96,6 +118,9 @@ export interface TranscriptLine {
   // pr-link
   prUrl?: string
   prNumber?: number
+
+  // LED state (computed server-side)
+  ledState?: LEDState
 
   // metadata flags (from Claude Code transcript entries)
   model?: string
@@ -178,18 +203,24 @@ export interface Project {
   name: string
   projectDir?: string
   sessions: Session[]
+  sessionLoadError?: string
 }
 
 // ============================================================================
 // Timeline Filter
 // ============================================================================
 
-export type TimelineFilter = 'reminders' | 'decisions' | 'session-analysis' | 'statusline' | 'errors'
+export type TimelineFilter = 'reminders' | 'decisions' | 'session-analysis' | 'statusline' | 'errors' | 'hooks'
+
+export type TranscriptFilter =
+  | 'conversation' | 'tools' | 'thinking' | 'system'
+  | TimelineFilter
 
 export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter> = {
   'reminder:staged': 'reminders',
   'reminder:unstaged': 'reminders',
   'reminder:consumed': 'reminders',
+  'reminder:cleared': 'reminders',
   'decision:recorded': 'decisions',
   'session-summary:start': 'session-analysis',
   'session-summary:finish': 'session-analysis',
@@ -199,15 +230,25 @@ export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter>
   'snarky-message:finish': 'session-analysis',
   'resume-message:start': 'session-analysis',
   'resume-message:finish': 'session-analysis',
-  'persona:selected': 'session-analysis',
+  'persona:selected': 'decisions',
   'persona:changed': 'session-analysis',
   'statusline:rendered': 'statusline',
   'error:occurred': 'errors',
+  'hook:received': 'hooks',
+  'hook:completed': 'hooks',
 }
 
 // ============================================================================
 // Navigation State
 // ============================================================================
+
+export interface SubagentChainEntry {
+  projectId: string
+  sessionId: string
+  agentId: string
+  agentType?: string
+  parentToolUseId?: string
+}
 
 export type NavigationDepth = 'selector' | 'dashboard' | 'detail'
 
@@ -221,9 +262,12 @@ export interface NavigationState {
   selectedSessionId: string | null
   selectedTranscriptLineId: string | null
   syncedTranscriptLineId: string | null // for timeline → transcript scroll-sync
+  syncedTimelineLineId: string | null   // for transcript → timeline scroll-sync
   selectorPanel: PanelState
   detailPanel: PanelState
   timelineFilters: Set<TimelineFilter>
+  transcriptFilters: Set<TranscriptFilter>
+  subagentChain: SubagentChainEntry[]
   searchQuery: string
   darkMode: boolean
 }

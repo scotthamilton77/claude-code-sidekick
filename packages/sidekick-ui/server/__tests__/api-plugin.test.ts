@@ -237,12 +237,13 @@ describe('sessionsApiPlugin middleware', () => {
       const mw = getMiddleware()
       const mockLines = [{ id: '1', type: 'user-message', timestamp: 1000, content: 'hello' }]
       mockParseTranscriptLines.mockResolvedValue(mockLines)
+      mockGetProjectById.mockResolvedValue({ id: '-Users-foo', projectDir: '/Users/foo', active: true })
       const { req, res, mockRes, next, resBody } = createMocks(
         'GET',
         '/api/projects/-Users-foo/sessions/uuid-1/transcript'
       )
       await mw(req, res, next)
-      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1')
+      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1', '/Users/foo')
       expect(mockRes.statusCode).toBe(200)
       expect(JSON.parse(resBody[0])).toEqual({ lines: mockLines })
       expect(next).not.toHaveBeenCalled()
@@ -251,12 +252,13 @@ describe('sessionsApiPlugin middleware', () => {
     it('GET /api/projects/-Users-foo/sessions/uuid-1/transcript?_t=123 handles query strings', async () => {
       const mw = getMiddleware()
       mockParseTranscriptLines.mockResolvedValue([])
+      mockGetProjectById.mockResolvedValue({ id: '-Users-foo', projectDir: '/Users/foo', active: true })
       const { req, res, next } = createMocks(
         'GET',
         '/api/projects/-Users-foo/sessions/uuid-1/transcript?_t=123'
       )
       await mw(req, res, next)
-      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1')
+      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1', '/Users/foo')
       expect(next).not.toHaveBeenCalled()
     })
 

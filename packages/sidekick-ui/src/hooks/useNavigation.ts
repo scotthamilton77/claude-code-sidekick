@@ -1,5 +1,5 @@
 import { createContext, useContext, type Dispatch } from 'react'
-import type { NavigationState, TimelineFilter } from '../types'
+import type { NavigationState, TimelineFilter, TranscriptFilter, SubagentChainEntry } from '../types'
 
 // Action types
 type NavigationAction =
@@ -7,10 +7,17 @@ type NavigationAction =
   | { type: 'SELECT_TRANSCRIPT_LINE'; lineId: string }
   | { type: 'CLOSE_DETAIL' }
   | { type: 'SYNC_TO_TIMELINE_EVENT'; lineId: string }
+  | { type: 'SYNC_TO_TRANSCRIPT_EVENT'; lineId: string }
   | { type: 'CLEAR_SYNC' }
   | { type: 'BACK_TO_SELECTOR' }
   | { type: 'TOGGLE_SELECTOR_PANEL' }
   | { type: 'TOGGLE_TIMELINE_FILTER'; filter: TimelineFilter }
+  | { type: 'SET_ALL_TIMELINE_FILTERS'; filters: Set<TimelineFilter> }
+  | { type: 'TOGGLE_TRANSCRIPT_FILTER'; filter: TranscriptFilter }
+  | { type: 'SET_ALL_TRANSCRIPT_FILTERS'; filters: Set<TranscriptFilter> }
+  | { type: 'OPEN_SUBAGENT'; entry: SubagentChainEntry; depth?: number }
+  | { type: 'CLOSE_SUBAGENT' }
+  | { type: 'CLOSE_SUBAGENT_AT'; index: number }
   | { type: 'SET_SEARCH'; query: string }
   | { type: 'TOGGLE_DARK_MODE' }
 
@@ -20,9 +27,12 @@ const initialState: NavigationState = {
   selectedSessionId: null,
   selectedTranscriptLineId: null,
   syncedTranscriptLineId: null,
+  syncedTimelineLineId: null,
   selectorPanel: { expanded: true },
   detailPanel: { expanded: false },
-  timelineFilters: new Set(),
+  timelineFilters: new Set<TimelineFilter>(['reminders', 'decisions', 'session-analysis', 'statusline', 'errors', 'hooks']),
+  transcriptFilters: new Set<TranscriptFilter>(['conversation', 'tools', 'thinking', 'system', 'reminders', 'decisions', 'session-analysis', 'statusline', 'errors', 'hooks']),
+  subagentChain: [],
   searchQuery: '',
   darkMode: false,
 }
@@ -62,12 +72,21 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       return {
         ...state,
         syncedTranscriptLineId: action.lineId,
+        syncedTimelineLineId: null,
+      }
+
+    case 'SYNC_TO_TRANSCRIPT_EVENT':
+      return {
+        ...state,
+        syncedTimelineLineId: action.lineId,
+        syncedTranscriptLineId: null,
       }
 
     case 'CLEAR_SYNC':
       return {
         ...state,
         syncedTranscriptLineId: null,
+        syncedTimelineLineId: null,
       }
 
     case 'BACK_TO_SELECTOR':
@@ -110,6 +129,36 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       }
       return { ...state, timelineFilters: newFilters }
     }
+
+    case 'SET_ALL_TIMELINE_FILTERS':
+      return { ...state, timelineFilters: action.filters }
+
+    case 'TOGGLE_TRANSCRIPT_FILTER': {
+      const newFilters = new Set(state.transcriptFilters)
+      if (newFilters.has(action.filter)) {
+        newFilters.delete(action.filter)
+      } else {
+        newFilters.add(action.filter)
+      }
+      return { ...state, transcriptFilters: newFilters }
+    }
+
+    case 'SET_ALL_TRANSCRIPT_FILTERS':
+      return { ...state, transcriptFilters: action.filters }
+
+    case 'OPEN_SUBAGENT': {
+      // If depth is specified, pop everything after that depth then push
+      const chain = action.depth != null
+        ? [...state.subagentChain.slice(0, action.depth), action.entry]
+        : [...state.subagentChain, action.entry]
+      return { ...state, subagentChain: chain }
+    }
+
+    case 'CLOSE_SUBAGENT':
+      return { ...state, subagentChain: state.subagentChain.slice(0, -1) }
+
+    case 'CLOSE_SUBAGENT_AT':
+      return { ...state, subagentChain: state.subagentChain.slice(0, action.index) }
 
     case 'SET_SEARCH':
       return { ...state, searchQuery: action.query }

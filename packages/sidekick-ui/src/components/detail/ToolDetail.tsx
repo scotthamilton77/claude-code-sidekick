@@ -7,7 +7,7 @@ interface ToolDetailProps {
 }
 
 export function ToolDetail({ line }: ToolDetailProps) {
-  const [showInput, setShowInput] = useState(false)
+  const [showInput, setShowInput] = useState(true)
 
   return (
     <div className="p-3 space-y-3">

@@ -1,9 +1,10 @@
-import { User, Clock, Coins, Hash, Moon, Sun, Activity, ListTodo } from 'lucide-react'
+import { User, Clock, Coins, Hash, Moon, Sun, Activity, ListTodo, Cpu } from 'lucide-react'
 import type { Session } from '../types'
 import { useNavigation } from '../hooks/useNavigation'
 
 interface SummaryStripProps {
   session: Session
+  defaultModel?: string
 }
 
 function confidenceColor(c: number | undefined): string {
@@ -27,7 +28,11 @@ function formatDuration(sec: number | undefined): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
-export function SummaryStrip({ session }: SummaryStripProps) {
+function formatModelName(model: string): string {
+  return model.replace('claude-', '').split('-202')[0]
+}
+
+export function SummaryStrip({ session, defaultModel }: SummaryStripProps) {
   const { state, dispatch } = useNavigation()
 
   return (
@@ -37,6 +42,14 @@ export function SummaryStrip({ session }: SummaryStripProps) {
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <User size={12} className="text-indigo-500" />
           <span className="font-medium text-slate-700 dark:text-slate-300">{session.persona}</span>
+        </div>
+      )}
+
+      {/* Model */}
+      {defaultModel && (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <Cpu size={12} className="text-slate-400" />
+          <span className="font-mono text-slate-600 dark:text-slate-400">{formatModelName(defaultModel)}</span>
         </div>
       )}
 

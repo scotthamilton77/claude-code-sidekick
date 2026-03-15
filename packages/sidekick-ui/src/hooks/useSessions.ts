@@ -25,13 +25,6 @@ export interface UseSessionsResult {
   error: string | null
 }
 
-/**
- * Fetch session data from the Vite dev server API.
- * Maps API responses into the existing Project/Session types.
- */
-/**
- * Format ISO date string to mm/dd/yyyy hh:mm am/pm in the OS timezone.
- */
 function formatDate(isoDate: string): string {
   const d = new Date(isoDate)
   return d.toLocaleString('en-US', {
@@ -94,8 +87,15 @@ export function useSessions(): UseSessionsResult {
                   })
                 )
               }
-            } catch {
-              // Silently skip sessions for this project on error
+            } catch (sessionErr) {
+              const errorMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr)
+              return {
+                id: apiProject.id,
+                name: apiProject.name,
+                projectDir: apiProject.projectDir,
+                sessions,
+                sessionLoadError: errorMsg,
+              }
             }
 
             return {
