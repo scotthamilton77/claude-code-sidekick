@@ -576,6 +576,39 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].userSubtype).toBe('command')
   })
 
+  it('classifies isMeta message with skill marker as skill-content', async () => {
+    setupTranscript(
+      makeUserEntry(
+        'Base directory for this skill: /Users/scott/.claude/skills/brainstorming\n\n# Brainstorming\n\nSome skill content here.',
+        { isMeta: true }
+      )
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('skill-content')
+  })
+
+  it('classifies isMeta command-name as command even with skill marker', async () => {
+    setupTranscript(
+      makeUserEntry(
+        '<command-name>/brainstorm</command-name>\nBase directory for this skill: /path/to/skill',
+        { isMeta: true }
+      )
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('command')
+  })
+
+  it('classifies non-meta message with skill marker as prompt', async () => {
+    setupTranscript(
+      makeUserEntry('Base directory for this skill: /path/to/skill')
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines[0].userSubtype).toBe('prompt')
+  })
+
   // toolUseId capture
   it('captures toolUseId from tool_use blocks', async () => {
     setupTranscript(
