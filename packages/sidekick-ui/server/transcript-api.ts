@@ -1,7 +1,7 @@
 import { readFile, stat, readdir } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { findLogFiles, readLogFile, generateLabel, type RawLogEntry } from './timeline-api.js'
+import { findLogFiles, readLogFile, generateLabel, TIMELINE_EVENT_TYPES, type RawLogEntry, type TimelineSidekickEventType } from './timeline-api.js'
 
 /**
  * Transcript line types visible in the UI.
@@ -19,14 +19,7 @@ export type ApiTranscriptLineType =
   | 'turn-duration'
   | 'api-error'
   | 'pr-link'
-  // Sidekick event types (17)
-  | 'reminder:staged' | 'reminder:unstaged' | 'reminder:consumed' | 'reminder:cleared'
-  | 'decision:recorded'
-  | 'session-summary:start' | 'session-summary:finish' | 'session-title:changed' | 'intent:changed'
-  | 'snarky-message:start' | 'snarky-message:finish' | 'resume-message:start' | 'resume-message:finish'
-  | 'persona:selected' | 'persona:changed'
-  | 'statusline:rendered'
-  | 'error:occurred'
+  | TimelineSidekickEventType
 
 export type ApiUserSubtype = 'prompt' | 'system-injection' | 'command' | 'skill-content'
 
@@ -379,16 +372,6 @@ function extractMetadata(
   return result
 }
 
-/** The 17 Sidekick event types that can appear in the transcript. */
-const SIDEKICK_EVENT_TYPES = new Set([
-  'reminder:staged', 'reminder:unstaged', 'reminder:consumed', 'reminder:cleared',
-  'decision:recorded',
-  'session-summary:start', 'session-summary:finish', 'session-title:changed', 'intent:changed',
-  'snarky-message:start', 'snarky-message:finish', 'resume-message:start', 'resume-message:finish',
-  'persona:selected', 'persona:changed',
-  'statusline:rendered',
-  'error:occurred',
-])
 
 /**
  * Convert a Sidekick NDJSON log entry to an ApiTranscriptLine.
@@ -442,7 +425,7 @@ async function readSidekickEvents(projectDir: string, sessionId: string): Promis
   const filtered = allEntries.filter(
     (entry) =>
       entry.context?.sessionId === sessionId &&
-      SIDEKICK_EVENT_TYPES.has(entry.type)
+      TIMELINE_EVENT_TYPES.has(entry.type)
   )
 
   return filtered.map((entry, index) => sidekickEventToTranscriptLine(entry, index))
@@ -597,26 +580,34 @@ function computeLEDStates(lines: ApiTranscriptLine[]): void {
     verifyCompletion: false, pauseAndReflect: false,
     titleConfidence: 'green', titleConfidencePct: 85,
   }
+  let currentSnapshot = { ...state }
+  let dirty = true  // first line always gets a fresh snapshot
 
   for (const line of lines) {
     if (line.type === 'reminder:staged') {
       const key = mapReminderToLED(line.reminderId)
       if (key && typeof state[key] === 'boolean') {
         ;(state as Record<string, boolean>)[key] = true
+        dirty = true
       }
     } else if (line.type === 'reminder:unstaged' || line.type === 'reminder:consumed' || line.type === 'reminder:cleared') {
       const key = mapReminderToLED(line.reminderId)
       if (key && typeof state[key] === 'boolean') {
         ;(state as Record<string, boolean>)[key] = false
+        dirty = true
       }
     } else if (line.type === 'session-title:changed' && line.confidence != null) {
       const pct = Math.round(line.confidence * 100)
       state.titleConfidencePct = pct
       state.titleConfidence = pct >= 80 ? 'green' : pct >= 50 ? 'amber' : 'red'
+      dirty = true
     }
 
-    // Stamp current state onto line
-    line.ledState = { ...state }
+    if (dirty) {
+      currentSnapshot = { ...state }
+      dirty = false
+    }
+    line.ledState = currentSnapshot
   }
 }
 

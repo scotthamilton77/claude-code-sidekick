@@ -1,6 +1,7 @@
 import { useRef, useCallback, useMemo, useState } from 'react'
 import { X, Minimize2 } from 'lucide-react'
 import type { TranscriptLine, TranscriptFilter } from '../../types'
+import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
 import { useSubagentTranscript } from '../../hooks/useSubagentTranscript'
 import { useNavigation } from '../../hooks/useNavigation'
 import { TranscriptLineCard } from './TranscriptLine'
@@ -19,16 +20,10 @@ const SUBAGENT_FILTER_CATEGORIES: TranscriptFilter[] = ['conversation', 'tools',
 
 function matchesSubagentFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
   if (filters.size >= 4) return true // all active for subagent (no sidekick category)
-
-  const type = line.type
-
-  if (type === 'assistant-message' && line.thinking && !line.content) return filters.has('thinking')
-  if (type === 'assistant-message' && line.thinking && line.content) {
+  if (line.type === 'assistant-message' && line.thinking && line.content) {
     return filters.has('conversation') || filters.has('thinking')
   }
-  if (type === 'user-message' || type === 'assistant-message') return filters.has('conversation')
-  if (type === 'tool-use' || type === 'tool-result') return filters.has('tools')
-  return filters.has('system')
+  return filters.has(classifyLineCategory(line))
 }
 
 export function SubagentTranscript({ projectId, sessionId, agentId, agentType, depth, onClose }: SubagentTranscriptProps) {

@@ -30,7 +30,7 @@ export interface TimelineEvent {
  * The 17 event types visible in the timeline UI.
  * Any event type not in this set is filtered out.
  */
-const TIMELINE_EVENT_TYPES = new Set<string>([
+export const TIMELINE_EVENT_TYPES = new Set<string>([
   'reminder:staged',
   'reminder:unstaged',
   'reminder:consumed',

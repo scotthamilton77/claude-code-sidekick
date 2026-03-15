@@ -1,5 +1,5 @@
 // ============================================================================
-// Sidekick Event Types (16 types — what Sidekick itself did)
+// Sidekick Event Types (17 types — what Sidekick itself did)
 // ============================================================================
 
 export type SidekickEventType =

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 interface CollapsibleContentProps {
@@ -39,7 +39,10 @@ export function CollapsibleContent({
 }: CollapsibleContentProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
-  const { preview, totalLines, isLong } = computePreview(content, previewLines, previewChars)
+  const { preview, totalLines, isLong } = useMemo(
+    () => computePreview(content, previewLines, previewChars),
+    [content, previewLines, previewChars]
+  )
 
   if (!isLong) {
     return (
