@@ -108,6 +108,7 @@ function App() {
                     ledStates={selectedSession?.ledStates ?? new Map()}
                     scrollToLineId={state.syncedTranscriptLineId}
                     defaultModel={defaultModel}
+                    timelineEvents={timelineEvents}
                   />
                 </div>
 
