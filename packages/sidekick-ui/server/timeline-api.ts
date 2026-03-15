@@ -110,7 +110,7 @@ export function generateLabel(
     }
     case 'persona:selected': {
       const id = (payload.personaId as string) || 'unknown'
-      return { label: `Persona: ${id}` }
+      return { label: `Persona chosen: ${id}` }
     }
     case 'persona:changed': {
       const from = (payload.personaFrom as string) || 'unknown'

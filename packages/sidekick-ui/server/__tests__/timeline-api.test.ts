@@ -238,7 +238,7 @@ describe('generateLabel', () => {
 
   it('generates label for persona:selected', () => {
     const result = generateLabel('persona:selected', { personaId: 'yoda' })
-    expect(result).toEqual({ label: 'Persona: yoda' })
+    expect(result).toEqual({ label: 'Persona chosen: yoda' })
   })
 
   it('generates label for persona:changed', () => {

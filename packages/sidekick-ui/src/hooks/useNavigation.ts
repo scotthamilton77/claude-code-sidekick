@@ -12,7 +12,9 @@ type NavigationAction =
   | { type: 'BACK_TO_SELECTOR' }
   | { type: 'TOGGLE_SELECTOR_PANEL' }
   | { type: 'TOGGLE_TIMELINE_FILTER'; filter: TimelineFilter }
+  | { type: 'SET_ALL_TIMELINE_FILTERS'; filters: Set<TimelineFilter> }
   | { type: 'TOGGLE_TRANSCRIPT_FILTER'; filter: TranscriptFilter }
+  | { type: 'SET_ALL_TRANSCRIPT_FILTERS'; filters: Set<TranscriptFilter> }
   | { type: 'OPEN_SUBAGENT'; entry: SubagentChainEntry; depth?: number }
   | { type: 'CLOSE_SUBAGENT' }
   | { type: 'CLOSE_SUBAGENT_AT'; index: number }
@@ -128,6 +130,9 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       return { ...state, timelineFilters: newFilters }
     }
 
+    case 'SET_ALL_TIMELINE_FILTERS':
+      return { ...state, timelineFilters: action.filters }
+
     case 'TOGGLE_TRANSCRIPT_FILTER': {
       const newFilters = new Set(state.transcriptFilters)
       if (newFilters.has(action.filter)) {
@@ -137,6 +142,9 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       }
       return { ...state, transcriptFilters: newFilters }
     }
+
+    case 'SET_ALL_TRANSCRIPT_FILTERS':
+      return { ...state, transcriptFilters: action.filters }
 
     case 'OPEN_SUBAGENT': {
       // If depth is specified, pop everything after that depth then push

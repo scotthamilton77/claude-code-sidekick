@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
+import { useRef, useEffect, useCallback, useMemo, memo } from 'react'
 import type { TranscriptLine, LEDState, TranscriptFilter } from '../../types'
 import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
 import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
@@ -8,7 +8,7 @@ import { TranscriptFilterBar } from './TranscriptFilterBar'
 import { LEDColorKey } from './LEDColorKey'
 import { LEDGutter } from './LEDGutter'
 import { TranscriptLineCard } from './TranscriptLine'
-import { useToolPairLookup } from './ToolPairConnector'
+import { useToolPairLookup, type GutterPairInfo } from './ToolPairConnector'
 
 interface TranscriptProps {
   lines: TranscriptLine[]
@@ -18,11 +18,7 @@ interface TranscriptProps {
   scrollToLineId: string | null
 }
 
-/** Total number of possible transcript filter values */
-const TOTAL_FILTER_COUNT = 10
-
 function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
-  if (filters.size === TOTAL_FILTER_COUNT) return true
   // Assistant with both content+thinking: show if either filter active
   if (line.type === 'assistant-message' && line.thinking && line.content) {
     return filters.has('conversation') || filters.has('thinking')
@@ -35,10 +31,68 @@ const DEFAULT_LED: LEDState = {
   verifyCompletion: false, pauseAndReflect: false, titleConfidence: 'green', titleConfidencePct: 85,
 }
 
+/** Memoized row to prevent re-renders from parent hover state changes */
+const TranscriptRow = memo(function TranscriptRow({
+  line,
+  isSelected,
+  isSynced,
+  ledState,
+  gutterInfo,
+  pairColor,
+  pairIsToolUse,
+  onLineClick,
+  onPairNavigate,
+  onRef,
+}: {
+  line: TranscriptLine
+  isSelected: boolean
+  isSynced: boolean
+  ledState: LEDState
+  gutterInfo?: GutterPairInfo
+  pairColor?: string
+  pairIsToolUse?: boolean
+  onLineClick: () => void
+  onPairNavigate?: () => void
+  onRef: (el: HTMLDivElement | null) => void
+}) {
+  return (
+    <div ref={onRef} className="flex">
+      {/* LED Gutter with pair connector line */}
+      <div className="relative flex-shrink-0">
+        <LEDGutter ledState={ledState} />
+        {gutterInfo && (
+          <div
+            className={`absolute left-1 w-1 ${
+              gutterInfo.role === 'start' ? 'top-1/2 bottom-0 rounded-t-full' :
+              gutterInfo.role === 'end' ? 'top-0 bottom-1/2 rounded-b-full' :
+              'top-0 bottom-0'
+            }`}
+            style={{ backgroundColor: gutterInfo.color, opacity: 0.4 }}
+          />
+        )}
+      </div>
+
+      {/* Transcript content */}
+      <div className="flex-1 min-w-0">
+        <TranscriptLineCard
+          line={line}
+          isSelected={isSelected}
+          isSynced={isSynced}
+          onClick={onLineClick}
+          pairNavigation={pairColor && onPairNavigate ? {
+            color: pairColor,
+            isToolUse: pairIsToolUse ?? false,
+            onNavigate: onPairNavigate,
+          } : undefined}
+        />
+      </div>
+    </div>
+  )
+})
+
 export function Transcript({ lines, loading, error, ledStates, scrollToLineId }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const [hoveredToolUseId, setHoveredToolUseId] = useState<string | null>(null)
 
   // Scroll to line when timeline syncs
   useEffect(() => {
@@ -62,10 +116,8 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
   const filteredLines = useMemo(() => {
     let result = lines
 
-    // Category filter
-    if (state.transcriptFilters.size < TOTAL_FILTER_COUNT) {
-      result = result.filter(line => matchesTranscriptFilter(line, state.transcriptFilters))
-    }
+    // Category filter — always run (no size-based optimization to avoid HMR state mismatch)
+    result = result.filter(line => matchesTranscriptFilter(line, state.transcriptFilters))
 
     // Search filter
     if (state.searchQuery) {
@@ -86,20 +138,19 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
     return result
   }, [lines, state.transcriptFilters, state.searchQuery])
 
-  const { pairByToolUseId } = useToolPairLookup(filteredLines)
+  const { pairByToolUseId, gutterByIndex } = useToolPairLookup(filteredLines)
 
-  function scrollToIndex(index: number) {
+  const scrollToIndex = useCallback((index: number) => {
     const targetLine = filteredLines[index]
     if (targetLine) {
       const el = lineRefs.current.get(targetLine.id)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        // Briefly highlight via sync
         dispatch({ type: 'SYNC_TO_TIMELINE_EVENT', lineId: targetLine.id })
         setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 1500)
       }
     }
-  }
+  }, [filteredLines, dispatch])
 
   return (
     <div className="h-full flex flex-col">
@@ -122,64 +173,40 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
             No transcript available
           </div>
         )}
-        {!loading && !error && filteredLines.length > 0 && filteredLines.map((line) => {
+        {!loading && !error && filteredLines.length > 0 && filteredLines.map((line, index) => {
           const pair = line.toolUseId ? pairByToolUseId.get(line.toolUseId) : undefined
-          const isHighlightedPair = hoveredToolUseId != null && line.toolUseId === hoveredToolUseId
+          const gutter = gutterByIndex.get(index)
 
           return (
-            <div
+            <TranscriptRow
               key={line.id}
-              ref={setRef(line.id)}
-              className={`flex ${isHighlightedPair ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}
-              onMouseEnter={() => line.toolUseId && setHoveredToolUseId(line.toolUseId)}
-              onMouseLeave={() => line.toolUseId && setHoveredToolUseId(null)}
-            >
-              {/* LED Gutter with pair connector indicator */}
-              <div className="relative flex-shrink-0">
-                <LEDGutter ledState={line.ledState ?? ledStates?.get(line.id) ?? DEFAULT_LED} />
-                {pair && (
-                  <div
-                    className="absolute left-1 top-0 bottom-0 w-0.5 rounded-full"
-                    style={{
-                      backgroundColor: pair.color,
-                      opacity: isHighlightedPair ? 0.8 : 0.25,
-                    }}
-                  />
-                )}
-              </div>
-
-              {/* Transcript content */}
-              <div className="flex-1 min-w-0">
-                <TranscriptLineCard
-                  line={line}
-                  isSelected={state.selectedTranscriptLineId === line.id}
-                  isSynced={state.syncedTranscriptLineId === line.id}
-                  onClick={() => {
-                    if (line.type === 'tool-use' && line.toolName === 'Agent' && line.agentId && state.selectedProjectId && state.selectedSessionId) {
-                      dispatch({
-                        type: 'OPEN_SUBAGENT',
-                        entry: {
-                          projectId: state.selectedProjectId,
-                          sessionId: state.selectedSessionId,
-                          agentId: line.agentId,
-                        },
-                      })
-                    } else if (line.type in SIDEKICK_EVENT_TO_FILTER) {
-                      // Sidekick event: scroll the timeline to the closest matching event
-                      dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: line.id })
-                      setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
-                    } else {
-                      dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })
-                    }
-                  }}
-                  pairNavigation={pair ? {
-                    color: pair.color,
-                    isToolUse: line.type === 'tool-use',
-                    onNavigate: () => scrollToIndex(line.type === 'tool-use' ? pair.resultIndex : pair.useIndex),
-                  } : undefined}
-                />
-              </div>
-            </div>
+              line={line}
+              isSelected={state.selectedTranscriptLineId === line.id}
+              isSynced={state.syncedTranscriptLineId === line.id}
+              ledState={line.ledState ?? ledStates?.get(line.id) ?? DEFAULT_LED}
+              gutterInfo={gutter}
+              pairColor={pair?.color}
+              pairIsToolUse={line.type === 'tool-use'}
+              onLineClick={() => {
+                if (line.type === 'tool-use' && line.toolName === 'Agent' && line.agentId && state.selectedProjectId && state.selectedSessionId) {
+                  dispatch({
+                    type: 'OPEN_SUBAGENT',
+                    entry: {
+                      projectId: state.selectedProjectId,
+                      sessionId: state.selectedSessionId,
+                      agentId: line.agentId,
+                    },
+                  })
+                } else if (line.type in SIDEKICK_EVENT_TO_FILTER) {
+                  dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: line.id })
+                  setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
+                } else {
+                  dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })
+                }
+              }}
+              onPairNavigate={pair ? () => scrollToIndex(line.type === 'tool-use' ? pair.resultIndex : pair.useIndex) : undefined}
+              onRef={setRef(line.id)}
+            />
           )
         })}
       </div>

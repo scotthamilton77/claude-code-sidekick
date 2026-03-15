@@ -10,13 +10,27 @@ const FILTER_LABELS: { filter: TimelineFilter; label: string }[] = [
   { filter: 'hooks', label: 'Hooks' },
 ]
 
+const ALL_FILTERS = new Set<TimelineFilter>(FILTER_LABELS.map(c => c.filter))
 const ACTIVE_STYLE = 'bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-200 ring-1 ring-slate-300 dark:ring-slate-500'
 
 export function TimelineFilterBar() {
   const { state, dispatch } = useNavigation()
 
+  const allActive = FILTER_LABELS.every(({ filter }) => state.timelineFilters.has(filter))
+
   return (
     <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+      <button
+        onClick={() => dispatch({ type: 'SET_ALL_TIMELINE_FILTERS', filters: allActive ? new Set() : new Set(ALL_FILTERS) })}
+        className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+          allActive
+            ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 ring-1 ring-slate-600 dark:ring-slate-400'
+            : 'text-slate-500 ring-1 ring-slate-300 dark:ring-slate-600 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+        }`}
+      >
+        All
+      </button>
+      <div className="w-px bg-slate-200 dark:bg-slate-700 mx-0.5" />
       {FILTER_LABELS.map(({ filter, label }) => {
         const isActive = state.timelineFilters.has(filter)
         return (

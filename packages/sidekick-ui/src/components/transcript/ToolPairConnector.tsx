@@ -47,10 +47,23 @@ export function useToolPairs(lines: { type: string; toolUseId?: string }[]): Too
   return useMemo(() => computeToolPairs(lines), [lines])
 }
 
-/** Hook: compute tool pairs and build a lookup map by toolUseId */
+/**
+ * Per-line gutter info: which pair spans this line, and what role it plays.
+ * - 'start': the tool-use line
+ * - 'end': the tool-result line
+ * - 'span': an intermediate line between use and result
+ */
+export interface GutterPairInfo {
+  color: string
+  role: 'start' | 'end' | 'span'
+  toolUseId: string
+}
+
+/** Hook: compute tool pairs, build lookup maps by toolUseId AND by line index */
 export function useToolPairLookup(lines: { type: string; toolUseId?: string }[]): {
   toolPairs: ToolPair[]
   pairByToolUseId: Map<string, ToolPair>
+  gutterByIndex: Map<number, GutterPairInfo>
 } {
   const toolPairs = useToolPairs(lines)
   const pairByToolUseId = useMemo(() => {
@@ -58,5 +71,22 @@ export function useToolPairLookup(lines: { type: string; toolUseId?: string }[])
     for (const pair of toolPairs) map.set(pair.toolUseId, pair)
     return map
   }, [toolPairs])
-  return { toolPairs, pairByToolUseId }
+
+  // Build gutter info for every line index spanned by a pair
+  const gutterByIndex = useMemo(() => {
+    const map = new Map<number, GutterPairInfo>()
+    for (const pair of toolPairs) {
+      map.set(pair.useIndex, { color: pair.color, role: 'start', toolUseId: pair.toolUseId })
+      map.set(pair.resultIndex, { color: pair.color, role: 'end', toolUseId: pair.toolUseId })
+      for (let i = pair.useIndex + 1; i < pair.resultIndex; i++) {
+        // Only set if not already claimed by another pair (nested pairs: inner wins)
+        if (!map.has(i)) {
+          map.set(i, { color: pair.color, role: 'span', toolUseId: pair.toolUseId })
+        }
+      }
+    }
+    return map
+  }, [toolPairs])
+
+  return { toolPairs, pairByToolUseId, gutterByIndex }
 }

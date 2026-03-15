@@ -131,7 +131,7 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
     case 'resume-message:finish':
       return { label: 'Resume Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
     case 'persona:selected':
-      return { label: `Persona: ${line.personaTo ?? 'unknown'}` }
+      return { label: `Persona chosen: ${line.personaTo ?? 'unknown'}` }
     case 'persona:changed':
       return { label: `Persona: ${line.personaFrom ?? '?'} → ${line.personaTo ?? '?'}` }
     case 'statusline:rendered':
@@ -514,14 +514,22 @@ function getLineStyles(line: TLine) {
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'persona:selected':
-    case 'persona:changed':
       return {
         bg: 'bg-amber-50/50 dark:bg-amber-950/20',
         border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
         Icon: UserCog,
         iconColor: 'text-amber-500',
-        label: 'Persona',
+        label: 'Persona Chosen',
         labelColor: 'text-amber-600 dark:text-amber-400',
+      }
+    case 'persona:changed':
+      return {
+        bg: 'bg-purple-50/50 dark:bg-purple-950/20',
+        border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
+        Icon: UserCog,
+        iconColor: 'text-purple-500',
+        label: 'Persona Changed',
+        labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'statusline:rendered':
       return {
