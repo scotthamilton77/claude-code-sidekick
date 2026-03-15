@@ -161,7 +161,7 @@ export class StagingServiceCore {
       },
       { stagingPath: reminderPath }
     )
-    logEvent(this.options.logger, event)
+    logEvent(this.options.logger.child({ context: { sessionId } }), event)
   }
 
   /**

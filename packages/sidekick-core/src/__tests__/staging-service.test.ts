@@ -189,6 +189,7 @@ describe('SessionScopedStagingService (via createService)', () => {
 
       await service.stageReminder('UserPromptSubmit', 'TestReminder', reminder)
 
+      expect(logger.child).toHaveBeenCalledWith({ context: { sessionId: 'test-session-123' } })
       expect(logger.info).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
@@ -547,6 +548,25 @@ describe('StagingServiceCore', () => {
       const core = createCore(testDir)
 
       expect(core.getStagingRoot('my-session')).toBe(join(testDir, 'sessions', 'my-session', 'stage'))
+    })
+  })
+
+  describe('event logging', () => {
+    it('should create child logger with session context for ReminderStaged event', async () => {
+      const logger = createMockLogger()
+      const core = createCore(testDir, { logger })
+      const reminder = createTestReminder({ name: 'ContextTest', priority: 60 })
+
+      await core.stageReminder('session-a', 'PreToolUse', 'ContextTest', reminder)
+
+      expect(logger.child).toHaveBeenCalledWith({ context: { sessionId: 'session-a' } })
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          type: 'reminder:staged',
+          reminderName: 'ContextTest',
+        })
+      )
     })
   })
 
