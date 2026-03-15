@@ -7,6 +7,7 @@ type NavigationAction =
   | { type: 'SELECT_TRANSCRIPT_LINE'; lineId: string }
   | { type: 'CLOSE_DETAIL' }
   | { type: 'SYNC_TO_TIMELINE_EVENT'; lineId: string }
+  | { type: 'SYNC_TO_TRANSCRIPT_EVENT'; lineId: string }
   | { type: 'CLEAR_SYNC' }
   | { type: 'BACK_TO_SELECTOR' }
   | { type: 'TOGGLE_SELECTOR_PANEL' }
@@ -24,10 +25,11 @@ const initialState: NavigationState = {
   selectedSessionId: null,
   selectedTranscriptLineId: null,
   syncedTranscriptLineId: null,
+  syncedTimelineLineId: null,
   selectorPanel: { expanded: true },
   detailPanel: { expanded: false },
-  timelineFilters: new Set<TimelineFilter>(['reminders', 'decisions', 'session-analysis', 'statusline', 'errors']),
-  transcriptFilters: new Set<TranscriptFilter>(['conversation', 'tools', 'thinking', 'sidekick', 'system']),
+  timelineFilters: new Set<TimelineFilter>(['reminders', 'decisions', 'session-analysis', 'statusline', 'errors', 'hooks']),
+  transcriptFilters: new Set<TranscriptFilter>(['conversation', 'tools', 'thinking', 'system', 'reminders', 'decisions', 'session-analysis', 'statusline', 'errors', 'hooks']),
   subagentChain: [],
   searchQuery: '',
   darkMode: false,
@@ -68,12 +70,21 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       return {
         ...state,
         syncedTranscriptLineId: action.lineId,
+        syncedTimelineLineId: null,
+      }
+
+    case 'SYNC_TO_TRANSCRIPT_EVENT':
+      return {
+        ...state,
+        syncedTimelineLineId: action.lineId,
+        syncedTranscriptLineId: null,
       }
 
     case 'CLEAR_SYNC':
       return {
         ...state,
         syncedTranscriptLineId: null,
+        syncedTimelineLineId: null,
       }
 
     case 'BACK_TO_SELECTOR':

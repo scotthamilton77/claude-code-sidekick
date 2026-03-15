@@ -20,6 +20,8 @@ export type SidekickEventType =
   | 'persona:changed'
   | 'statusline:rendered'
   | 'error:occurred'
+  | 'hook:received'
+  | 'hook:completed'
 
 // ============================================================================
 // User Message Subtypes
@@ -101,6 +103,10 @@ export interface TranscriptLine {
 
   // snarky-message:finish / resume-message:finish
   generatedMessage?: string
+
+  // hook:received / hook:completed
+  hookName?: string
+  hookDurationMs?: number
 
   // turn-duration
   durationMs?: number
@@ -204,9 +210,11 @@ export interface Project {
 // Timeline Filter
 // ============================================================================
 
-export type TimelineFilter = 'reminders' | 'decisions' | 'session-analysis' | 'statusline' | 'errors'
+export type TimelineFilter = 'reminders' | 'decisions' | 'session-analysis' | 'statusline' | 'errors' | 'hooks'
 
-export type TranscriptFilter = 'conversation' | 'tools' | 'thinking' | 'sidekick' | 'system'
+export type TranscriptFilter =
+  | 'conversation' | 'tools' | 'thinking' | 'system'
+  | TimelineFilter
 
 export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter> = {
   'reminder:staged': 'reminders',
@@ -226,6 +234,8 @@ export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter>
   'persona:changed': 'session-analysis',
   'statusline:rendered': 'statusline',
   'error:occurred': 'errors',
+  'hook:received': 'hooks',
+  'hook:completed': 'hooks',
 }
 
 // ============================================================================
@@ -252,6 +262,7 @@ export interface NavigationState {
   selectedSessionId: string | null
   selectedTranscriptLineId: string | null
   syncedTranscriptLineId: string | null // for timeline → transcript scroll-sync
+  syncedTimelineLineId: string | null   // for transcript → timeline scroll-sync
   selectorPanel: PanelState
   detailPanel: PanelState
   timelineFilters: Set<TimelineFilter>

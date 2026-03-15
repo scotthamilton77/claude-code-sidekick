@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
 import type { TranscriptLine, LEDState, TranscriptFilter } from '../../types'
+import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
 import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
 import { useNavigation } from '../../hooks/useNavigation'
 import { SearchFilterBar } from './SearchFilterBar'
@@ -17,8 +18,11 @@ interface TranscriptProps {
   scrollToLineId: string | null
 }
 
+/** Total number of possible transcript filter values */
+const TOTAL_FILTER_COUNT = 10
+
 function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
-  if (filters.size === 5) return true
+  if (filters.size === TOTAL_FILTER_COUNT) return true
   // Assistant with both content+thinking: show if either filter active
   if (line.type === 'assistant-message' && line.thinking && line.content) {
     return filters.has('conversation') || filters.has('thinking')
@@ -59,7 +63,7 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
     let result = lines
 
     // Category filter
-    if (state.transcriptFilters.size < 5) {
+    if (state.transcriptFilters.size < TOTAL_FILTER_COUNT) {
       result = result.filter(line => matchesTranscriptFilter(line, state.transcriptFilters))
     }
 
@@ -160,6 +164,10 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
                           agentId: line.agentId,
                         },
                       })
+                    } else if (line.type in SIDEKICK_EVENT_TO_FILTER) {
+                      // Sidekick event: scroll the timeline to the closest matching event
+                      dispatch({ type: 'SYNC_TO_TRANSCRIPT_EVENT', lineId: line.id })
+                      setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 2000)
                     } else {
                       dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: line.id })
                     }

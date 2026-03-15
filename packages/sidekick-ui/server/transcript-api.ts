@@ -62,6 +62,9 @@ export interface ApiTranscriptLine {
     titleConfidence: 'red' | 'amber' | 'green'
     titleConfidencePct: number
   }
+  // Hook event fields
+  hookName?: string
+  hookDurationMs?: number
   // Sidekick event fields
   reminderId?: string
   reminderBlocking?: boolean
@@ -376,7 +379,7 @@ function extractMetadata(
 /**
  * Convert a Sidekick NDJSON log entry to an ApiTranscriptLine.
  */
-function sidekickEventToTranscriptLine(entry: RawLogEntry, _index: number): ApiTranscriptLine {
+function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   const payload = entry.payload ?? {}
   const { label } = generateLabel(entry.type, payload)
 
@@ -399,7 +402,18 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry, _index: number): ApiT
   if (payload.confidence != null) line.confidence = payload.confidence as number
   if (payload.personaFrom) line.personaFrom = payload.personaFrom as string
   line.personaTo = (payload.personaTo ?? payload.personaId) as string | undefined
-  if (payload.displayMode) line.statuslineContent = payload.displayMode as string
+  // Statusline: build rich content from available fields
+  if (entry.type === 'statusline:rendered') {
+    const parts: string[] = []
+    if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
+    if (payload.staleData === true) parts.push('(stale)')
+    if (payload.tokens) parts.push(`${payload.tokens} tokens`)
+    if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
+    if (parts.length > 0) line.statuslineContent = parts.join(' · ')
+  }
+  // Hook events
+  if (payload.hook) line.hookName = payload.hook as string
+  if (payload.durationMs != null && entry.type === 'hook:completed') line.hookDurationMs = payload.durationMs as number
   if (payload.errorMessage) line.errorMessage = payload.errorMessage as string
   if (payload.errorStack) line.errorStack = payload.errorStack as string
   if (payload.generatedMessage) line.generatedMessage = payload.generatedMessage as string
@@ -430,7 +444,7 @@ async function readSidekickEvents(projectDir: string, sessionId: string): Promis
       TIMELINE_EVENT_TYPES.has(entry.type)
   )
 
-  return filtered.map((entry, index) => sidekickEventToTranscriptLine(entry, index))
+  return filtered.map((entry) => sidekickEventToTranscriptLine(entry))
 }
 
 /**

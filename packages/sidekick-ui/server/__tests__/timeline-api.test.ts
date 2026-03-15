@@ -94,7 +94,7 @@ describe('parseTimelineEvents', () => {
     const lines = [
       makeLogLine({ time: 1000, type: 'reminder:staged' }),
       makeLogLine({ time: 2000, type: 'daemon:started' }),
-      makeLogLine({ time: 3000, type: 'hook:invoked' }),
+      makeLogLine({ time: 3000, type: 'ipc:started' }),
     ].join('\n')
 
     mockReadFile.mockImplementation((path: string) => {
@@ -260,12 +260,17 @@ describe('generateLabel', () => {
 
   it('generates label for session-summary:start', () => {
     const result = generateLabel('session-summary:start', {})
-    expect(result).toEqual({ label: 'Summary Started' })
+    expect(result).toEqual({ label: 'Summary Analysis Start' })
   })
 
   it('generates label for session-summary:finish', () => {
     const result = generateLabel('session-summary:finish', {})
-    expect(result).toEqual({ label: 'Summary Complete' })
+    expect(result).toEqual({ label: 'Summary Analysis Finish' })
+  })
+
+  it('generates label for session-summary:finish with title', () => {
+    const result = generateLabel('session-summary:finish', { title: 'Fix auth bug' })
+    expect(result).toEqual({ label: 'Summary Analysis Finish', detail: '"Fix auth bug"' })
   })
 
   it('generates label for resume-message:start', () => {
@@ -280,8 +285,18 @@ describe('generateLabel', () => {
   })
 
   it('generates label for statusline:rendered', () => {
-    const result = generateLabel('statusline:rendered', { displayMode: 'full', staleData: false })
-    expect(result).toEqual({ label: 'Statusline', detail: 'full' })
+    const result = generateLabel('statusline:rendered', { displayMode: 'session_summary', staleData: false, tokens: 3200, durationMs: 145 })
+    expect(result).toEqual({ label: 'Statusline', detail: 'session summary · 3200 tokens · 145ms' })
+  })
+
+  it('generates label for hook:received', () => {
+    const result = generateLabel('hook:received', { hook: 'UserPromptSubmit' })
+    expect(result).toEqual({ label: 'Hook: UserPromptSubmit' })
+  })
+
+  it('generates label for hook:completed', () => {
+    const result = generateLabel('hook:completed', { hook: 'UserPromptSubmit', durationMs: 42 })
+    expect(result).toEqual({ label: 'Hook done: UserPromptSubmit', detail: '42ms' })
   })
 
   it('generates label for snarky-message:start', () => {

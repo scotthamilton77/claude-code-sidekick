@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { SIDEKICK_EVENT_TO_FILTER, type SidekickEventType, type TimelineFilter } from '../types'
 
 describe('SIDEKICK_EVENT_TO_FILTER', () => {
-  it('should map all 17 SidekickEventType values', () => {
+  it('should map all 19 SidekickEventType values', () => {
     const expectedTypes: SidekickEventType[] = [
       'reminder:staged',
       'reminder:unstaged',
@@ -21,6 +21,8 @@ describe('SIDEKICK_EVENT_TO_FILTER', () => {
       'persona:changed',
       'statusline:rendered',
       'error:occurred',
+      'hook:received',
+      'hook:completed',
     ]
     expect(Object.keys(SIDEKICK_EVENT_TO_FILTER).sort()).toEqual(expectedTypes.sort())
   })
@@ -63,8 +65,13 @@ describe('SIDEKICK_EVENT_TO_FILTER', () => {
     expect(SIDEKICK_EVENT_TO_FILTER['error:occurred']).toBe('errors')
   })
 
+  it('should map hook events to hooks filter', () => {
+    expect(SIDEKICK_EVENT_TO_FILTER['hook:received']).toBe('hooks')
+    expect(SIDEKICK_EVENT_TO_FILTER['hook:completed']).toBe('hooks')
+  })
+
   it('every mapped value should be a valid TimelineFilter', () => {
-    const validFilters: TimelineFilter[] = ['reminders', 'decisions', 'session-analysis', 'statusline', 'errors']
+    const validFilters: TimelineFilter[] = ['reminders', 'decisions', 'session-analysis', 'statusline', 'errors', 'hooks']
     for (const filter of Object.values(SIDEKICK_EVENT_TO_FILTER)) {
       expect(validFilters).toContain(filter)
     }

@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 /**
- * The 17 Sidekick event types visible in the timeline UI.
+ * The 19 Sidekick event types visible in the timeline UI.
  * Mirrors TimelineSidekickEventType from src/types.ts — kept inline to avoid
  * cross-tsconfig imports (server uses tsconfig.node.json, src uses tsconfig.json).
  */
@@ -15,6 +15,7 @@ export type TimelineSidekickEventType =
   | 'persona:selected' | 'persona:changed'
   | 'statusline:rendered'
   | 'error:occurred'
+  | 'hook:received' | 'hook:completed'
 
 /** Timeline event returned by the API. Matches SidekickEvent from src/types.ts. */
 export interface TimelineEvent {
@@ -27,7 +28,7 @@ export interface TimelineEvent {
 }
 
 /**
- * The 17 event types visible in the timeline UI.
+ * The 19 event types visible in the timeline UI.
  * Any event type not in this set is filtered out.
  */
 export const TIMELINE_EVENT_TYPES = new Set<string>([
@@ -48,6 +49,8 @@ export const TIMELINE_EVENT_TYPES = new Set<string>([
   'persona:changed',
   'statusline:rendered',
   'error:occurred',
+  'hook:received',
+  'hook:completed',
 ])
 
 /** Parsed raw log entry before conversion to SidekickEvent */
@@ -132,9 +135,14 @@ export function generateLabel(
       }
     }
     case 'session-summary:start':
-      return { label: 'Summary Started' }
-    case 'session-summary:finish':
-      return { label: 'Summary Complete' }
+      return { label: 'Summary Analysis Start' }
+    case 'session-summary:finish': {
+      const title = payload.title as string | undefined
+      return {
+        label: 'Summary Analysis Finish',
+        ...(title ? { detail: `"${title}"` } : {}),
+      }
+    }
     case 'resume-message:start':
       return { label: 'Resume Started' }
     case 'resume-message:finish': {
@@ -147,8 +155,27 @@ export function generateLabel(
     case 'statusline:rendered': {
       const mode = payload.displayMode as string | undefined
       const stale = payload.staleData as boolean | undefined
-      const detail = mode ? `${mode}${stale ? ' (stale)' : ''}` : undefined
+      const tokens = payload.tokens as number | undefined
+      const durMs = payload.durationMs as number | undefined
+      const parts: string[] = []
+      if (mode) parts.push(mode.replace(/_/g, ' '))
+      if (stale) parts.push('(stale)')
+      if (tokens) parts.push(`${tokens} tokens`)
+      if (durMs != null) parts.push(`${durMs}ms`)
+      const detail = parts.length > 0 ? parts.join(' · ') : undefined
       return { label: 'Statusline', ...(detail ? { detail } : {}) }
+    }
+    case 'hook:received': {
+      const hookName = (payload.hook as string) || 'unknown'
+      return { label: `Hook: ${hookName}` }
+    }
+    case 'hook:completed': {
+      const hookName = (payload.hook as string) || 'unknown'
+      const durMs = payload.durationMs as number | undefined
+      return {
+        label: `Hook done: ${hookName}`,
+        ...(durMs != null ? { detail: `${durMs}ms` } : {}),
+      }
     }
     default: {
       // Humanize: "some-unknown:type" → "Some Unknown Type"

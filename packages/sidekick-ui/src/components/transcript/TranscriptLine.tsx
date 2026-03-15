@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Clock,
   GitPullRequest,
+  Zap,
 } from 'lucide-react'
 import type { TranscriptLine as TLine, TranscriptLineType } from '../../types'
 import { formatTime } from '../../utils/formatTime'
@@ -85,6 +86,67 @@ function extractCommandName(content: string): string | null {
   return match ? match[1] : null
 }
 
+const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set([
+  'user-message', 'assistant-message', 'tool-use', 'tool-result',
+  'compaction', 'turn-duration', 'api-error', 'pr-link',
+])
+
+function isSidekickEventType(type: TranscriptLineType): boolean {
+  return !CLAUDE_CODE_TYPES.has(type)
+}
+
+/** Build single-line label + optional detail for sidekick events */
+function buildSidekickSingleLine(line: TLine): { label: string; detail?: string } {
+  switch (line.type) {
+    case 'reminder:staged':
+      return { label: `Staged ${line.reminderId ?? 'unknown'}`, detail: line.reminderBlocking ? 'blocking' : undefined }
+    case 'reminder:unstaged':
+      return { label: `Unstaged ${line.reminderId ?? 'unknown'}` }
+    case 'reminder:consumed':
+      return { label: `Consumed ${line.reminderId ?? 'unknown'}` }
+    case 'reminder:cleared':
+      return { label: `Cleared ${line.reminderId ?? 'all'}` }
+    case 'decision:recorded':
+      return { label: `Decision: ${line.decisionCategory ?? 'unknown'}`, detail: line.decisionReasoning }
+    case 'session-summary:start':
+      return { label: 'Summary Analysis Start' }
+    case 'session-summary:finish':
+      return { label: 'Summary Analysis Finish', detail: line.newValue ? `"${line.newValue}"` : undefined }
+    case 'session-title:changed':
+      return {
+        label: `Title → "${line.newValue ?? 'unknown'}"`,
+        detail: line.confidence != null ? `${Math.round(line.confidence * 100)}%` : undefined,
+      }
+    case 'intent:changed':
+      return {
+        label: `Intent → "${line.newValue ?? 'unknown'}"`,
+        detail: line.confidence != null ? `${Math.round(line.confidence * 100)}%` : undefined,
+      }
+    case 'snarky-message:start':
+      return { label: 'Snarky Message…' }
+    case 'snarky-message:finish':
+      return { label: 'Snarky Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+    case 'resume-message:start':
+      return { label: 'Resume Message…' }
+    case 'resume-message:finish':
+      return { label: 'Resume Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+    case 'persona:selected':
+      return { label: `Persona: ${line.personaTo ?? 'unknown'}` }
+    case 'persona:changed':
+      return { label: `Persona: ${line.personaFrom ?? '?'} → ${line.personaTo ?? '?'}` }
+    case 'statusline:rendered':
+      return { label: 'Statusline', detail: line.statuslineContent }
+    case 'error:occurred':
+      return { label: `Error: ${line.errorMessage ?? 'unknown'}` }
+    case 'hook:received':
+      return { label: `Hook: ${line.hookName ?? 'unknown'}` }
+    case 'hook:completed':
+      return { label: `Hook done: ${line.hookName ?? 'unknown'}`, detail: line.hookDurationMs != null ? `${line.hookDurationMs}ms` : undefined }
+    default:
+      return { label: line.content ?? line.type }
+  }
+}
+
 export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNavigation }: TranscriptLineProps) {
   const [showThinking, setShowThinking] = useState(false)
   const [showInjection, setShowInjection] = useState(false)
@@ -135,7 +197,8 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
   // System injection / skill-content: collapsed by default, gray styling
   if (line.type === 'user-message' && (line.userSubtype === 'system-injection' || line.userSubtype === 'skill-content')) {
     return (
-      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer">
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer flex justify-center">
+        <div className="w-[60%]">
         <div className={`rounded-lg px-2.5 py-1 bg-gray-50 dark:bg-gray-900/50 border-l-2 border border-gray-200 dark:border-gray-700 border-l-gray-400 dark:border-l-gray-500 ${
           isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
         }`}>
@@ -153,18 +216,52 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
             </p>
           )}
         </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isSidekick = isSidekickEventType(line.type)
+
+  // Sidekick events: single-line compact, center-justified 60% width
+  if (isSidekick) {
+    const styles = getLineStyles(line)
+    const { label, detail } = buildSidekickSingleLine(line)
+
+    return (
+      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer flex justify-center">
+        <div className="w-[60%]">
+        <div
+          className={`rounded-lg px-2.5 py-1 transition-all ${styles.bg} ${styles.border} ${
+            isSelected
+              ? 'ring-2 ring-indigo-400 dark:ring-indigo-500'
+              : isSynced
+                ? 'ring-2 ring-amber-400 dark:ring-amber-500'
+                : ''
+          }`}
+        >
+          <div className="flex items-center gap-1.5 min-w-0">
+            <styles.Icon size={11} className={`${styles.iconColor} flex-shrink-0`} />
+            <span className={`text-[10px] font-medium ${styles.labelColor} truncate`}>{label}</span>
+            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
+          </div>
+          {detail && (
+            <p className={`text-[10px] ${styles.labelColor} opacity-70 truncate mt-0.5 pl-4`}>{detail}</p>
+          )}
+        </div>
+        </div>
       </div>
     )
   }
 
   const styles = getLineStyles(line)
-  const isSidekickEvent = isSidekickEventType(line.type)
 
   // Positioning: user prompts right-aligned, assistant left-aligned,
-  // tools indented, sidekick events offset left, system types full width
+  // tools indented, system types center-justified 60% width
   const isUserPrompt = line.type === 'user-message' && line.userSubtype === 'prompt'
   const isAssistant = line.type === 'assistant-message'
   const isTool = line.type === 'tool-use' || line.type === 'tool-result'
+  const isSystemType = line.type === 'turn-duration' || line.type === 'api-error' || line.type === 'pr-link'
 
   return (
     <div
@@ -173,13 +270,14 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
         isUserPrompt ? 'flex justify-end' :
         isAssistant ? 'ml-2' :
         isTool ? 'ml-6' :
-        isSidekickEvent ? 'ml-[-2px]' : ''
+        isSystemType ? 'flex justify-center' : ''
       }`}
     >
       <div className={
         isUserPrompt ? 'w-[90%]' :
         isAssistant ? 'w-[90%]' :
         isTool ? 'w-[85%]' :
+        isSystemType ? 'w-[60%]' :
         undefined
       }>
       <div
@@ -212,7 +310,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
         </div>
 
         {/* Content */}
-        {line.content && !isSidekickEvent && (
+        {line.content && (
           <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed line-clamp-3 mt-0.5">
             {line.content}
           </p>
@@ -317,95 +415,10 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
             {line.prUrl}
           </a>
         )}
-
-        {/* Sidekick event inline details */}
-        {isSidekickEvent && renderSidekickDetail(line)}
       </div>
       </div>
     </div>
   )
-}
-
-const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set([
-  'user-message', 'assistant-message', 'tool-use', 'tool-result',
-  'compaction', 'turn-duration', 'api-error', 'pr-link',
-])
-
-function isSidekickEventType(type: TranscriptLineType): boolean {
-  return !CLAUDE_CODE_TYPES.has(type)
-}
-
-function renderSidekickDetail(line: TLine) {
-  switch (line.type) {
-    case 'reminder:staged':
-    case 'reminder:unstaged':
-    case 'reminder:consumed':
-    case 'reminder:cleared':
-      return (
-        <div className="flex items-center gap-2 text-[10px] mt-0.5">
-          <span
-            className={`px-1 py-0.5 rounded font-medium ${
-              line.type === 'reminder:staged'
-                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                : line.type === 'reminder:consumed'
-                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
-            }`}
-          >
-            {line.type.split(':').pop()}
-          </span>
-          <span className="font-mono text-slate-500">{line.reminderId}</span>
-          {line.reminderBlocking && <span className="text-red-400 font-medium">blocking</span>}
-        </div>
-      )
-
-    case 'decision:recorded':
-      return line.decisionReasoning ? (
-        <p className="text-[10px] text-amber-700 dark:text-amber-400 mt-0.5 italic line-clamp-2">
-          {line.decisionReasoning}
-        </p>
-      ) : null
-
-    case 'session-title:changed':
-    case 'intent:changed':
-      return (
-        <div className="text-[10px] text-slate-500 mt-0.5">
-          {line.previousValue && <span className="line-through mr-1">{line.previousValue}</span>}
-          {line.newValue && <span className="font-medium text-slate-700 dark:text-slate-300">{line.newValue}</span>}
-          {line.confidence != null && <span className="ml-2 text-slate-400">{Math.round(line.confidence * 100)}%</span>}
-        </div>
-      )
-
-    case 'persona:selected':
-    case 'persona:changed':
-      return (
-        <div className="text-[10px] text-slate-500 mt-0.5">
-          {line.personaFrom && <span className="line-through mr-1">{line.personaFrom}</span>}
-          {line.personaTo && <span className="font-medium text-pink-600 dark:text-pink-400">{line.personaTo}</span>}
-        </div>
-      )
-
-    case 'statusline:rendered':
-      return line.statuslineContent ? (
-        <p className="text-[10px] text-teal-600 dark:text-teal-400 mt-0.5 font-mono">{line.statuslineContent}</p>
-      ) : null
-
-    case 'error:occurred':
-      return line.errorMessage ? (
-        <p className="text-[10px] text-red-600 dark:text-red-400 mt-0.5 font-mono">{line.errorMessage}</p>
-      ) : null
-
-    case 'snarky-message:finish':
-    case 'resume-message:finish':
-      return line.generatedMessage ? (
-        <p className="text-[10px] text-purple-600 dark:text-purple-400 mt-0.5 italic line-clamp-2">
-          "{line.generatedMessage}"
-        </p>
-      ) : null
-
-    default:
-      return null
-  }
 }
 
 function getLineStyles(line: TLine) {
@@ -473,9 +486,9 @@ function getLineStyles(line: TLine) {
       return {
         bg: 'bg-purple-50/50 dark:bg-purple-950/20',
         border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
-        Icon: Play,
+        Icon: line.type === 'session-summary:start' ? Play : Square,
         iconColor: 'text-purple-500',
-        label: line.type === 'session-summary:start' ? 'Summary ▶' : 'Summary ■',
+        label: line.type === 'session-summary:start' ? 'Summary Analysis' : 'Summary Analysis',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'session-title:changed':
@@ -485,7 +498,7 @@ function getLineStyles(line: TLine) {
         border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: FileText,
         iconColor: 'text-purple-500',
-        label: line.type === 'session-title:changed' ? 'Title Changed' : 'Intent Changed',
+        label: line.type === 'session-title:changed' ? 'Title' : 'Intent',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'snarky-message:start':
@@ -497,18 +510,18 @@ function getLineStyles(line: TLine) {
         border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: line.type.includes('start') ? Play : Square,
         iconColor: 'text-purple-500',
-        label: line.type.replace(/[:-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: line.type.includes('snarky') ? 'Snarky' : 'Resume',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'persona:selected':
     case 'persona:changed':
       return {
-        bg: 'bg-pink-50/50 dark:bg-pink-950/20',
-        border: 'border border-dashed border-pink-200 dark:border-pink-800/50',
+        bg: 'bg-amber-50/50 dark:bg-amber-950/20',
+        border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
         Icon: UserCog,
-        iconColor: 'text-pink-500',
-        label: line.type === 'persona:selected' ? 'Persona Selected' : 'Persona Changed',
-        labelColor: 'text-pink-600 dark:text-pink-400',
+        iconColor: 'text-amber-500',
+        label: 'Persona',
+        labelColor: 'text-amber-600 dark:text-amber-400',
       }
     case 'statusline:rendered':
       return {
@@ -527,6 +540,16 @@ function getLineStyles(line: TLine) {
         iconColor: 'text-red-500',
         label: 'Error',
         labelColor: 'text-red-600 dark:text-red-400',
+      }
+    case 'hook:received':
+    case 'hook:completed':
+      return {
+        bg: 'bg-sky-50/50 dark:bg-sky-950/20',
+        border: 'border border-dashed border-sky-200 dark:border-sky-800/50',
+        Icon: Zap,
+        iconColor: 'text-sky-500',
+        label: 'Hook',
+        labelColor: 'text-sky-600 dark:text-sky-400',
       }
     case 'turn-duration':
       return {
