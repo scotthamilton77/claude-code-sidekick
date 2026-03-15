@@ -43,6 +43,9 @@ function formatToolInput(toolName?: string, input?: Record<string, unknown>): st
   if (toolName === 'Agent' && typeof input.description === 'string') {
     return truncate(input.description, 200)
   }
+  if (toolName === 'Skill' && typeof input.skill === 'string') {
+    return truncate(input.skill, 200)
+  }
   // Fallback: show first string value
   for (const val of Object.values(input)) {
     if (typeof val === 'string') return truncate(val, 150)
@@ -297,7 +300,13 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
         {/* Header: icon + label + time */}
         <div className="flex items-center gap-1.5">
           <styles.Icon size={11} className={styles.iconColor} />
-          <span className={`text-[10px] font-medium ${styles.labelColor}`}>{styles.label}</span>
+          <span className={`text-[10px] font-medium ${styles.labelColor} truncate`}>
+            {styles.label}
+            {line.type === 'tool-use' && line.toolInput && (() => {
+              const preview = formatToolInput(line.toolName, line.toolInput)
+              return preview ? <span className="font-mono font-normal opacity-75">: {truncate(preview, 80)}</span> : null
+            })()}
+          </span>
           {line.isSidechain && (
             <span className="text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-700 px-1 rounded">sidechain</span>
           )}
@@ -361,14 +370,6 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
             />
           </div>
         )}
-
-        {/* Tool use: inline smart preview */}
-        {line.type === 'tool-use' && line.toolInput && (() => {
-          const preview = formatToolInput(line.toolName, line.toolInput)
-          return preview ? (
-            <p className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate mt-0.5">{preview}</p>
-          ) : null
-        })()}
 
         {/* Tool result */}
         {line.type === 'tool-result' && line.toolOutput && (

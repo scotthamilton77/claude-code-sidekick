@@ -60,18 +60,34 @@ const TranscriptRow = memo(function TranscriptRow({
 }) {
   return (
     <div ref={onRef} className="flex">
-      {/* LED Gutter with pair connector line */}
-      <div className="relative flex-shrink-0">
+      {/* LED Gutter with pair connector line on right side */}
+      <div className="relative flex-shrink-0" style={{ overflow: 'visible' }}>
         <LEDGutter ledState={ledState} />
         {gutterInfo && (
-          <div
-            className={`absolute left-0 w-[3px] ${
-              gutterInfo.role === 'start' ? 'top-1/2 bottom-0 rounded-t-full' :
-              gutterInfo.role === 'end' ? 'top-0 bottom-1/2 rounded-b-full' :
-              'top-0 bottom-0'
-            }`}
-            style={{ backgroundColor: gutterInfo.color, opacity: 0.6 }}
-          />
+          <>
+            {/* Vertical connector on right edge */}
+            <div
+              className={`absolute right-0 w-[3px] ${
+                gutterInfo.role === 'start' ? 'top-1/2 bottom-0 rounded-t-full' :
+                gutterInfo.role === 'end' ? 'top-0 bottom-1/2 rounded-b-full' :
+                'top-0 bottom-0'
+              }`}
+              style={{ backgroundColor: gutterInfo.color, opacity: 0.6 }}
+            />
+            {/* Horizontal connector to tool bubble (start/end only) */}
+            {(gutterInfo.role === 'start' || gutterInfo.role === 'end') && (
+              <div
+                className="absolute h-[2px]"
+                style={{
+                  backgroundColor: gutterInfo.color,
+                  opacity: 0.6,
+                  left: '100%',
+                  width: '1.5rem',
+                  top: '50%',
+                }}
+              />
+            )}
+          </>
         )}
       </div>
 
@@ -92,7 +108,18 @@ const TranscriptRow = memo(function TranscriptRow({
       </div>
     </div>
   )
-})
+}, (prev, next) =>
+  // Custom comparison: skip function props (onLineClick, onPairNavigate, onRef)
+  // that are recreated every render but are functionally equivalent within a session.
+  prev.line === next.line &&
+  prev.isSelected === next.isSelected &&
+  prev.isSynced === next.isSynced &&
+  prev.ledState === next.ledState &&
+  prev.gutterInfo === next.gutterInfo &&
+  prev.pairColor === next.pairColor &&
+  prev.pairIsToolUse === next.pairIsToolUse &&
+  prev.defaultModel === next.defaultModel
+)
 
 export function Transcript({ lines, loading, error, ledStates, scrollToLineId, defaultModel }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
