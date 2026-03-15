@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo, memo } from 'react'
+import { useRef, useEffect, useCallback, useMemo, memo, Fragment } from 'react'
 import type { TranscriptLine, LEDState, TranscriptFilter } from '../../types'
 import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
 import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
@@ -8,7 +8,7 @@ import { TranscriptFilterBar } from './TranscriptFilterBar'
 import { LEDColorKey } from './LEDColorKey'
 import { LEDGutter } from './LEDGutter'
 import { TranscriptLineCard } from './TranscriptLine'
-import { useToolPairLookup, type GutterPairInfo } from './ToolPairConnector'
+import { useToolPairLookup, type GutterPairInfo, LEVEL_SPACING_PX, CONNECTOR_WIDTH_PX } from './ToolPairConnector'
 
 interface TranscriptProps {
   lines: TranscriptLine[]
@@ -38,7 +38,7 @@ const TranscriptRow = memo(function TranscriptRow({
   isSelected,
   isSynced,
   ledState,
-  gutterInfo,
+  gutterInfos,
   pairColor,
   pairIsToolUse,
   defaultModel,
@@ -50,7 +50,7 @@ const TranscriptRow = memo(function TranscriptRow({
   isSelected: boolean
   isSynced: boolean
   ledState: LEDState
-  gutterInfo?: GutterPairInfo
+  gutterInfos?: GutterPairInfo[]
   pairColor?: string
   pairIsToolUse?: boolean
   defaultModel?: string
@@ -60,39 +60,50 @@ const TranscriptRow = memo(function TranscriptRow({
 }) {
   return (
     <div ref={onRef} className="flex">
-      {/* LED Gutter with pair connector line on right side */}
+      {/* LED Gutter with pair connector lines in dedicated column */}
       <div className="relative flex-shrink-0" style={{ overflow: 'visible' }}>
         <LEDGutter ledState={ledState} />
-        {gutterInfo && (
-          <>
-            {/* Vertical connector on right edge */}
+        {gutterInfos?.map((info) => (
+          <Fragment key={info.toolUseId}>
+            {/* Vertical connector at nesting level */}
             <div
-              className={`absolute right-0 w-[3px] ${
-                gutterInfo.role === 'start' ? 'top-1/2 bottom-0 rounded-t-full' :
-                gutterInfo.role === 'end' ? 'top-0 bottom-1/2 rounded-b-full' :
+              className={`absolute w-[2px] ${
+                info.role === 'start' ? 'top-1/2 bottom-0 rounded-t-full' :
+                info.role === 'end' ? 'top-0 bottom-1/2 rounded-b-full' :
                 'top-0 bottom-0'
               }`}
-              style={{ backgroundColor: gutterInfo.color, opacity: 0.6 }}
+              style={{
+                left: `calc(100% + ${info.level * LEVEL_SPACING_PX}px)`,
+                backgroundColor: info.color,
+                opacity: 0.6,
+              }}
             />
-            {/* Horizontal connector to tool bubble (start/end only) */}
-            {(gutterInfo.role === 'start' || gutterInfo.role === 'end') && (
+            {/* Horizontal connector to content edge (start/end only) */}
+            {(info.role === 'start' || info.role === 'end') && (
               <div
                 className="absolute h-[2px]"
                 style={{
-                  backgroundColor: gutterInfo.color,
-                  opacity: 0.6,
-                  left: '100%',
-                  width: '1.5rem',
+                  left: `calc(100% + ${info.level * LEVEL_SPACING_PX}px)`,
+                  width: `${CONNECTOR_WIDTH_PX - info.level * LEVEL_SPACING_PX}px`,
                   top: '50%',
+                  backgroundColor: info.color,
+                  opacity: 0.6,
                 }}
               />
             )}
-          </>
-        )}
+          </Fragment>
+        ))}
       </div>
 
-      {/* Transcript content */}
-      <div className="flex-1 min-w-0">
+      {/* Transcript content — margin reserves space for connector column */}
+      <div className="flex-1 min-w-0 relative" style={{ marginLeft: `${CONNECTOR_WIDTH_PX}px` }}>
+        {/* Bridge line from content edge to tool bubble (ml-6 + px-2 = 32px indent) */}
+        {pairColor && (line.type === 'tool-use' || line.type === 'tool-result') && (
+          <div
+            className="absolute left-0 h-[2px] pointer-events-none"
+            style={{ width: '32px', top: '50%', backgroundColor: pairColor, opacity: 0.6 }}
+          />
+        )}
         <TranscriptLineCard
           line={line}
           isSelected={isSelected}
@@ -109,13 +120,11 @@ const TranscriptRow = memo(function TranscriptRow({
     </div>
   )
 }, (prev, next) =>
-  // Custom comparison: skip function props (onLineClick, onPairNavigate, onRef)
-  // that are recreated every render but are functionally equivalent within a session.
   prev.line === next.line &&
   prev.isSelected === next.isSelected &&
   prev.isSynced === next.isSynced &&
   prev.ledState === next.ledState &&
-  prev.gutterInfo === next.gutterInfo &&
+  prev.gutterInfos === next.gutterInfos &&
   prev.pairColor === next.pairColor &&
   prev.pairIsToolUse === next.pairIsToolUse &&
   prev.defaultModel === next.defaultModel
@@ -206,7 +215,7 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId, d
         )}
         {!loading && !error && filteredLines.length > 0 && filteredLines.map((line, index) => {
           const pair = line.toolUseId ? pairByToolUseId.get(line.toolUseId) : undefined
-          const gutter = gutterByIndex.get(index)
+          const gutterInfos = gutterByIndex.get(index)
 
           return (
             <TranscriptRow
@@ -215,7 +224,7 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId, d
               isSelected={state.selectedTranscriptLineId === line.id}
               isSynced={state.syncedTranscriptLineId === line.id}
               ledState={line.ledState ?? ledStates?.get(line.id) ?? DEFAULT_LED}
-              gutterInfo={gutter}
+              gutterInfos={gutterInfos}
               pairColor={pair?.color}
               pairIsToolUse={line.type === 'tool-use'}
               defaultModel={defaultModel}
