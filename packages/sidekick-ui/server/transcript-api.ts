@@ -149,11 +149,12 @@ function extractToolResultContent(content: unknown): string {
 
 /**
  * Classify a user message into subtypes for distinct rendering.
- * Detection order matters: command > system-injection > prompt.
+ * Detection order matters: command > skill-content > system-injection > prompt.
  */
 function classifyUserSubtype(entry: Record<string, unknown>, content: string): ApiUserSubtype {
   if (entry.isMeta === true) {
     if (content.includes('<command-name>')) return 'command'
+    if (content.includes('Base directory for this skill:')) return 'skill-content'
     return 'system-injection'
   }
   if (content.includes('<system-reminder>')) return 'system-injection'
