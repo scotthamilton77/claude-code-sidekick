@@ -1,9 +1,5 @@
 import type { SidekickEvent } from '../../types'
-
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
+import { formatTime } from '../../utils/formatTime'
 
 interface TimelineEventProps {
   event: SidekickEvent

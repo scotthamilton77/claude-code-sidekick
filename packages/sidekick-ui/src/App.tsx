@@ -24,14 +24,12 @@ function App() {
     state.selectedSessionId
   )
 
-  // Derive selected data from state
   const selectedProject = projects.find(p => p.id === state.selectedProjectId)
   const selectedSession = selectedProject?.sessions.find(s => s.id === state.selectedSessionId)
   const selectedLine = transcriptLines.find(l => l.id === state.selectedTranscriptLineId)
 
   const detailOpen = state.detailPanel.expanded && !!selectedLine
 
-  // Keyboard navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
@@ -55,7 +53,6 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [state.depth, state.selectedTranscriptLineId, transcriptLines, detailOpen])
 
-  // Panel width classes
   const selectorWidth = state.selectorPanel.expanded ? 'flex-1' : 'w-10'
 
   return (

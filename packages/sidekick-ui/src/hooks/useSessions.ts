@@ -25,13 +25,6 @@ export interface UseSessionsResult {
   error: string | null
 }
 
-/**
- * Fetch session data from the Vite dev server API.
- * Maps API responses into the existing Project/Session types.
- */
-/**
- * Format ISO date string to mm/dd/yyyy hh:mm am/pm in the OS timezone.
- */
 function formatDate(isoDate: string): string {
   const d = new Date(isoDate)
   return d.toLocaleString('en-US', {

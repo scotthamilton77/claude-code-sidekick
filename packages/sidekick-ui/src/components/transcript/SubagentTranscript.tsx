@@ -4,7 +4,7 @@ import type { TranscriptLine, TranscriptFilter } from '../../types'
 import { useSubagentTranscript } from '../../hooks/useSubagentTranscript'
 import { useNavigation } from '../../hooks/useNavigation'
 import { TranscriptLineCard } from './TranscriptLine'
-import { useToolPairs } from './ToolPairConnector'
+import { useToolPairLookup } from './ToolPairConnector'
 
 interface SubagentTranscriptProps {
   projectId: string
@@ -50,12 +50,7 @@ export function SubagentTranscript({ projectId, sessionId, agentId, agentType, d
     return lines.filter(line => matchesSubagentFilter(line, activeFilters))
   }, [lines, activeFilters])
 
-  const toolPairs = useToolPairs(filteredLines)
-  const pairByToolUseId = useMemo(() => {
-    const map = new Map<string, { useIndex: number; resultIndex: number; color: string }>()
-    for (const pair of toolPairs) map.set(pair.toolUseId, pair)
-    return map
-  }, [toolPairs])
+  const { pairByToolUseId } = useToolPairLookup(filteredLines)
 
   function toggleFilter(filter: TranscriptFilter) {
     setActiveFilters(prev => {

@@ -1,12 +1,12 @@
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
-import type { TranscriptLine, TranscriptLineType, LEDState, TranscriptFilter } from '../../types'
+import type { TranscriptLine, LEDState, TranscriptFilter } from '../../types'
 import { useNavigation } from '../../hooks/useNavigation'
 import { SearchFilterBar } from './SearchFilterBar'
 import { TranscriptFilterBar } from './TranscriptFilterBar'
 import { LEDColorKey } from './LEDColorKey'
 import { LEDGutter } from './LEDGutter'
 import { TranscriptLineCard } from './TranscriptLine'
-import { useToolPairs } from './ToolPairConnector'
+import { useToolPairLookup } from './ToolPairConnector'
 
 interface TranscriptProps {
   lines: TranscriptLine[]
@@ -15,11 +15,6 @@ interface TranscriptProps {
   ledStates?: Map<string, LEDState>  // deprecated — prefer line.ledState
   scrollToLineId: string | null
 }
-
-const CLAUDE_CODE_TYPES = new Set<TranscriptLineType>([
-  'user-message', 'assistant-message', 'tool-use', 'tool-result',
-  'compaction', 'turn-duration', 'api-error', 'pr-link',
-])
 
 function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
   if (filters.size === 5) return true // all active = show everything
@@ -48,9 +43,7 @@ function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFi
   }
 
   // Everything else is a Sidekick event type
-  if (!CLAUDE_CODE_TYPES.has(type)) return filters.has('sidekick')
-
-  return true
+  return filters.has('sidekick')
 }
 
 const DEFAULT_LED: LEDState = {
@@ -109,17 +102,7 @@ export function Transcript({ lines, loading, error, ledStates, scrollToLineId }:
     return result
   }, [lines, state.transcriptFilters, state.searchQuery])
 
-  // Compute tool pairs for connector lines
-  const toolPairs = useToolPairs(filteredLines)
-
-  // Build a lookup: toolUseId → pair for highlighting
-  const pairByToolUseId = useMemo(() => {
-    const map = new Map<string, { useIndex: number; resultIndex: number; color: string }>()
-    for (const pair of toolPairs) {
-      map.set(pair.toolUseId, pair)
-    }
-    return map
-  }, [toolPairs])
+  const { pairByToolUseId } = useToolPairLookup(filteredLines)
 
   function scrollToIndex(index: number) {
     const targetLine = filteredLines[index]

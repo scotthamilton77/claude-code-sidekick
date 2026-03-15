@@ -232,10 +232,6 @@ export const SIDEKICK_EVENT_TO_FILTER: Record<SidekickEventType, TimelineFilter>
 // Navigation State
 // ============================================================================
 
-// ============================================================================
-// Subagent Chain Navigation
-// ============================================================================
-
 export interface SubagentChainEntry {
   projectId: string
   sessionId: string

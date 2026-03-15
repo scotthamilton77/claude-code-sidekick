@@ -18,6 +18,7 @@ import {
   GitPullRequest,
 } from 'lucide-react'
 import type { TranscriptLine as TLine, TranscriptLineType } from '../../types'
+import { formatTime } from '../../utils/formatTime'
 import { CollapsibleContent } from './CollapsibleContent'
 
 function truncate(s: string, max: number): string {
@@ -56,11 +57,6 @@ function isSafeUrl(url: string): boolean {
   } catch {
     return false
   }
-}
-
-function formatTime(ts: number): string {
-  const d = new Date(ts)
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function formatDuration(ms?: number): string {
@@ -250,20 +246,16 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
           <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
             <span className="font-mono">{line.toolName}</span>
             {line.toolDurationMs != null && <span className="ml-2">{line.toolDurationMs}ms</span>}
-            {line.toolInput && (() => {
-              const preview = formatToolInput(line.toolName, line.toolInput)
-              const fullJson = JSON.stringify(line.toolInput, null, 2)
-              return preview ? (
-                <CollapsibleContent
-                  content={fullJson}
-                  previewLines={2}
-                  previewChars={200}
-                  mono
-                  className="text-slate-400 dark:text-slate-500 mt-0.5"
-                  label="input"
-                />
-              ) : null
-            })()}
+            {line.toolInput && formatToolInput(line.toolName, line.toolInput) && (
+              <CollapsibleContent
+                content={JSON.stringify(line.toolInput, null, 2)}
+                previewLines={2}
+                previewChars={200}
+                mono
+                className="text-slate-400 dark:text-slate-500 mt-0.5"
+                label="input"
+              />
+            )}
           </div>
         )}
 
@@ -315,17 +307,13 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
   )
 }
 
+const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set([
+  'user-message', 'assistant-message', 'tool-use', 'tool-result',
+  'compaction', 'turn-duration', 'api-error', 'pr-link',
+])
+
 function isSidekickEventType(type: TranscriptLineType): boolean {
-  return ![
-    'user-message',
-    'assistant-message',
-    'tool-use',
-    'tool-result',
-    'compaction',
-    'turn-duration',
-    'api-error',
-    'pr-link',
-  ].includes(type)
+  return !CLAUDE_CODE_TYPES.has(type)
 }
 
 function renderSidekickDetail(line: TLine) {

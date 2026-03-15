@@ -20,7 +20,8 @@ export function computeToolPairs(
   const pairs: ToolPair[] = []
   let colorIndex = 0
 
-  lines.forEach((line, index) => {
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index]
     if (line.type === 'tool-use' && line.toolUseId) {
       useMap.set(line.toolUseId, index)
     }
@@ -36,7 +37,7 @@ export function computeToolPairs(
         colorIndex++
       }
     }
-  })
+  }
 
   return pairs
 }
@@ -44,4 +45,18 @@ export function computeToolPairs(
 /** Hook: compute tool pairs with memoization */
 export function useToolPairs(lines: { type: string; toolUseId?: string }[]): ToolPair[] {
   return useMemo(() => computeToolPairs(lines), [lines])
+}
+
+/** Hook: compute tool pairs and build a lookup map by toolUseId */
+export function useToolPairLookup(lines: { type: string; toolUseId?: string }[]): {
+  toolPairs: ToolPair[]
+  pairByToolUseId: Map<string, ToolPair>
+} {
+  const toolPairs = useToolPairs(lines)
+  const pairByToolUseId = useMemo(() => {
+    const map = new Map<string, ToolPair>()
+    for (const pair of toolPairs) map.set(pair.toolUseId, pair)
+    return map
+  }, [toolPairs])
+  return { toolPairs, pairByToolUseId }
 }

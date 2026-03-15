@@ -449,6 +449,65 @@ async function readSidekickEvents(projectDir: string, sessionId: string): Promis
 }
 
 /**
+ * Parse a JSONL transcript file into ApiTranscriptLine[].
+ * Shared core loop for both main transcripts and subagent transcripts.
+ *
+ * @param onExtra - Optional callback for entry types beyond user/assistant/system.
+ *   Receives the entry, its type, line index, timestamp, and accumulated results.
+ *   Return lines to add, or empty array to skip.
+ */
+function parseJsonlContent(
+  content: string,
+  onExtra?: (
+    entry: Record<string, unknown>,
+    entryType: string,
+    lineIndex: number,
+    timestamp: number,
+    results: ApiTranscriptLine[],
+  ) => ApiTranscriptLine[],
+): ApiTranscriptLine[] {
+  const results: ApiTranscriptLine[] = []
+  const rawLines = content.split('\n')
+
+  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
+    const trimmed = rawLines[lineIndex].trim()
+    if (!trimmed) continue
+
+    let entry: Record<string, unknown>
+    try {
+      entry = JSON.parse(trimmed) as Record<string, unknown>
+    } catch {
+      continue
+    }
+
+    const entryType = entry.type as string | undefined
+    if (!entryType) continue
+    if (SKIP_TYPES.has(entryType)) continue
+
+    const timestamp = parseTimestamp(entry.timestamp)
+
+    let lines: ApiTranscriptLine[]
+    switch (entryType) {
+      case 'user':
+        lines = processUserEntry(entry, lineIndex, timestamp)
+        break
+      case 'assistant':
+        lines = processAssistantEntry(entry, lineIndex, timestamp)
+        break
+      case 'system':
+        lines = processSystemEntry(entry, lineIndex, timestamp)
+        break
+      default:
+        lines = onExtra?.(entry, entryType, lineIndex, timestamp, results) ?? []
+    }
+
+    results.push(...lines)
+  }
+
+  return results
+}
+
+/**
  * Parse a Claude Code transcript JSONL file into ApiTranscriptLine[].
  *
  * When projectDir is provided, also reads Sidekick NDJSON logs and
@@ -471,65 +530,24 @@ export async function parseTranscriptLines(
 
   if (!content.trim()) return []
 
-  const results: ApiTranscriptLine[] = []
-  const rawLines = content.split('\n')
+  const results = parseJsonlContent(content, (entry, entryType, lineIndex, timestamp, accumulated) => {
+    if (entryType === 'pr-link') return processPrLinkEntry(entry, lineIndex, timestamp)
 
-  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-    const trimmed = rawLines[lineIndex].trim()
-    if (!trimmed) continue
-
-    let entry: Record<string, unknown>
-    try {
-      entry = JSON.parse(trimmed) as Record<string, unknown>
-    } catch {
-      // Skip malformed JSON lines
-      continue
-    }
-
-    const entryType = entry.type as string | undefined
-    if (!entryType) continue
-
-    // Skip noise types
-    if (SKIP_TYPES.has(entryType)) continue
-
-    const timestamp = parseTimestamp(entry.timestamp)
-
-    let lines: ApiTranscriptLine[]
-
-    switch (entryType) {
-      case 'user':
-        lines = processUserEntry(entry, lineIndex, timestamp)
-        break
-      case 'assistant':
-        lines = processAssistantEntry(entry, lineIndex, timestamp)
-        break
-      case 'system':
-        lines = processSystemEntry(entry, lineIndex, timestamp)
-        break
-      case 'pr-link':
-        lines = processPrLinkEntry(entry, lineIndex, timestamp)
-        break
-      default:
-        // Handle agent_progress: associate agentId with the most recent tool-use line
-        if (entryType === 'agent_progress') {
-          const data = entry.data as Record<string, unknown> | undefined
-          const agentId = data?.agentId as string | undefined
-          if (agentId) {
-            // Walk backwards to find the most recent tool-use line
-            for (let i = results.length - 1; i >= 0; i--) {
-              if (results[i].type === 'tool-use') {
-                results[i].agentId = agentId
-                break
-              }
-            }
+    if (entryType === 'agent_progress') {
+      const data = entry.data as Record<string, unknown> | undefined
+      const agentId = data?.agentId as string | undefined
+      if (agentId) {
+        for (let i = accumulated.length - 1; i >= 0; i--) {
+          if (accumulated[i].type === 'tool-use') {
+            accumulated[i].agentId = agentId
+            break
           }
         }
-        // Unknown type — skip
-        lines = []
+      }
     }
 
-    results.push(...lines)
-  }
+    return []
+  })
 
   // If projectDir provided, interleave Sidekick events and compute LED states
   if (projectDir) {
@@ -644,43 +662,7 @@ export async function parseSubagentTranscript(
 
   if (!content.trim()) return { lines: [], meta: {} }
 
-  const results: ApiTranscriptLine[] = []
-  const rawLines = content.split('\n')
-
-  for (let lineIndex = 0; lineIndex < rawLines.length; lineIndex++) {
-    const trimmed = rawLines[lineIndex].trim()
-    if (!trimmed) continue
-
-    let entry: Record<string, unknown>
-    try {
-      entry = JSON.parse(trimmed) as Record<string, unknown>
-    } catch {
-      continue
-    }
-
-    const entryType = entry.type as string | undefined
-    if (!entryType) continue
-    if (SKIP_TYPES.has(entryType)) continue
-
-    const timestamp = parseTimestamp(entry.timestamp)
-
-    let lines: ApiTranscriptLine[]
-    switch (entryType) {
-      case 'user':
-        lines = processUserEntry(entry, lineIndex, timestamp)
-        break
-      case 'assistant':
-        lines = processAssistantEntry(entry, lineIndex, timestamp)
-        break
-      case 'system':
-        lines = processSystemEntry(entry, lineIndex, timestamp)
-        break
-      default:
-        lines = []
-    }
-
-    results.push(...lines)
-  }
+  const lines = parseJsonlContent(content)
 
   // Read meta.json if present
   const metaPath = filePath.replace('.jsonl', '.meta.json')
@@ -697,7 +679,7 @@ export async function parseSubagentTranscript(
     // No meta file or malformed — OK
   }
 
-  return { lines: results, meta }
+  return { lines, meta }
 }
 
 /**
