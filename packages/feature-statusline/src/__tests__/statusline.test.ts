@@ -2954,6 +2954,88 @@ describe('StatuslineService', () => {
     })
   })
 
+  describe('tokensStatus derives from context window fraction, not absolute thresholds', () => {
+    it('reports normal status for 150k tokens on 1M context window (15% usage)', async () => {
+      // Regression guard: absolute thresholds (100k/160k) would false-alarm here
+      const hookInput = createTestHookInput({
+        totalInputTokens: 150000,
+        contextWindowSize: 1000000,
+      })
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.tokensStatus).toBe('normal')
+      expect(result.viewModel.tokenPercentageActual).toBe('15%')
+    })
+
+    it('reports warning status at 50%+ of effective context limit', async () => {
+      const hookInput = createTestHookInput({
+        totalInputTokens: 80000,
+        contextWindowSize: 200000,
+      })
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.tokensStatus).toBe('warning')
+    })
+
+    it('reports critical status at 80%+ of effective context limit', async () => {
+      const hookInput = createTestHookInput({
+        totalInputTokens: 130000,
+        contextWindowSize: 200000,
+      })
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        hookInput,
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.tokensStatus).toBe('critical')
+    })
+
+    it('falls back to normal when contextUsage is unavailable', async () => {
+      const state = createTestPersistedMetrics({ totalTokens: 150000 })
+      await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
+
+      const service = createStatuslineService({
+        stateService,
+        setupService,
+        sessionId,
+        cwd: '/test',
+        useColors: false,
+        // No hookInput
+      })
+
+      const result = await service.render()
+
+      expect(result.viewModel.tokensStatus).toBe('normal')
+    })
+  })
+
   describe('logger debug output', () => {
     /** Create a mock logger that captures debug messages */
     // eslint-disable-next-line @typescript-eslint/explicit-function-return-type

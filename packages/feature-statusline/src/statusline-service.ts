@@ -36,6 +36,7 @@ import {
   formatTokens,
   getBranchColor,
   getThresholdStatus,
+  contextBarStatusToThresholdStatus,
 } from './formatter.js'
 import { GitProvider, createGitProvider } from './git-provider.js'
 import { StateReader, createStateReader, discoverPreviousResumeMessage } from './state-reader.js'
@@ -881,7 +882,11 @@ export class StatuslineService {
       tokenUsageEffective: isIndeterminate ? '⟳ compacted' : formatTokens(totalWithBuffer),
       tokenPercentageActual: isIndeterminate ? '⟳' : `${actualPercentage}%`,
       tokenPercentageEffective: isIndeterminate ? '⟳' : `${effectivePercentage}%`,
-      tokensStatus: isIndeterminate ? 'normal' : getThresholdStatus(effectiveTokens, this.config.thresholds.tokens),
+      tokensStatus: isIndeterminate
+        ? 'normal'
+        : contextUsage
+          ? contextBarStatusToThresholdStatus(contextUsage.status)
+          : 'normal',
       cost: formatCost(costUsd),
       costStatus: getThresholdStatus(costUsd, this.config.thresholds.cost),
       duration: formatDuration(durationMs),
