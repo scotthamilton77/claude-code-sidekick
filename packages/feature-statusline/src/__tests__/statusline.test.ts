@@ -2956,9 +2956,7 @@ describe('StatuslineService', () => {
 
   describe('tokensStatus derives from context window fraction, not absolute thresholds', () => {
     it('reports normal status for 150k tokens on 1M context window (15% usage)', async () => {
-      // Bug: 150k tokens exceeds hardcoded 100k warning threshold, showing false yellow/red
-      // Fix: tokensStatus should use context-window-relative fraction like the context bar
-      // 150k / (1M - 45k buffer) = ~15.7% usage → well below 50% → should be 'normal'
+      // Regression guard: absolute thresholds (100k/160k) would false-alarm here
       const hookInput = createTestHookInput({
         totalInputTokens: 150000,
         contextWindowSize: 1000000,
@@ -2980,8 +2978,6 @@ describe('StatuslineService', () => {
     })
 
     it('reports warning status at 50%+ of effective context limit', async () => {
-      // On a 200k window with 45k buffer, effective limit = 155k
-      // 80k tokens = 80k/155k ≈ 51.6% → should be 'warning'
       const hookInput = createTestHookInput({
         totalInputTokens: 80000,
         contextWindowSize: 200000,
@@ -3002,8 +2998,6 @@ describe('StatuslineService', () => {
     })
 
     it('reports critical status at 80%+ of effective context limit', async () => {
-      // On a 200k window with 45k buffer, effective limit = 155k
-      // 130k tokens = 130k/155k ≈ 83.9% → should be 'critical'
       const hookInput = createTestHookInput({
         totalInputTokens: 130000,
         contextWindowSize: 200000,
@@ -3024,7 +3018,6 @@ describe('StatuslineService', () => {
     })
 
     it('falls back to normal when contextUsage is unavailable', async () => {
-      // No hookInput → no context window → contextUsage undefined → default 'normal'
       const state = createTestPersistedMetrics({ totalTokens: 150000 })
       await fs.writeFile(path.join(stateDir, 'transcript-metrics.json'), JSON.stringify(state))
 
