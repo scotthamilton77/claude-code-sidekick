@@ -103,6 +103,17 @@ describe('ReminderOrchestrator', () => {
       )
     })
 
+    it('logs reminder:unstaged events via session-scoped child logger', async () => {
+      const childLogger = createMockLogger()
+      vi.mocked(logger.child).mockReturnValue(childLogger)
+
+      await orchestrator.onReminderStaged({ name: ReminderIds.PAUSE_AND_REFLECT, hook: 'PreToolUse' }, 'session-456')
+
+      expect(logger.child).toHaveBeenCalledWith({ context: { sessionId: 'session-456' } })
+      expect(childLogger.info).toHaveBeenCalled()
+      expect(logger.info).not.toHaveBeenCalled()
+    })
+
     it('does not unstage VC for other reminders', async () => {
       await orchestrator.onReminderStaged({ name: 'some-other-reminder', hook: 'PreToolUse' }, 'session-123')
 
@@ -162,6 +173,21 @@ describe('ReminderOrchestrator', () => {
         'Unstaged P&R after VC consumed',
         expect.objectContaining({ sessionId: 'session-123' })
       )
+    })
+
+    it('logs reminder:unstaged events via session-scoped child logger', async () => {
+      const childLogger = createMockLogger()
+      vi.mocked(logger.child).mockReturnValue(childLogger)
+      const metrics = { turnCount: 5, toolsThisTurn: 10, toolCount: 25 }
+
+      await orchestrator.onReminderConsumed(
+        { name: ReminderIds.VERIFY_COMPLETION, hook: 'Stop' },
+        'session-789',
+        metrics
+      )
+
+      expect(logger.child).toHaveBeenCalledWith({ context: { sessionId: 'session-789' } })
+      expect(childLogger.info).toHaveBeenCalled()
     })
 
     it('does not trigger rules for other reminders', async () => {

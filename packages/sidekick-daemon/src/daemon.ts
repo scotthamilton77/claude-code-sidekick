@@ -242,7 +242,9 @@ export class Daemon {
               errorStack,
             }
           )
-          logEvent(this.logManager.getLogger(), event)
+          const baseLogger = this.logManager.getLogger()
+          const eventLogger = sessionId ? baseLogger.child({ context: { sessionId } }) : baseLogger
+          logEvent(eventLogger, event)
         }
       },
     })

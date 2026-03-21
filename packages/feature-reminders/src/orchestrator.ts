@@ -77,10 +77,11 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       try {
         const staging = this.deps.getStagingService(sessionId)
         const eventContext = { sessionId }
+        const sessionLogger = this.deps.logger.child({ context: { sessionId } })
         for (const vcId of ALL_VC_REMINDER_IDS) {
           await staging.deleteReminder('Stop', vcId)
           logEvent(
-            this.deps.logger,
+            sessionLogger,
             ReminderEvents.reminderUnstaged(eventContext, {
               reminderName: vcId,
               hookName: 'Stop',
@@ -128,7 +129,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
         const staging = this.deps.getStagingService(sessionId)
         await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
         logEvent(
-          this.deps.logger,
+          this.deps.logger.child({ context: { sessionId } }),
           ReminderEvents.reminderUnstaged(
             { sessionId },
             {
