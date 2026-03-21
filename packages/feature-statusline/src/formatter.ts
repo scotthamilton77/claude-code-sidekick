@@ -663,6 +663,21 @@ export function getContextBarStatus(usageFraction: number): ContextBarStatus {
 }
 
 /**
+ * Map context bar status to threshold status so token percentage text
+ * and context bar graph agree on color (both derived from usage fraction).
+ */
+export function contextBarStatusToThresholdStatus(status: ContextBarStatus): ThresholdStatus {
+  switch (status) {
+    case 'high':
+      return 'critical'
+    case 'medium':
+      return 'warning'
+    case 'low':
+      return 'normal'
+  }
+}
+
+/**
  * Calculate context usage data from hook metrics.
  *
  * @param contextTokens - Context tokens (conversation content)
