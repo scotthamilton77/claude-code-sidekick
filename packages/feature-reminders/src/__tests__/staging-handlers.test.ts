@@ -1369,10 +1369,10 @@ additionalContext: "Standard user prompt reminder"
       expect(handler).toBeDefined()
       await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
-      // Reminder should be re-staged
+      // Wrapper + all 4 per-tool reminders should be re-staged (no prior tool state = all need verification)
       const reminders = staging.getRemindersForHook('Stop')
-      expect(reminders).toHaveLength(1)
-      expect(reminders[0].name).toBe('verify-completion')
+      const reminderNames = reminders.map((r) => r.name).sort()
+      expect(reminderNames).toEqual(['vc-build', 'vc-lint', 'vc-test', 'vc-typecheck', 'verify-completion'])
       expect(logger.wasLogged('VC unstage: re-staged for next Stop')).toBe(true)
     })
 
@@ -1518,6 +1518,88 @@ additionalContext: "Standard user prompt reminder"
       expect(notStagedEvents).toHaveLength(1)
       expect(notStagedEvents[0].meta?.reason).toBe('no_unverified_changes')
       expect(notStagedEvents[0].meta?.reminderName).toBe('verify-completion')
+    })
+
+    it('re-stages per-tool reminders alongside wrapper when unverified changes exist', async () => {
+      const stateService = new MockStateService(testProjectDir)
+
+      // Set vc-unverified state
+      const vcUnverifiedPath = stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+      stateService.setStored(vcUnverifiedPath, {
+        hasUnverifiedChanges: true,
+        cycleCount: 1,
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      })
+
+      // Set verification-tools state: all 4 tools in 'staged' status (need verification)
+      const vtPath = stateService.sessionStatePath(sessionId, 'verification-tools.json')
+      stateService.setStored(vtPath, {
+        build: { status: 'staged', editsSinceVerified: 0, lastVerifiedAt: null, lastStagedAt: Date.now() },
+        typecheck: { status: 'staged', editsSinceVerified: 0, lastVerifiedAt: null, lastStagedAt: Date.now() },
+        test: { status: 'staged', editsSinceVerified: 0, lastVerifiedAt: null, lastStagedAt: Date.now() },
+        lint: { status: 'staged', editsSinceVerified: 0, lastVerifiedAt: null, lastStagedAt: Date.now() },
+      })
+
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: { projectDir: testProjectDir, userConfigDir: '/mock/user', projectConfigDir: '/mock/project-config' },
+      })
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      // Should contain wrapper + all 4 per-tool reminders (5 total)
+      const reminders = staging.getRemindersForHook('Stop')
+      const reminderNames = reminders.map((r) => r.name).sort()
+      expect(reminderNames).toEqual(['vc-build', 'vc-lint', 'vc-test', 'vc-typecheck', 'verify-completion'])
+    })
+
+    it('only re-stages per-tool reminders for tools that need verification', async () => {
+      const stateService = new MockStateService(testProjectDir)
+
+      // Set vc-unverified state
+      const vcUnverifiedPath = stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+      stateService.setStored(vcUnverifiedPath, {
+        hasUnverifiedChanges: true,
+        cycleCount: 1,
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      })
+
+      // Set verification-tools state: build needs verification, typecheck is verified (below threshold)
+      const vtPath = stateService.sessionStatePath(sessionId, 'verification-tools.json')
+      stateService.setStored(vtPath, {
+        build: { status: 'staged', editsSinceVerified: 0, lastVerifiedAt: null, lastStagedAt: Date.now() },
+        typecheck: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+        test: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+        lint: { status: 'verified', editsSinceVerified: 0, lastVerifiedAt: Date.now(), lastStagedAt: Date.now() },
+      })
+
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: { projectDir: testProjectDir, userConfigDir: '/mock/user', projectConfigDir: '/mock/project-config' },
+      })
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      // Should contain wrapper + only vc-build (not the verified tools)
+      const reminders = staging.getRemindersForHook('Stop')
+      const reminderNames = reminders.map((r) => r.name).sort()
+      expect(reminderNames).toEqual(['vc-build', 'verify-completion'])
     })
   })
 

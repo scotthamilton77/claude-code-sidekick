@@ -26,6 +26,7 @@ import { findMatchingPattern } from '../../tool-pattern-matcher.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import {
   ReminderIds,
+  TOOL_REMINDER_MAP,
   DEFAULT_REMINDERS_SETTINGS,
   VC_TOOL_REMINDER_IDS,
   type RemindersSettings,
@@ -34,13 +35,6 @@ import {
 import { createRemindersState, type RemindersStateAccessors } from '../../state.js'
 
 const FILE_EDIT_TOOLS = ['Write', 'Edit', 'MultiEdit']
-
-const TOOL_REMINDER_MAP: Record<string, string> = {
-  build: ReminderIds.VC_BUILD,
-  typecheck: ReminderIds.VC_TYPECHECK,
-  test: ReminderIds.VC_TEST,
-  lint: ReminderIds.VC_LINT,
-}
 
 const VC_TOOL_NAME_SET = new Set<string>(VC_TOOL_REMINDER_IDS)
 

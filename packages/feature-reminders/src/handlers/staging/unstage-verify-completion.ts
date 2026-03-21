@@ -12,7 +12,13 @@ import { logEvent } from '@sidekick/core'
 import type { DaemonContext, VCUnverifiedState, EventLogContext } from '@sidekick/types'
 import { ReminderEvents } from '../../events.js'
 import { isDaemonContext, isHookEvent } from '@sidekick/types'
-import { ReminderIds, ALL_VC_REMINDER_IDS, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import {
+  ReminderIds,
+  TOOL_REMINDER_MAP,
+  ALL_VC_REMINDER_IDS,
+  DEFAULT_REMINDERS_SETTINGS,
+  type RemindersSettings,
+} from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { createRemindersState } from '../../state.js'
 
@@ -89,7 +95,39 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
             await remindersState.vcUnverified.delete(sessionId)
             // Fall through to delete all VC reminders
           } else {
-            // Re-stage verify-completion for next Stop
+            // Re-stage per-tool reminders for tools that still need verification
+            for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
+              if (!toolConfig.enabled) continue
+              const state = toolsState[toolName]
+              const needsVerification =
+                !state ||
+                state.status === 'staged' ||
+                ((state.status === 'verified' || state.status === 'cooldown') &&
+                  state.editsSinceVerified >= toolConfig.clearing_threshold)
+
+              if (needsVerification) {
+                const reminderId = TOOL_REMINDER_MAP[toolName]
+                if (reminderId) {
+                  const toolReminder = resolveReminder(reminderId, {
+                    context: {},
+                    assets: daemonCtx.assets,
+                  })
+                  if (toolReminder) {
+                    await stageReminder(daemonCtx, 'Stop', {
+                      ...toolReminder,
+                      stagedAt: {
+                        timestamp: Date.now(),
+                        turnCount: unverifiedState.setAt.turnCount,
+                        toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
+                        toolCount: unverifiedState.setAt.toolCount,
+                      },
+                    })
+                  }
+                }
+              }
+            }
+
+            // Re-stage verify-completion wrapper for next Stop
             const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
               context: {},
               assets: daemonCtx.assets,
