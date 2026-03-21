@@ -9,7 +9,7 @@
  */
 import type { RuntimeContext } from '@sidekick/core'
 import { logEvent } from '@sidekick/core'
-import type { DaemonContext, VCUnverifiedState, EventLogContext } from '@sidekick/types'
+import type { DaemonContext, VCUnverifiedState, EventLogContext, VerificationToolStatusState } from '@sidekick/types'
 import { ReminderEvents } from '../../events.js'
 import { isDaemonContext, isHookEvent } from '@sidekick/types'
 import {
@@ -18,9 +18,24 @@ import {
   ALL_VC_REMINDER_IDS,
   DEFAULT_REMINDERS_SETTINGS,
   type RemindersSettings,
+  type VerificationToolConfig,
 } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { createRemindersState } from '../../state.js'
+
+/** Check whether a single verification tool needs (re-)verification */
+function toolNeedsVerification(
+  toolConfig: VerificationToolConfig,
+  state: VerificationToolStatusState | undefined,
+): boolean {
+  if (!toolConfig.enabled) return false
+  if (!state) return true
+  if (state.status === 'staged') return true
+  if (state.status === 'verified' || state.status === 'cooldown') {
+    return state.editsSinceVerified >= toolConfig.clearing_threshold
+  }
+  return false
+}
 
 export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
   if (!isDaemonContext(context)) return
@@ -78,16 +93,9 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           const toolsState = verificationToolsResult.data
           const verificationTools = config.verification_tools ?? {}
 
-          const hasToolsNeedingVerification = Object.entries(verificationTools).some(([toolName, toolConfig]) => {
-            if (!toolConfig.enabled) return false
-            const state = toolsState[toolName]
-            if (!state) return true // never tracked = needs verification
-            if (state.status === 'staged') return true
-            if (state.status === 'verified' || state.status === 'cooldown') {
-              return state.editsSinceVerified >= toolConfig.clearing_threshold
-            }
-            return false
-          })
+          const hasToolsNeedingVerification = Object.entries(verificationTools).some(([toolName, toolConfig]) =>
+            toolNeedsVerification(toolConfig, toolsState[toolName])
+          )
 
           if (!hasToolsNeedingVerification) {
             daemonCtx.logger.info('VC unstage: all tools verified, skipping wrapper re-stage', {
@@ -99,33 +107,23 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           } else {
             // Re-stage per-tool reminders for tools that still need verification
             for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
-              if (!toolConfig.enabled) continue
-              const state = toolsState[toolName]
-              const needsVerification =
-                !state ||
-                state.status === 'staged' ||
-                ((state.status === 'verified' || state.status === 'cooldown') &&
-                  state.editsSinceVerified >= toolConfig.clearing_threshold)
-
-              if (needsVerification) {
-                const reminderId = TOOL_REMINDER_MAP[toolName]
-                if (reminderId) {
-                  const toolReminder = resolveReminder(reminderId, {
-                    context: {},
-                    assets: daemonCtx.assets,
-                  })
-                  if (toolReminder) {
-                    await stageReminder(daemonCtx, 'Stop', {
-                      ...toolReminder,
-                      stagedAt: {
-                        timestamp: Date.now(),
-                        turnCount: unverifiedState.setAt.turnCount,
-                        toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
-                        toolCount: unverifiedState.setAt.toolCount,
-                      },
-                    })
-                  }
-                }
+              if (!toolNeedsVerification(toolConfig, toolsState[toolName])) continue
+              const reminderId = TOOL_REMINDER_MAP[toolName]
+              if (!reminderId) continue
+              const toolReminder = resolveReminder(reminderId, {
+                context: {},
+                assets: daemonCtx.assets,
+              })
+              if (toolReminder) {
+                await stageReminder(daemonCtx, 'Stop', {
+                  ...toolReminder,
+                  stagedAt: {
+                    timestamp: Date.now(),
+                    turnCount: unverifiedState.setAt.turnCount,
+                    toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
+                    toolCount: unverifiedState.setAt.toolCount,
+                  },
+                })
               }
             }
 
