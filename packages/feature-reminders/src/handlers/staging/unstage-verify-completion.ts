@@ -38,14 +38,16 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
 
       if (!sessionId) {
         daemonCtx.logger.warn('No sessionId in UserPromptSubmit event')
-        await daemonCtx.staging.deleteReminder('Stop', ReminderIds.VERIFY_COMPLETION)
-        logEvent(
-          daemonCtx.logger,
-          ReminderEvents.reminderUnstaged(
-            { sessionId: '' },
-            { reminderName: ReminderIds.VERIFY_COMPLETION, hookName: 'Stop', reason: 'no_session_id' }
+        for (const vcId of ALL_VC_REMINDER_IDS) {
+          await daemonCtx.staging.deleteReminder('Stop', vcId)
+          logEvent(
+            daemonCtx.logger,
+            ReminderEvents.reminderUnstaged(
+              { sessionId: '' },
+              { reminderName: vcId, hookName: 'Stop', reason: 'no_session_id' }
+            )
           )
-        )
+        }
         return
       }
 
