@@ -332,6 +332,14 @@ export const ReminderIds = {
   USER_PROFILE: 'user-profile',
 } as const
 
+/** Maps verification tool config names to their reminder IDs */
+export const TOOL_REMINDER_MAP: Record<string, string> = {
+  build: ReminderIds.VC_BUILD,
+  typecheck: ReminderIds.VC_TYPECHECK,
+  test: ReminderIds.VC_TEST,
+  lint: ReminderIds.VC_LINT,
+}
+
 /** All per-tool VC reminder IDs */
 export const VC_TOOL_REMINDER_IDS = [
   ReminderIds.VC_BUILD,
