@@ -8,7 +8,7 @@ export async function handleListProjects(req: ApiRequest): Promise<{ projects: u
 }
 
 export async function handleListSessions(req: ApiRequest): Promise<{ sessions: unknown[] }> {
-  const projectId = validatePathParam(req.params.projectId, 'projectId')
+  const projectId = validatePathParam(req.projectId, 'project ID')
   const project = await requireProject(req.ctx.registryRoot, projectId)
   const sessions = await listSessions(project.projectDir, project.active)
   return { sessions }

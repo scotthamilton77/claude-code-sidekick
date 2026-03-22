@@ -11,8 +11,8 @@ import { validatePathParam } from '../utils.js'
  * (no Sidekick event interleaving).
  */
 export async function handleGetTranscript(req: ApiRequest): Promise<{ lines: unknown[] }> {
-  const projectId = validatePathParam(req.params.projectId, 'projectId')
-  const sessionId = validatePathParam(req.params.sessionId, 'sessionId')
+  const projectId = validatePathParam(req.projectId, 'project ID')
+  const sessionId = validatePathParam(req.sessionId, 'session ID')
 
   // Optional project lookup — no 404 on missing project
   const project = await getProjectById(req.ctx.registryRoot, projectId)
@@ -25,9 +25,9 @@ export async function handleGetTranscript(req: ApiRequest): Promise<{ lines: unk
  * Returns 404 when the subagent transcript is not found.
  */
 export async function handleGetSubagentTranscript(req: ApiRequest): Promise<SubagentTranscriptResult> {
-  const projectId = validatePathParam(req.params.projectId, 'projectId')
-  const sessionId = validatePathParam(req.params.sessionId, 'sessionId')
-  const agentId = validatePathParam(req.params.agentId, 'agentId')
+  const projectId = validatePathParam(req.projectId, 'project ID')
+  const sessionId = validatePathParam(req.sessionId, 'session ID')
+  const agentId = validatePathParam(req.agentId, 'agent ID')
 
   const result = await parseSubagentTranscript(projectId, sessionId, agentId)
   if (!result) {

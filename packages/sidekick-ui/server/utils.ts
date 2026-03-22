@@ -88,7 +88,7 @@ export async function writeResponse(response: Response, res: ServerResponse): Pr
  * - plain object → serialized to JSON Response
  */
 export function toJsonResponse(data: unknown): Response | undefined {
-  if (data === undefined || data === null) return undefined
+  if (data === undefined) return undefined
   if (data instanceof Response) return data
   return new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json' },

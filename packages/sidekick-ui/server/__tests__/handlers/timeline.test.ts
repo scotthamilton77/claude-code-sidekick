@@ -31,7 +31,7 @@ beforeEach(() => {
 function fakeRequest(params: Record<string, string> = {}): ApiRequest {
   const req = new Request('http://localhost/api/projects/p/sessions/s/timeline') as ApiRequest
   req.ctx = { registryRoot: '/registry' }
-  req.params = params
+  Object.assign(req, params)
   return req
 }
 

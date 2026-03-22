@@ -179,7 +179,7 @@ describe('sidekickApiPlugin adapter integration', () => {
       expect(mockRes.statusCode).toBe(400)
       expect(next).not.toHaveBeenCalled()
       const body = JSON.parse(resBody[0])
-      expect(body.error).toContain('Invalid projectId')
+      expect(body.error).toContain('Invalid project ID')
     })
   })
 
