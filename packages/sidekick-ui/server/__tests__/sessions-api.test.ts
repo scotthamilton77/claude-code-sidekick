@@ -189,6 +189,48 @@ describe('listSessions', () => {
     const result = await listSessions('/fake/project', true)
     expect(result[0].status).toBe('active')
   })
+
+  it('reads summary and persona files concurrently via Promise.allSettled', async () => {
+    mockReaddir.mockResolvedValue([{ name: 'abc-123', isDirectory: () => true }])
+    mockStat.mockResolvedValue({ mtime: new Date('2026-03-10T14:30:00Z') })
+
+    // Deferred promises prove concurrency: persona read starts while summary is still pending
+    let resolveSummary!: (value: string) => void
+    let resolvePersona!: (value: string) => void
+    const summaryPromise = new Promise<string>((r) => { resolveSummary = r })
+    const personaPromise = new Promise<string>((r) => { resolvePersona = r })
+
+    const callOrder: string[] = []
+    mockReadFile.mockImplementation((filePath: string) => {
+      if (filePath.includes('session-summary.json')) {
+        callOrder.push('summary-called')
+        return summaryPromise
+      }
+      if (filePath.includes('session-persona.json')) {
+        callOrder.push('persona-called')
+        return personaPromise
+      }
+      return Promise.reject(new Error('ENOENT'))
+    })
+
+    // Start listSessions — it will await the deferred promises
+    const resultPromise = listSessions('/fake/project')
+
+    // Yield to let Promise.allSettled initiate both reads
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Both reads were initiated before either resolved (proves concurrency)
+    expect(callOrder).toEqual(['summary-called', 'persona-called'])
+
+    // Now resolve both
+    resolveSummary(JSON.stringify({ session_title: 'Concurrent test' }))
+    resolvePersona(JSON.stringify({ persona_id: 'jarvis' }))
+
+    const result = await resultPromise
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('abc-123 — Concurrent test')
+    expect(result[0].persona).toBe('jarvis')
+  })
 })
 
 // --- Structured logging tests ---
