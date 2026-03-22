@@ -174,19 +174,17 @@ describe('writeResponse', () => {
     })
 
     const chunks: string[] = []
-    const mockRes = {
-      statusCode: 0,
-      setHeader: vi.fn(),
-      end: vi.fn((chunk?: string) => {
-        if (chunk) chunks.push(chunk)
-      }),
-    } as unknown as ServerResponse
+    const setHeader = vi.fn()
+    const end = vi.fn((chunk?: string) => {
+      if (chunk) chunks.push(chunk)
+    })
+    const mockRes = { statusCode: 0, setHeader, end } as unknown as ServerResponse
 
     await writeResponse(response, mockRes)
 
     expect(mockRes.statusCode).toBe(200)
-    expect((mockRes as any).setHeader).toHaveBeenCalledWith('content-type', 'application/json')
-    expect((mockRes as any).end).toHaveBeenCalled()
+    expect(setHeader).toHaveBeenCalledWith('content-type', 'application/json')
+    expect(end).toHaveBeenCalled()
   })
 })
 

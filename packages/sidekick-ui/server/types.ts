@@ -7,5 +7,4 @@ export interface ApiContext {
 export interface ApiRequest extends IRequest {
   ctx: ApiContext
   query: Record<string, string | undefined>
-  [key: string]: any
 }
