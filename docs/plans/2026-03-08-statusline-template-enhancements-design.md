@@ -68,7 +68,7 @@ All width calculations (maxLength, wrapAt) strip ANSI escape codes and measure v
 | `{projectDirShort}` | Basename of project root | `claude-code-sidekick` | `claude-code-sidekick` |
 | `{projectDirFull}` | Home-shortened project root | `~/src/projects/claude-code-sidekick` | `~/src/projects/claude-code-sidekick` |
 | `{worktreeName}` | Worktree name or empty | *(empty)* | `statusline-debug` |
-| `{worktreeOrBranch}` | Worktree name if in worktree, else branch name (raw) | `main` | `statusline-debug` |
+| `{branchWT}` | Branch name + `[wt]` indicator when in worktree | `main` | `feat/auth [wt]` |
 
 Project root derivation: `worktree.original_cwd` when in a worktree, else `workspace.project_dir` from hook input.
 

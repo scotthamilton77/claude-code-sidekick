@@ -4,7 +4,7 @@
 
 **Goal:** Enhance the statusline template system with per-token truncation, responsive line wrapping, worktree-aware tokens, and visible-width measurement.
 
-**Architecture:** The formatter's template parser gains attribute handling for `maxLength`, `truncateStyle`, `wrapAt`, and `wrapPrefix`/`wrapSuffix`. Three truncation strategies (`suffix`, `prefix`, `path`) are implemented as pure functions. New tokens (`projectDirShort`, `projectDirFull`, `worktreeName`, `worktreeOrBranch`) are populated from Claude Code's hook input `worktree` object. The `{branch}` token becomes raw (no baked-in icon). Width measurement strips ANSI codes to count visible characters only.
+**Architecture:** The formatter's template parser gains attribute handling for `maxLength`, `truncateStyle`, `wrapAt`, and `wrapPrefix`/`wrapSuffix`. Three truncation strategies (`suffix`, `prefix`, `path`) are implemented as pure functions. New tokens (`projectDirShort`, `projectDirFull`, `worktreeName`, `branchWT`) are populated from Claude Code's hook input `worktree` object. The `{branch}` token becomes raw (no baked-in icon). Width measurement strips ANSI codes to count visible characters only.
 
 **Tech Stack:** TypeScript, Vitest, Zod (config schemas)
 
@@ -400,13 +400,13 @@ describe('new tokens', () => {
     })
   })
 
-  describe('worktreeOrBranch', () => {
+  describe('branchWT', () => {
     it('returns branch name in normal session', () => {
-      // view model worktreeOrBranch should be raw branch name
+      // view model branchWT should be raw branch name
     })
 
-    it('returns worktree name in worktree session', () => {
-      // view model worktreeOrBranch should be worktree name
+    it('returns branch + [wt] indicator in worktree session', () => {
+      // view model branchWT should be branch name + [wt]
     })
   })
 
@@ -438,8 +438,8 @@ In `packages/feature-statusline/src/types.ts`, add to `StatuslineViewModel`:
   projectDirFull: string
   /** Worktree name (empty if not in worktree) */
   worktreeName: string
-  /** Worktree name if in worktree, else raw branch name */
-  worktreeOrBranch: string
+  /** Branch name + [wt] indicator when in worktree */
+  branchWT: string
 ```
 
 **Step 4: Update formatBranch to be raw**
@@ -483,7 +483,7 @@ branch: formatBranch(branch),
 projectDirShort,
 projectDirFull: homeShorten(projectRoot),
 worktreeName: worktree?.name ?? '',
-worktreeOrBranch: worktree?.name ?? branch,
+branchWT: worktree ? `${branch} [wt]` : branch,
 ```
 
 **Step 7: Update token map in Formatter.format()**
@@ -494,7 +494,7 @@ In `packages/feature-statusline/src/formatter.ts`, add new tokens to the `tokens
 projectDirShort: this.colorize(viewModel.projectDirShort, this.theme.colors.cwd),
 projectDirFull: this.colorize(viewModel.projectDirFull, this.theme.colors.cwd),
 worktreeName: viewModel.worktreeName ? this.colorize(viewModel.worktreeName, branchColor) : '',
-worktreeOrBranch: this.colorize(viewModel.worktreeOrBranch, branchColor),
+branchWT: this.colorize(viewModel.branchWT, branchColor),
 ```
 
 Also update `branch` token — remove the leading space (it was compensating for the icon):
@@ -853,9 +853,9 @@ Update the available placeholders documentation in the YAML comments to include:
 - `{projectDirShort}` - Project directory basename
 - `{projectDirFull}` - Project directory full path (home-shortened)
 - `{worktreeName}` - Worktree name (empty if not in worktree)
-- `{worktreeOrBranch}` - Worktree name if in worktree, else branch name (raw)
+- `{branchWT}` - Branch name + [wt] indicator when in worktree
 
-Update `{branch}` documentation: "Git branch name (raw, use prefix for icon)"
+Update `{branch}` documentation: "Git branch name (raw, no decoration)"
 
 Add new attribute documentation:
 - `maxLength=N` — Maximum visible character width
@@ -996,7 +996,7 @@ Start Claude Code in the project. Verify:
 
 Enter a worktree. Verify:
 - cwd reflects worktree path
-- `{worktreeOrBranch}` shows worktree name
+- `{branchWT}` shows branch + [wt] indicator
 - `{projectDirShort}` shows original repo basename
 
 **Step 4: Commit final state, push**

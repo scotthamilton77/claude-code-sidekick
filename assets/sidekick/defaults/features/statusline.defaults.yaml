@@ -23,11 +23,11 @@ settings:
   #   {cost}                    - Session cost (e.g., "$0.15")
   #   {duration}                - Session duration (e.g., "12m")
   #   {cwd}                     - Current working directory (home-shortened)
-  #   {branch}                  - Git branch name (raw, use prefix for icon)
+  #   {branch}                  - Git branch name (raw, no decoration)
+  #   {branchWT}                - Branch name + [wt] indicator when in worktree
   #   {projectDirShort}         - Project directory basename (e.g., "claude-code-sidekick")
   #   {projectDirFull}          - Project directory full path (home-shortened)
   #   {worktreeName}            - Worktree name (empty if not in worktree)
-  #   {worktreeOrBranch}        - Worktree name if in worktree, else branch name
   #   {title}                   - Session title
   #   {summary}                 - Session summary/intent
   #   {personaName}             - Current persona name (empty if disabled or no persona)
@@ -57,11 +57,10 @@ settings:
   #   Bar + percent:    "{contextBar} {tokenPercentageActual}"        → "🪙 ▓▓▒|░░░ 22%"
   #   With buffer:      "{tokenUsageActual}|{tokenUsageEffective}"    → "45k|90k"
   #   Verbose:          "{contextBar} {tokenUsageActual}/{contextWindow} ({tokenPercentageEffective})"
-  #   Worktree-aware: "{worktreeOrBranch,prefix=' ∗ '}"                → " ∗ my-worktree" or " ∗ main"
+  #   Worktree-aware: "{branchWT,prefix=' | '}"                        → " | main" or " | feat/auth [wt]"
   #   Project name:   "{projectDirShort}"                               → "claude-code-sidekick"
-  #   Worktree badge: "{worktreeName,prefix=' [wt:',suffix=']'}"       → " [wt:feature-x]" or ""
   #
-  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {projectDirShort,maxLength=40}: {cwd,maxLength=40,truncateStyle='path'}{worktreeOrBranch,prefix=' ∗ ',maxLength=40}{title,wrapAt=120,prefix=' | ',wrapPrefix='\\n'}{summary,wrapAt=120,prefix=' | ',wrapPrefix='\\n'}"
+  format: "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {projectDirShort,maxLength=40}: {cwd,maxLength=40,truncateStyle='path'}{branchWT,prefix=' | ',maxLength=40}{title,wrapAt=120,prefix=' | ',wrapPrefix='\\n'}{summary,wrapAt=120,prefix=' | ',wrapPrefix='\\n'}"
 
   # Threshold configuration for visual warnings
   thresholds:
@@ -114,3 +113,4 @@ settings:
       persona: cyan
       # branch: magenta  # Optional: if set, overrides pattern-based coloring
       # Pattern-based defaults: main/master=green, feature/*=blue, hotfix/*=red, other=magenta
+      # worktreeIndicator: dim  # Optional: color for [wt] suffix in branchWT (default: dim)
