@@ -150,6 +150,7 @@ describe('toRequest', () => {
     expect(result.method).toBe('GET')
     expect(result.url).toBe('http://localhost:5173/api/projects?_t=123')
     expect(result.ctx).toBe(ctx)
+    expect(result.query._t).toBe('123')
   })
 
   it('defaults host to localhost when header missing', () => {

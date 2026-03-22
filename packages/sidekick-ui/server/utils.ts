@@ -63,9 +63,12 @@ export async function requireSession(projectDir: string, sessionId: string): Pro
  */
 export function toRequest(req: IncomingMessage, ctx: ApiContext): ApiRequest {
   const host = req.headers.host || 'localhost'
-  const url = `http://${host}${req.url || '/'}`
+  const url = new URL(req.url || '/', `http://${host}`)
+  const query: Record<string, string | undefined> = {}
+  url.searchParams.forEach((value, key) => { query[key] = value })
   const request = new Request(url, { method: req.method }) as ApiRequest
   request.ctx = ctx
+  request.query = query
   return request
 }
 
@@ -114,8 +117,7 @@ export function handleError(err: unknown): Response {
       headers: { 'Content-Type': 'application/json' },
     })
   }
-  const message = err instanceof Error ? err.message : String(err)
-  return new Response(JSON.stringify({ error: message }), {
+  return new Response(JSON.stringify({ error: 'Internal server error' }), {
     status: 500,
     headers: { 'Content-Type': 'application/json' },
   })
