@@ -29,6 +29,3 @@ export function sidekickApiPlugin(): Plugin {
     },
   }
 }
-
-// Temporary re-export for backward compat (removed in Task 6)
-export { isValidPathSegment } from './utils.js'

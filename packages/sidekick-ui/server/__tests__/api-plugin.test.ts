@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-// Mock sessions-api and timeline-api
+// Mock sessions-api
 const mockListProjects = vi.fn()
 const mockGetProjectById = vi.fn()
 const mockListSessions = vi.fn()
@@ -12,26 +12,30 @@ vi.mock('../sessions-api.js', () => ({
   listSessions: (...args: unknown[]) => mockListSessions(...args),
 }))
 
+// Mock timeline-api
 const mockParseTimelineEvents = vi.fn()
 
 vi.mock('../timeline-api.js', () => ({
   parseTimelineEvents: (...args: unknown[]) => mockParseTimelineEvents(...args),
 }))
 
+// Mock transcript-api
 const mockParseTranscriptLines = vi.fn()
+const mockParseSubagentTranscript = vi.fn()
 
 vi.mock('../transcript-api.js', () => ({
   parseTranscriptLines: (...args: unknown[]) => mockParseTranscriptLines(...args),
+  parseSubagentTranscript: (...args: unknown[]) => mockParseSubagentTranscript(...args),
 }))
 
-// Mock node:fs/promises (access used in timeline route)
+// Mock node:fs/promises (access used via requireSession in timeline handler)
 const mockAccess = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
   access: (...args: unknown[]) => mockAccess(...args),
 }))
 
-import { sessionsApiPlugin, isValidPathSegment } from '../api-plugin.js'
+import { sidekickApiPlugin } from '../api-plugin.js'
 
 // Helper: capture the middleware from the plugin
 type MiddlewareFn = (req: IncomingMessage, res: ServerResponse, next: () => void) => void | Promise<void>
@@ -45,8 +49,7 @@ function getMiddleware(): MiddlewareFn {
       },
     },
   }
-  const plugin = sessionsApiPlugin()
-  // configureServer is defined on the plugin
+  const plugin = sidekickApiPlugin()
   ;(plugin as unknown as { configureServer: (s: typeof fakeServer) => void }).configureServer(fakeServer)
   if (!captured) throw new Error('middleware not captured')
   return captured
@@ -60,8 +63,9 @@ interface MockRes {
 }
 
 // Helper: create mock req/res/next
+// toRequest uses req.headers.host to build the URL
 function createMocks(method: string, url: string) {
-  const req = { method, url } as IncomingMessage
+  const req = { method, url, headers: { host: 'localhost:5173' } } as unknown as IncomingMessage
   const resBody: string[] = []
   const mockRes: MockRes = {
     statusCode: 200,
@@ -81,103 +85,101 @@ beforeEach(() => {
   mockListSessions.mockClear()
   mockParseTimelineEvents.mockClear()
   mockParseTranscriptLines.mockClear()
+  mockParseSubagentTranscript.mockClear()
   mockAccess.mockClear()
 })
 
-describe('isValidPathSegment', () => {
-  it('rejects empty string', () => {
-    expect(isValidPathSegment('')).toBe(false)
-  })
-
-  it('rejects "."', () => {
-    expect(isValidPathSegment('.')).toBe(false)
-  })
-
-  it('rejects ".."', () => {
-    expect(isValidPathSegment('..')).toBe(false)
-  })
-
-  it('rejects strings with "/"', () => {
-    expect(isValidPathSegment('../etc')).toBe(false)
-    expect(isValidPathSegment('foo/bar')).toBe(false)
-  })
-
-  it('rejects strings with "\\"', () => {
-    expect(isValidPathSegment('foo\\bar')).toBe(false)
-  })
-
-  it('accepts alphanumeric with dots, hyphens, underscores', () => {
-    expect(isValidPathSegment('-Users-scott-myproject')).toBe(true)
-    expect(isValidPathSegment('my.project_v2')).toBe(true)
-    expect(isValidPathSegment('abc-123')).toBe(true)
-  })
-})
-
-describe('sessionsApiPlugin middleware', () => {
-  describe('path traversal rejection', () => {
-    it('falls through when projectId ".." is URL-normalized away in sessions route', async () => {
-      // new URL normalizes /api/projects/%2E%2E/sessions → /api/sessions
-      // which doesn't match any route, so next() is called
+describe('sidekickApiPlugin adapter integration', () => {
+  describe('passthrough', () => {
+    it('calls next() for non-API URLs', async () => {
       const mw = getMiddleware()
-      const { req, res, next } = createMocks('GET', '/api/projects/%2E%2E/sessions')
+      const { req, res, next } = createMocks('GET', '/index.html')
       await mw(req, res, next)
       expect(next).toHaveBeenCalled()
     })
 
-    it('falls through when projectId "." is URL-normalized away in sessions route', async () => {
-      // new URL normalizes /api/projects/./sessions → /api/projects/sessions
+    it('calls next() for unknown /api/ routes', async () => {
       const mw = getMiddleware()
-      const { req, res, next } = createMocks('GET', '/api/projects/./sessions')
+      const { req, res, next } = createMocks('GET', '/api/unknown')
       await mw(req, res, next)
       expect(next).toHaveBeenCalled()
     })
+  })
 
-    it('rejects projectId "../etc" in sessions route via isValidPathSegment', async () => {
-      // %2F is not normalized by URL parser, so regex matches with segment "..%2Fetc"
-      // decodeURIComponent produces "../etc" which fails isValidPathSegment (contains /)
+  describe('route wiring', () => {
+    it('GET /api/projects returns project list', async () => {
       const mw = getMiddleware()
-      const { req, res, mockRes, next } = createMocks('GET', '/api/projects/..%2Fetc/sessions')
+      const projects = [{ id: 'p1', name: 'Project 1' }]
+      mockListProjects.mockResolvedValue(projects)
+      const { req, res, next, resBody } = createMocks('GET', '/api/projects')
       await mw(req, res, next)
-      expect(mockRes.statusCode).toBe(400)
+      expect(mockListProjects).toHaveBeenCalled()
       expect(next).not.toHaveBeenCalled()
+      expect(JSON.parse(resBody[0])).toEqual({ projects })
     })
 
-    it('falls through when projectId ".." is URL-normalized away in timeline route', async () => {
-      const mw = getMiddleware()
-      const { req, res, next } = createMocks(
-        'GET',
-        '/api/projects/%2E%2E/sessions/abc-123/timeline'
-      )
-      await mw(req, res, next)
-      // URL normalizes away the ".." so the route pattern doesn't match
-      expect(next).toHaveBeenCalled()
-    })
-
-    it('accepts valid projectId like "-Users-scott-myproject"', async () => {
+    it('GET /api/projects/:id/sessions returns sessions list', async () => {
       const mw = getMiddleware()
       mockGetProjectById.mockResolvedValue({
-        id: '-Users-scott-myproject',
-        name: 'myproject',
-        projectDir: '/Users/scott/myproject',
+        id: '-Users-scott-proj',
+        name: 'proj',
+        projectDir: '/Users/scott/proj',
         branch: 'main',
         active: false,
       })
-      mockListSessions.mockResolvedValue([])
-      const { req, res, mockRes, next } = createMocks(
+      mockListSessions.mockResolvedValue([{ id: 'sess-1' }])
+      const { req, res, next, resBody } = createMocks(
         'GET',
-        '/api/projects/-Users-scott-myproject/sessions'
+        '/api/projects/-Users-scott-proj/sessions'
       )
       await mw(req, res, next)
-      expect(mockRes.statusCode).toBe(200)
       expect(mockGetProjectById).toHaveBeenCalled()
+      expect(mockListSessions).toHaveBeenCalled()
+      expect(next).not.toHaveBeenCalled()
+      expect(JSON.parse(resBody[0])).toEqual({ sessions: [{ id: 'sess-1' }] })
     })
 
-    it('returns 400 for malformed percent-encoding in projectId', async () => {
+    it('GET /api/projects/:pid/sessions/:sid/transcript returns transcript', async () => {
       const mw = getMiddleware()
-      const { req, res, mockRes, next } = createMocks('GET', '/api/projects/%E0%A4%A/sessions')
+      const mockLines = [{ id: '1', type: 'user-message', timestamp: 1000, content: 'hello' }]
+      mockParseTranscriptLines.mockResolvedValue(mockLines)
+      mockGetProjectById.mockResolvedValue({ id: '-Users-foo', projectDir: '/Users/foo', active: true })
+      const { req, res, next, resBody } = createMocks(
+        'GET',
+        '/api/projects/-Users-foo/sessions/uuid-1/transcript'
+      )
+      await mw(req, res, next)
+      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1', '/Users/foo')
+      expect(next).not.toHaveBeenCalled()
+      expect(JSON.parse(resBody[0])).toEqual({ lines: mockLines })
+    })
+  })
+
+  describe('error handling', () => {
+    it('returns 400 for malformed percent-encoding', async () => {
+      const mw = getMiddleware()
+      const { req, res, mockRes, next, resBody } = createMocks(
+        'GET',
+        '/api/projects/%E0%A4%A/sessions'
+      )
       await mw(req, res, next)
       expect(mockRes.statusCode).toBe(400)
       expect(next).not.toHaveBeenCalled()
+      const body = JSON.parse(resBody[0])
+      expect(body.error).toContain('Malformed URL encoding')
+    })
+
+    it('returns 400 for path traversal (..%2Fetc)', async () => {
+      const mw = getMiddleware()
+      const { req, res, mockRes, next, resBody } = createMocks(
+        'GET',
+        '/api/projects/..%2Fetc/sessions'
+      )
+      await mw(req, res, next)
+      expect(mockRes.statusCode).toBe(400)
+      expect(next).not.toHaveBeenCalled()
+      const body = JSON.parse(resBody[0])
+      expect(body.error).toContain('Invalid projectId')
     })
   })
 
@@ -232,70 +234,27 @@ describe('sessionsApiPlugin middleware', () => {
     })
   })
 
-  describe('transcript route', () => {
-    it('GET /api/projects/-Users-foo/sessions/uuid-1/transcript returns transcript lines', async () => {
+  describe('URL normalization', () => {
+    it('%2E%2E normalized away in sessions route -> next()', async () => {
       const mw = getMiddleware()
-      const mockLines = [{ id: '1', type: 'user-message', timestamp: 1000, content: 'hello' }]
-      mockParseTranscriptLines.mockResolvedValue(mockLines)
-      mockGetProjectById.mockResolvedValue({ id: '-Users-foo', projectDir: '/Users/foo', active: true })
-      const { req, res, mockRes, next, resBody } = createMocks(
-        'GET',
-        '/api/projects/-Users-foo/sessions/uuid-1/transcript'
-      )
-      await mw(req, res, next)
-      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1', '/Users/foo')
-      expect(mockRes.statusCode).toBe(200)
-      expect(JSON.parse(resBody[0])).toEqual({ lines: mockLines })
-      expect(next).not.toHaveBeenCalled()
-    })
-
-    it('GET /api/projects/-Users-foo/sessions/uuid-1/transcript?_t=123 handles query strings', async () => {
-      const mw = getMiddleware()
-      mockParseTranscriptLines.mockResolvedValue([])
-      mockGetProjectById.mockResolvedValue({ id: '-Users-foo', projectDir: '/Users/foo', active: true })
-      const { req, res, next } = createMocks(
-        'GET',
-        '/api/projects/-Users-foo/sessions/uuid-1/transcript?_t=123'
-      )
-      await mw(req, res, next)
-      expect(mockParseTranscriptLines).toHaveBeenCalledWith('-Users-foo', 'uuid-1', '/Users/foo')
-      expect(next).not.toHaveBeenCalled()
-    })
-
-    it('rejects invalid projectId in transcript route', async () => {
-      const mw = getMiddleware()
-      const { req, res, mockRes, next } = createMocks(
-        'GET',
-        '/api/projects/..%2Fetc/sessions/uuid-1/transcript'
-      )
-      await mw(req, res, next)
-      expect(mockRes.statusCode).toBe(400)
-      expect(next).not.toHaveBeenCalled()
-    })
-
-    it('rejects invalid sessionId in transcript route', async () => {
-      const mw = getMiddleware()
-      const { req, res, mockRes, next } = createMocks(
-        'GET',
-        '/api/projects/-Users-foo/sessions/..%2Fetc/transcript'
-      )
-      await mw(req, res, next)
-      expect(mockRes.statusCode).toBe(400)
-      expect(next).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('passthrough', () => {
-    it('calls next() for non-api URLs', async () => {
-      const mw = getMiddleware()
-      const { req, res, next } = createMocks('GET', '/index.html')
+      const { req, res, next } = createMocks('GET', '/api/projects/%2E%2E/sessions')
       await mw(req, res, next)
       expect(next).toHaveBeenCalled()
     })
 
-    it('calls next() for unknown /api/ routes', async () => {
+    it('"." normalized away in sessions route -> next()', async () => {
       const mw = getMiddleware()
-      const { req, res, next } = createMocks('GET', '/api/unknown')
+      const { req, res, next } = createMocks('GET', '/api/projects/./sessions')
+      await mw(req, res, next)
+      expect(next).toHaveBeenCalled()
+    })
+
+    it('%2E%2E normalized away in timeline route -> next()', async () => {
+      const mw = getMiddleware()
+      const { req, res, next } = createMocks(
+        'GET',
+        '/api/projects/%2E%2E/sessions/abc-123/timeline'
+      )
       await mw(req, res, next)
       expect(next).toHaveBeenCalled()
     })
