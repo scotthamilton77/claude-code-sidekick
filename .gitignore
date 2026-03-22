@@ -70,6 +70,9 @@ packages/sidekick-ui/vitest.config.d.ts
 sync_base.jsonl
 export-state/
 
+# Claude stuff
+scheduled_tasks.lock
+
 # Dist testing backup
 packages/sidekick-dist/*.tgz
 .worktrees/
