@@ -127,6 +127,63 @@ describe('getGitBranch', () => {
     expect(mockExec).toHaveBeenCalledTimes(2)
   })
 
+  it('returns "unknown" on detached HEAD (empty stdout)', async () => {
+    mockExecSuccess('')
+    const result = await getGitBranch('/detached-head-project')
+    expect(result).toBe('unknown')
+  })
+
+  it('returns "unknown" on detached HEAD (whitespace-only stdout)', async () => {
+    mockExecSuccess('  \n')
+    const result = await getGitBranch('/detached-head-project')
+    expect(result).toBe('unknown')
+  })
+
+  it('coalesces concurrent calls for the same projectDir into one git spawn', async () => {
+    // Use a deferred callback so we can control when exec resolves
+    let execCallback: ((err: Error | null, stdout: string, stderr: string) => void) | undefined
+    mockExec.mockImplementation(
+      (_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+        execCallback = cb
+      }
+    )
+
+    // Fire two concurrent calls before exec resolves
+    const p1 = getGitBranch('/concurrent-project')
+    const p2 = getGitBranch('/concurrent-project')
+
+    // Only one exec call should have been made
+    expect(mockExec).toHaveBeenCalledTimes(1)
+
+    // Resolve the single exec call
+    execCallback!(null, 'main\n', '')
+
+    const [r1, r2] = await Promise.all([p1, p2])
+    expect(r1).toBe('main')
+    expect(r2).toBe('main')
+  })
+
+  it('does not coalesce calls for different projectDirs', async () => {
+    const callbacks: Array<(err: Error | null, stdout: string, stderr: string) => void> = []
+    mockExec.mockImplementation(
+      (_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
+        callbacks.push(cb)
+      }
+    )
+
+    const p1 = getGitBranch('/project-x')
+    const p2 = getGitBranch('/project-y')
+
+    expect(mockExec).toHaveBeenCalledTimes(2)
+
+    callbacks[0]!(null, 'main\n', '')
+    callbacks[1]!(null, 'develop\n', '')
+
+    const [r1, r2] = await Promise.all([p1, p2])
+    expect(r1).toBe('main')
+    expect(r2).toBe('develop')
+  })
+
   it('exports a reasonable TTL value', () => {
     expect(GIT_BRANCH_TTL_MS).toBeGreaterThanOrEqual(10_000)
     expect(GIT_BRANCH_TTL_MS).toBeLessThanOrEqual(120_000)
