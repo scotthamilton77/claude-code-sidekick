@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import type { Project, Session } from '../types'
 
 interface ApiProject {
@@ -19,10 +19,17 @@ interface ApiSession {
   intentConfidence?: number
 }
 
+export interface SessionError {
+  projectId: string
+  projectName: string
+  error: string
+}
+
 export interface UseSessionsResult {
   projects: Project[]
   loading: boolean
   error: string | null
+  sessionErrors: SessionError[]
 }
 
 function formatDate(isoDate: string): string {
@@ -63,30 +70,37 @@ export function useSessions(): UseSessionsResult {
 
             try {
               const sessionsRes = await fetch(`/api/projects/${encodeURIComponent(apiProject.id)}/sessions`)
-              if (sessionsRes.ok) {
-                const { sessions: apiSessions } = (await sessionsRes.json()) as {
-                  sessions: ApiSession[]
+              if (!sessionsRes.ok) {
+                return {
+                  id: apiProject.id,
+                  name: apiProject.name,
+                  projectDir: apiProject.projectDir,
+                  sessions,
+                  sessionLoadError: `Failed to fetch sessions: ${sessionsRes.status}`,
                 }
-                sessions = apiSessions.map(
-                  (s): Session => ({
-                    id: s.id,
-                    title: s.title,
-                    date: formatDate(s.date),
-                    dateRaw: s.date,
-                    branch: apiProject.branch,
-                    projectId: apiProject.id,
-                    persona: s.persona,
-                    intent: s.intent,
-                    intentConfidence: s.intentConfidence,
-                    status: s.status,
-                    // Empty collections — populated by later tracer bullets
-                    transcriptLines: [],
-                    sidekickEvents: [],
-                    ledStates: new Map(),
-                    stateSnapshots: [],
-                  })
-                )
               }
+              const { sessions: apiSessions } = (await sessionsRes.json()) as {
+                sessions: ApiSession[]
+              }
+              sessions = apiSessions.map(
+                (s): Session => ({
+                  id: s.id,
+                  title: s.title,
+                  date: formatDate(s.date),
+                  dateRaw: s.date,
+                  branch: apiProject.branch,
+                  projectId: apiProject.id,
+                  persona: s.persona,
+                  intent: s.intent,
+                  intentConfidence: s.intentConfidence,
+                  status: s.status,
+                  // Empty collections — populated by later tracer bullets
+                  transcriptLines: [],
+                  sidekickEvents: [],
+                  ledStates: new Map(),
+                  stateSnapshots: [],
+                })
+              )
             } catch (sessionErr) {
               const errorMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr)
               return {
@@ -126,5 +140,17 @@ export function useSessions(): UseSessionsResult {
     }
   }, [])
 
-  return { projects, loading, error }
+  const sessionErrors = useMemo<SessionError[]>(
+    () =>
+      projects
+        .filter((p) => p.sessionLoadError != null)
+        .map((p) => ({
+          projectId: p.id,
+          projectName: p.name,
+          error: p.sessionLoadError!,
+        })),
+    [projects]
+  )
+
+  return { projects, loading, error, sessionErrors }
 }
