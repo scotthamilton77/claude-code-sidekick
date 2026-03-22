@@ -44,7 +44,7 @@ function formatDate(isoDate: string): string {
   })
 }
 
-/** Build a stable fingerprint from API-derived fields only (skip empty collections/Maps). */
+/** Detect meaningful data changes between fetches — excludes client-side state (transcriptLines, ledStates, etc.) that's always empty at fetch time. */
 export function buildProjectsFingerprint(projects: Project[]): string {
   return JSON.stringify(
     projects.map((p) => ({
