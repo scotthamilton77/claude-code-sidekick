@@ -194,36 +194,39 @@ describe('listSessions', () => {
     mockReaddir.mockResolvedValue([{ name: 'abc-123', isDirectory: () => true }])
     mockStat.mockResolvedValue({ mtime: new Date('2026-03-10T14:30:00Z') })
 
-    // Track the order of readFile calls to verify both are initiated before either resolves
+    // Deferred promises prove concurrency: persona read starts while summary is still pending
+    let resolveSummary!: (value: string) => void
+    let resolvePersona!: (value: string) => void
+    const summaryPromise = new Promise<string>((r) => { resolveSummary = r })
+    const personaPromise = new Promise<string>((r) => { resolvePersona = r })
+
     const callOrder: string[] = []
     mockReadFile.mockImplementation((filePath: string) => {
       if (filePath.includes('session-summary.json')) {
         callOrder.push('summary-called')
-        return Promise.resolve(JSON.stringify({ session_title: 'Concurrent test' }))
+        return summaryPromise
       }
       if (filePath.includes('session-persona.json')) {
         callOrder.push('persona-called')
-        return Promise.resolve(JSON.stringify({ persona_id: 'jarvis' }))
+        return personaPromise
       }
       return Promise.reject(new Error('ENOENT'))
     })
 
-    const result = await listSessions('/fake/project')
+    // Start listSessions — it will await the deferred promises
+    const resultPromise = listSessions('/fake/project')
 
-    // Both readFile calls should have been made (concurrently via Promise.allSettled)
-    expect(mockReadFile).toHaveBeenCalledTimes(2)
-    expect(mockReadFile).toHaveBeenCalledWith(
-      expect.stringContaining('session-summary.json'),
-      'utf-8',
-    )
-    expect(mockReadFile).toHaveBeenCalledWith(
-      expect.stringContaining('session-persona.json'),
-      'utf-8',
-    )
-    // Both calls were initiated (order recorded synchronously in mock)
-    expect(callOrder).toContain('summary-called')
-    expect(callOrder).toContain('persona-called')
+    // Yield to let Promise.allSettled initiate both reads
+    await new Promise((r) => setTimeout(r, 0))
 
+    // Both reads were initiated before either resolved (proves concurrency)
+    expect(callOrder).toEqual(['summary-called', 'persona-called'])
+
+    // Now resolve both
+    resolveSummary(JSON.stringify({ session_title: 'Concurrent test' }))
+    resolvePersona(JSON.stringify({ persona_id: 'jarvis' }))
+
+    const result = await resultPromise
     expect(result).toHaveLength(1)
     expect(result[0].title).toBe('abc-123 — Concurrent test')
     expect(result[0].persona).toBe('jarvis')

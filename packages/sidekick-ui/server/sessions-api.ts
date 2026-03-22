@@ -9,6 +9,31 @@ const ACTIVE_THRESHOLD_MS = 5_000
 /** Session state recency for "active" status */
 const SESSION_ACTIVE_THRESHOLD_MS = 30_000
 
+/** Parse JSON from a PromiseSettledResult, logging on read failure or parse error. */
+function parseJsonResult<T>(
+  result: PromiseSettledResult<string>,
+  failureMsg: string,
+  sessionId: string,
+  logger?: Logger,
+): T | undefined {
+  if (result.status === 'fulfilled') {
+    try {
+      return JSON.parse(result.value) as T
+    } catch (err) {
+      logger?.debug(failureMsg, {
+        sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  } else {
+    logger?.debug(failureMsg, {
+      sessionId,
+      error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+    })
+  }
+  return undefined
+}
+
 export interface ApiProject {
   id: string
   name: string
@@ -175,61 +200,35 @@ export async function listSessions(projectDir: string, isProjectActive = false, 
 
       const shortId = dirent.name.slice(0, 8)
 
-      // Read summary and persona concurrently
       const summaryPath = join(sessionDir, 'state', 'session-summary.json')
       const personaPath = join(sessionDir, 'state', 'session-persona.json')
 
+      // allSettled so one file failure doesn't block the other
       const [summaryResult, personaResult] = await Promise.allSettled([
         readFile(summaryPath, 'utf-8'),
         readFile(personaPath, 'utf-8'),
       ])
 
-      // Process summary
       let title = `${shortId} — No Title`
       let intent: string | undefined
       let intentConfidence: number | undefined
 
-      if (summaryResult.status === 'fulfilled') {
-        try {
-          const summary = JSON.parse(summaryResult.value) as {
-            session_title?: string
-            latest_intent?: string
-            latest_intent_confidence?: number
-          }
-          if (summary.session_title) title = `${shortId} — ${summary.session_title}`
-          if (summary.latest_intent) intent = summary.latest_intent
-          if (summary.latest_intent_confidence != null) intentConfidence = summary.latest_intent_confidence
-        } catch (err) {
-          logger?.debug('Session summary not available', {
-            sessionId: dirent.name,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }
-      } else {
-        logger?.debug('Session summary not available', {
-          sessionId: dirent.name,
-          error: summaryResult.reason instanceof Error ? summaryResult.reason.message : String(summaryResult.reason),
-        })
+      const summaryData = parseJsonResult<{
+        session_title?: string
+        latest_intent?: string
+        latest_intent_confidence?: number
+      }>(summaryResult, 'Session summary not available', dirent.name, logger)
+
+      if (summaryData) {
+        if (summaryData.session_title) title = `${shortId} — ${summaryData.session_title}`
+        if (summaryData.latest_intent) intent = summaryData.latest_intent
+        if (summaryData.latest_intent_confidence != null) intentConfidence = summaryData.latest_intent_confidence
       }
 
-      // Process persona
-      let persona: string | undefined
-      if (personaResult.status === 'fulfilled') {
-        try {
-          const personaData = JSON.parse(personaResult.value) as { persona_id?: string }
-          if (personaData.persona_id) persona = personaData.persona_id
-        } catch (err) {
-          logger?.debug('Session persona not available', {
-            sessionId: dirent.name,
-            error: err instanceof Error ? err.message : String(err),
-          })
-        }
-      } else {
-        logger?.debug('Session persona not available', {
-          sessionId: dirent.name,
-          error: personaResult.reason instanceof Error ? personaResult.reason.message : String(personaResult.reason),
-        })
-      }
+      const personaData = parseJsonResult<{ persona_id?: string }>(
+        personaResult, 'Session persona not available', dirent.name, logger,
+      )
+      const persona = personaData?.persona_id
 
       return { id: dirent.name, title, date, status, persona, intent, intentConfidence }
     })
