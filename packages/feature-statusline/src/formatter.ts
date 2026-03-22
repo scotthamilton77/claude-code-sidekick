@@ -212,10 +212,10 @@ export class Formatter {
       duration: viewModel.duration,
       cwd: viewModel.cwd,
       branch: viewModel.branch,
+      branchWT: viewModel.branchWT,
       projectDirShort: viewModel.projectDirShort,
       projectDirFull: viewModel.projectDirFull,
       worktreeName: viewModel.worktreeName,
-      worktreeOrBranch: viewModel.worktreeOrBranch,
       summary: convertedSummary,
       title: convertedTitle,
       logs: logsText,
@@ -248,9 +248,14 @@ export class Formatter {
         case 'projectDirFull':
           return this.colorize(value, this.theme.colors.cwd)
         case 'branch':
-        case 'worktreeOrBranch':
         case 'worktreeName':
           return this.colorize(value, branchColor)
+        case 'branchWT': {
+          const coloredBranch = this.colorize(value, branchColor)
+          if (!viewModel.worktreeName) return coloredBranch
+          const wtColor = (this.theme.colors as Record<string, string>).worktreeIndicator ?? 'dim'
+          return `${coloredBranch} ${this.colorize('[wt]', wtColor)}`
+        }
         case 'summary':
           return this.colorize(value, this.theme.colors.summary)
         case 'title':
