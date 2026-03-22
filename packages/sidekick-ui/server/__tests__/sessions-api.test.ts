@@ -189,6 +189,45 @@ describe('listSessions', () => {
     const result = await listSessions('/fake/project', true)
     expect(result[0].status).toBe('active')
   })
+
+  it('reads summary and persona files concurrently via Promise.allSettled', async () => {
+    mockReaddir.mockResolvedValue([{ name: 'abc-123', isDirectory: () => true }])
+    mockStat.mockResolvedValue({ mtime: new Date('2026-03-10T14:30:00Z') })
+
+    // Track the order of readFile calls to verify both are initiated before either resolves
+    const callOrder: string[] = []
+    mockReadFile.mockImplementation((filePath: string) => {
+      if (filePath.includes('session-summary.json')) {
+        callOrder.push('summary-called')
+        return Promise.resolve(JSON.stringify({ session_title: 'Concurrent test' }))
+      }
+      if (filePath.includes('session-persona.json')) {
+        callOrder.push('persona-called')
+        return Promise.resolve(JSON.stringify({ persona_id: 'jarvis' }))
+      }
+      return Promise.reject(new Error('ENOENT'))
+    })
+
+    const result = await listSessions('/fake/project')
+
+    // Both readFile calls should have been made (concurrently via Promise.allSettled)
+    expect(mockReadFile).toHaveBeenCalledTimes(2)
+    expect(mockReadFile).toHaveBeenCalledWith(
+      expect.stringContaining('session-summary.json'),
+      'utf-8',
+    )
+    expect(mockReadFile).toHaveBeenCalledWith(
+      expect.stringContaining('session-persona.json'),
+      'utf-8',
+    )
+    // Both calls were initiated (order recorded synchronously in mock)
+    expect(callOrder).toContain('summary-called')
+    expect(callOrder).toContain('persona-called')
+
+    expect(result).toHaveLength(1)
+    expect(result[0].title).toBe('abc-123 — Concurrent test')
+    expect(result[0].persona).toBe('jarvis')
+  })
 })
 
 // --- Structured logging tests ---

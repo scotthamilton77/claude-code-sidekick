@@ -152,70 +152,90 @@ export async function listSessions(projectDir: string, isProjectActive = false, 
     return []
   }
 
-  const sessions: ApiSession[] = []
+  const sessionPromises = dirents
+    .filter(dirent => dirent.isDirectory())
+    .map(async (dirent): Promise<ApiSession | null> => {
+      const sessionDir = join(sessionsDir, dirent.name)
 
-  for (const dirent of dirents) {
-    if (!dirent.isDirectory()) continue
-
-    const sessionDir = join(sessionsDir, dirent.name)
-
-    // Get session directory mtime for date (skip on TOCTOU race)
-    let dirStat
-    try {
-      dirStat = await stat(sessionDir)
-    } catch (err) {
-      logger?.debug('Session directory disappeared during scan', {
-        sessionDir,
-        error: err instanceof Error ? err.message : String(err),
-      })
-      continue // directory disappeared between readdir and stat
-    }
-    const date = dirStat.mtime.toISOString()
-
-    // Determine if session is active
-    const isRecentlyModified = Date.now() - dirStat.mtime.getTime() < SESSION_ACTIVE_THRESHOLD_MS
-    const status: 'active' | 'completed' = isProjectActive && isRecentlyModified ? 'active' : 'completed'
-
-    // Try to read session-summary.json
-    const shortId = dirent.name.slice(0, 8)
-    let title = `${shortId} — No Title` // fallback
-    let intent: string | undefined
-    let intentConfidence: number | undefined
-
-    try {
-      const summaryPath = join(sessionDir, 'state', 'session-summary.json')
-      const raw = await readFile(summaryPath, 'utf-8')
-      const summary = JSON.parse(raw) as {
-        session_title?: string
-        latest_intent?: string
-        latest_intent_confidence?: number
+      // Get session directory mtime for date (skip on TOCTOU race)
+      let dirStat
+      try {
+        dirStat = await stat(sessionDir)
+      } catch (err) {
+        logger?.debug('Session directory disappeared during scan', {
+          sessionDir,
+          error: err instanceof Error ? err.message : String(err),
+        })
+        return null
       }
-      if (summary.session_title) title = `${shortId} — ${summary.session_title}`
-      if (summary.latest_intent) intent = summary.latest_intent
-      if (summary.latest_intent_confidence != null) intentConfidence = summary.latest_intent_confidence
-    } catch (err) {
-      logger?.debug('Session summary not available', {
-        sessionId: dirent.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+      const date = dirStat.mtime.toISOString()
 
-    // Try to read session-persona.json
-    let persona: string | undefined
-    try {
+      const isRecentlyModified = Date.now() - dirStat.mtime.getTime() < SESSION_ACTIVE_THRESHOLD_MS
+      const status: 'active' | 'completed' = isProjectActive && isRecentlyModified ? 'active' : 'completed'
+
+      const shortId = dirent.name.slice(0, 8)
+
+      // Read summary and persona concurrently
+      const summaryPath = join(sessionDir, 'state', 'session-summary.json')
       const personaPath = join(sessionDir, 'state', 'session-persona.json')
-      const raw = await readFile(personaPath, 'utf-8')
-      const personaData = JSON.parse(raw) as { persona_id?: string }
-      if (personaData.persona_id) persona = personaData.persona_id
-    } catch (err) {
-      logger?.debug('Session persona not available', {
-        sessionId: dirent.name,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
 
-    sessions.push({ id: dirent.name, title, date, status, persona, intent, intentConfidence })
-  }
+      const [summaryResult, personaResult] = await Promise.allSettled([
+        readFile(summaryPath, 'utf-8'),
+        readFile(personaPath, 'utf-8'),
+      ])
+
+      // Process summary
+      let title = `${shortId} — No Title`
+      let intent: string | undefined
+      let intentConfidence: number | undefined
+
+      if (summaryResult.status === 'fulfilled') {
+        try {
+          const summary = JSON.parse(summaryResult.value) as {
+            session_title?: string
+            latest_intent?: string
+            latest_intent_confidence?: number
+          }
+          if (summary.session_title) title = `${shortId} — ${summary.session_title}`
+          if (summary.latest_intent) intent = summary.latest_intent
+          if (summary.latest_intent_confidence != null) intentConfidence = summary.latest_intent_confidence
+        } catch (err) {
+          logger?.debug('Session summary not available', {
+            sessionId: dirent.name,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      } else {
+        logger?.debug('Session summary not available', {
+          sessionId: dirent.name,
+          error: summaryResult.reason instanceof Error ? summaryResult.reason.message : String(summaryResult.reason),
+        })
+      }
+
+      // Process persona
+      let persona: string | undefined
+      if (personaResult.status === 'fulfilled') {
+        try {
+          const personaData = JSON.parse(personaResult.value) as { persona_id?: string }
+          if (personaData.persona_id) persona = personaData.persona_id
+        } catch (err) {
+          logger?.debug('Session persona not available', {
+            sessionId: dirent.name,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        }
+      } else {
+        logger?.debug('Session persona not available', {
+          sessionId: dirent.name,
+          error: personaResult.reason instanceof Error ? personaResult.reason.message : String(personaResult.reason),
+        })
+      }
+
+      return { id: dirent.name, title, date, status, persona, intent, intentConfidence }
+    })
+
+  const results = await Promise.all(sessionPromises)
+  const sessions = results.filter((s): s is ApiSession => s !== null)
 
   // Sort newest first (by ISO date string, descending)
   sessions.sort((a, b) => b.date.localeCompare(a.date))
