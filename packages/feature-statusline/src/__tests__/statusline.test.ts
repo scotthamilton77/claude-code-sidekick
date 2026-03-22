@@ -773,7 +773,7 @@ describe('Formatter class', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -810,7 +810,7 @@ describe('Formatter class', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -848,7 +848,7 @@ describe('Formatter class', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -886,7 +886,7 @@ describe('Formatter class', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -923,7 +923,7 @@ describe('Formatter class', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -961,7 +961,7 @@ describe('Formatter class', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -991,7 +991,7 @@ const makeViewModel = (overrides: Record<string, unknown> = {}): StatuslineViewM
   projectDirShort: 'project',
   projectDirFull: '~/project',
   worktreeName: '',
-  worktreeOrBranch: 'main',
+  branchWT: 'main',
   displayMode: 'session_summary' as const,
   summary: 'Test summary',
   title: 'Test title',
@@ -1207,7 +1207,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1245,7 +1245,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1282,7 +1282,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1322,7 +1322,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1362,7 +1362,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1409,7 +1409,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1448,7 +1448,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1519,7 +1519,7 @@ describe('Formatter with colors enabled', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1527,6 +1527,53 @@ describe('Formatter with colors enabled', () => {
     const result = formatter.format('{branch}', viewModel)
     expect(result).toContain(ANSI.green)
     expect(result).toContain('main')
+  })
+
+  it('formats branchWT without worktree indicator when not in worktree', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+    const viewModel = makeViewModel({
+      branch: 'feat/auth',
+      branchWT: 'feat/auth',
+      branchColor: 'blue',
+      worktreeName: '',
+    })
+    const result = formatter.format('{branchWT}', viewModel)
+    expect(result).toBe(`${ANSI.blue}feat/auth${ANSI.reset}`)
+  })
+
+  it('formats branchWT with dim [wt] indicator when in worktree', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+    const viewModel = makeViewModel({
+      branch: 'feat/auth',
+      branchWT: 'feat/auth',
+      branchColor: 'blue',
+      worktreeName: 'auth-worktree',
+    })
+    const result = formatter.format('{branchWT}', viewModel)
+    expect(result).toBe(`${ANSI.blue}feat/auth${ANSI.reset} ${ANSI.dim}[wt]${ANSI.reset}`)
+  })
+
+  it('truncates only branch portion of branchWT, preserving [wt] suffix', () => {
+    const formatter = createFormatter({
+      theme: DEFAULT_STATUSLINE_CONFIG.theme,
+      useColors: true,
+    })
+    const viewModel = makeViewModel({
+      branch: 'feat/very-long-branch-name-that-exceeds-limit',
+      branchWT: 'feat/very-long-branch-name-that-exceeds-limit',
+      branchColor: 'blue',
+      worktreeName: 'some-worktree',
+    })
+    const result = formatter.format('{branchWT,maxLength=10}', viewModel)
+    // Branch truncated to 10 chars, then [wt] appended
+    expect(result).toContain('[wt]')
+    expect(result).toContain('feat/very')
   })
 })
 
@@ -1706,7 +1753,7 @@ describe('Formatter.convertMarkdown', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
@@ -1744,7 +1791,7 @@ describe('Formatter.convertMarkdown', () => {
       projectDirShort: 'project',
       projectDirFull: '~/project',
       worktreeName: '',
-      worktreeOrBranch: 'main',
+      branchWT: 'main',
       logStatus: 'normal' as const,
       personaName: '',
     }
