@@ -1,5 +1,6 @@
 import { readdir, readFile, stat, access } from 'node:fs/promises'
 import { join, basename } from 'node:path'
+import type { Logger } from '@sidekick/types'
 import { getGitBranch } from './git-branch-cache.js'
 
 /** Heartbeat recency threshold (matches daemon's 5s interval) */
@@ -29,11 +30,15 @@ export interface ApiSession {
 /**
  * List all registered projects from the sidekick project registry.
  */
-export async function listProjects(registryRoot: string): Promise<ApiProject[]> {
+export async function listProjects(registryRoot: string, logger?: Logger): Promise<ApiProject[]> {
   let dirents
   try {
     dirents = await readdir(registryRoot, { withFileTypes: true })
-  } catch {
+  } catch (err) {
+    logger?.warn('Failed to read registry directory', {
+      registryRoot,
+      error: err instanceof Error ? err.message : String(err),
+    })
     return []
   }
 
@@ -54,7 +59,11 @@ export async function listProjects(registryRoot: string): Promise<ApiProject[]> 
       // Check if project directory still exists
       try {
         await access(entry.path)
-      } catch {
+      } catch (err) {
+        logger?.debug('Project directory not accessible', {
+          projectDir: entry.path,
+          error: err instanceof Error ? err.message : String(err),
+        })
         continue // skip projects whose directory is gone
       }
 
@@ -73,8 +82,11 @@ export async function listProjects(registryRoot: string): Promise<ApiProject[]> 
         branch,
         active,
       })
-    } catch {
-      // Skip entries with invalid registry.json
+    } catch (err) {
+      logger?.warn('Failed to parse registry entry', {
+        registryFile,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
   }
 
@@ -85,7 +97,7 @@ export async function listProjects(registryRoot: string): Promise<ApiProject[]> 
  * Look up a single project by its registry directory name.
  * Avoids calling listProjects() (which runs git branch for every project).
  */
-export async function getProjectById(registryRoot: string, projectId: string): Promise<ApiProject | null> {
+export async function getProjectById(registryRoot: string, projectId: string, logger?: Logger): Promise<ApiProject | null> {
   const entryFile = join(registryRoot, projectId, 'registry.json')
   try {
     const raw = await readFile(entryFile, 'utf-8')
@@ -93,7 +105,11 @@ export async function getProjectById(registryRoot: string, projectId: string): P
 
     try {
       await access(entry.path)
-    } catch {
+    } catch (err) {
+      logger?.debug('Project directory not accessible', {
+        projectDir: entry.path,
+        error: err instanceof Error ? err.message : String(err),
+      })
       return null
     }
 
@@ -110,7 +126,11 @@ export async function getProjectById(registryRoot: string, projectId: string): P
       branch,
       active,
     }
-  } catch {
+  } catch (err) {
+    logger?.warn('Failed to read project registry', {
+      projectId,
+      error: err instanceof Error ? err.message : String(err),
+    })
     return null
   }
 }
@@ -118,13 +138,17 @@ export async function getProjectById(registryRoot: string, projectId: string): P
 /**
  * List all sessions for a project by scanning its .sidekick/sessions/ directory.
  */
-export async function listSessions(projectDir: string, isProjectActive = false): Promise<ApiSession[]> {
+export async function listSessions(projectDir: string, isProjectActive = false, logger?: Logger): Promise<ApiSession[]> {
   const sessionsDir = join(projectDir, '.sidekick', 'sessions')
 
   let dirents
   try {
     dirents = await readdir(sessionsDir, { withFileTypes: true })
-  } catch {
+  } catch (err) {
+    logger?.debug('Sessions directory not readable', {
+      sessionsDir,
+      error: err instanceof Error ? err.message : String(err),
+    })
     return []
   }
 
@@ -139,7 +163,11 @@ export async function listSessions(projectDir: string, isProjectActive = false):
     let dirStat
     try {
       dirStat = await stat(sessionDir)
-    } catch {
+    } catch (err) {
+      logger?.debug('Session directory disappeared during scan', {
+        sessionDir,
+        error: err instanceof Error ? err.message : String(err),
+      })
       continue // directory disappeared between readdir and stat
     }
     const date = dirStat.mtime.toISOString()
@@ -165,8 +193,11 @@ export async function listSessions(projectDir: string, isProjectActive = false):
       if (summary.session_title) title = `${shortId} — ${summary.session_title}`
       if (summary.latest_intent) intent = summary.latest_intent
       if (summary.latest_intent_confidence != null) intentConfidence = summary.latest_intent_confidence
-    } catch {
-      // Use fallback title
+    } catch (err) {
+      logger?.debug('Session summary not available', {
+        sessionId: dirent.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
 
     // Try to read session-persona.json
@@ -176,8 +207,11 @@ export async function listSessions(projectDir: string, isProjectActive = false):
       const raw = await readFile(personaPath, 'utf-8')
       const personaData = JSON.parse(raw) as { persona_id?: string }
       if (personaData.persona_id) persona = personaData.persona_id
-    } catch {
-      // No persona set
+    } catch (err) {
+      logger?.debug('Session persona not available', {
+        sessionId: dirent.name,
+        error: err instanceof Error ? err.message : String(err),
+      })
     }
 
     sessions.push({ id: dirent.name, title, date, status, persona, intent, intentConfidence })
