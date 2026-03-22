@@ -125,7 +125,7 @@ export type StatuslineConfig = z.infer<typeof StatuslineConfigSchema>
 export const DEFAULT_STATUSLINE_CONFIG: StatuslineConfig = {
   enabled: true,
   format:
-    "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branch,prefix=' ∗ ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}",
+    "{personaName,prefix='[',suffix='] | '}{model,prefix='[',suffix='] | '}{contextBar} {tokenPercentageActual} | {logs} | {cwd,maxLength=40,truncateStyle='path'}{branchWT,prefix=' | ',maxLength=40}{title,wrapAt=80,prefix=' | ',wrapPrefix='\\n'}\n{summary}",
   thresholds: {
     tokens: { warning: 100000, critical: 160000 },
     cost: { warning: 0.5, critical: 1.0 },
@@ -231,14 +231,14 @@ export interface StatuslineViewModel {
   branch: string
   /** Color name for branch based on pattern (main=green, feature=blue, hotfix=red, other=magenta) */
   branchColor: string
+  /** Branch name + [wt] indicator when in worktree (branch-only otherwise) */
+  branchWT: string
   /** Project directory basename (e.g., "claude-code-sidekick") */
   projectDirShort: string
   /** Project directory full path, home-shortened (e.g., "~/src/projects/claude-code-sidekick") */
   projectDirFull: string
   /** Worktree name (empty if not in worktree) */
   worktreeName: string
-  /** Worktree name if in worktree, else raw branch name */
-  worktreeOrBranch: string
   /** Display mode determines summary content */
   displayMode: DisplayMode
   /** Summary text (varies by display mode) */
