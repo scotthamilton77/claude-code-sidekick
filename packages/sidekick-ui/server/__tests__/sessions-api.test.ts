@@ -14,10 +14,10 @@ vi.mock('node:fs/promises', () => ({
   access: (...args: unknown[]) => mockAccess(...args),
 }))
 
-// Mock node:child_process
-const mockExec = vi.fn()
-vi.mock('node:child_process', () => ({
-  exec: (...args: unknown[]) => mockExec(...args),
+// Mock git-branch-cache (caching is tested separately in git-branch-cache.test.ts)
+const mockGetGitBranch = vi.fn()
+vi.mock('../git-branch-cache.js', () => ({
+  getGitBranch: (...args: unknown[]) => mockGetGitBranch(...args),
 }))
 
 beforeEach(() => {
@@ -25,24 +25,8 @@ beforeEach(() => {
   mockReadFile.mockClear()
   mockStat.mockClear()
   mockAccess.mockClear()
-  mockExec.mockClear()
+  mockGetGitBranch.mockClear()
 })
-
-/** Helper: mock exec to call back with stdout string */
-function mockExecSuccess(stdout: string) {
-  mockExec.mockImplementation(
-    (_cmd: string, _opts: unknown, cb: (err: Error | null, stdout: string, stderr: string) => void) => {
-      cb(null, stdout, '')
-    }
-  )
-}
-
-/** Helper: mock exec to call back with error */
-function mockExecFailure(message: string) {
-  mockExec.mockImplementation((_cmd: string, _opts: unknown, cb: (err: Error) => void) => {
-    cb(new Error(message))
-  })
-}
 
 describe('listProjects', () => {
   it('returns empty array when registry directory does not exist', async () => {
@@ -61,7 +45,7 @@ describe('listProjects', () => {
     }
     mockReadFile.mockResolvedValue(JSON.stringify(registryEntry))
     mockAccess.mockResolvedValue(undefined)
-    mockExecSuccess('main\n')
+    mockGetGitBranch.mockResolvedValue('main')
 
     const result = await listProjects('/fake/.sidekick/projects')
     expect(result).toHaveLength(1)
@@ -84,7 +68,7 @@ describe('listProjects', () => {
     }
     mockReadFile.mockResolvedValue(JSON.stringify(registryEntry))
     mockAccess.mockResolvedValue(undefined)
-    mockExecSuccess('feat/branch\n')
+    mockGetGitBranch.mockResolvedValue('feat/branch')
 
     const result = await listProjects('/fake/.sidekick/projects')
     expect(result[0].active).toBe(false)
@@ -102,7 +86,7 @@ describe('listProjects', () => {
       })
     )
     mockAccess.mockResolvedValue(undefined)
-    mockExecFailure('not a git repo')
+    mockGetGitBranch.mockResolvedValue('unknown')
 
     const result = await listProjects('/fake/.sidekick/projects')
     expect(result[0].branch).toBe('unknown')

@@ -1,6 +1,6 @@
 import { readdir, readFile, stat, access } from 'node:fs/promises'
-import { exec } from 'node:child_process'
 import { join, basename } from 'node:path'
+import { getGitBranch } from './git-branch-cache.js'
 
 /** Heartbeat recency threshold (matches daemon's 5s interval) */
 const ACTIVE_THRESHOLD_MS = 5_000
@@ -24,22 +24,6 @@ export interface ApiSession {
   persona?: string
   intent?: string
   intentConfidence?: number
-}
-
-/**
- * Get git branch for a project directory.
- * Returns 'unknown' if git command fails.
- */
-function getGitBranch(projectDir: string): Promise<string> {
-  return new Promise((resolve) => {
-    exec('git branch --show-current', { cwd: projectDir }, (err, stdout) => {
-      if (err) {
-        resolve('unknown')
-        return
-      }
-      resolve(stdout.trim())
-    })
-  })
 }
 
 /**
