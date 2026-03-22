@@ -231,7 +231,7 @@ export interface StatuslineViewModel {
   branch: string
   /** Color name for branch based on pattern (main=green, feature=blue, hotfix=red, other=magenta) */
   branchColor: string
-  /** Branch name + [wt] indicator when in worktree (branch-only otherwise) */
+  /** Raw branch portion used for the {branchWT} token; formatter appends [wt] when in a worktree based on worktreeName */
   branchWT: string
   /** Project directory basename (e.g., "claude-code-sidekick") */
   projectDirShort: string

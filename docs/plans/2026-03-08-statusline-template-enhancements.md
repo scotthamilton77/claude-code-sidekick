@@ -405,8 +405,8 @@ describe('new tokens', () => {
       // view model branchWT should be raw branch name
     })
 
-    it('returns branch + [wt] indicator in worktree session', () => {
-      // view model branchWT should be branch name + [wt]
+    it('renders branch + dim [wt] suffix in worktree session', () => {
+      // view model branchWT is the raw branch name; formatter appends [wt] via split colorization
     })
   })
 
@@ -483,7 +483,7 @@ branch: formatBranch(branch),
 projectDirShort,
 projectDirFull: homeShorten(projectRoot),
 worktreeName: worktree?.name ?? '',
-branchWT: worktree ? `${branch} [wt]` : branch,
+branchWT: formatBranch(branch),  // raw branch only; [wt] suffix appended by formatter during colorization
 ```
 
 **Step 7: Update token map in Formatter.format()**
@@ -494,7 +494,7 @@ In `packages/feature-statusline/src/formatter.ts`, add new tokens to the `tokens
 projectDirShort: this.colorize(viewModel.projectDirShort, this.theme.colors.cwd),
 projectDirFull: this.colorize(viewModel.projectDirFull, this.theme.colors.cwd),
 worktreeName: viewModel.worktreeName ? this.colorize(viewModel.worktreeName, branchColor) : '',
-branchWT: this.colorize(viewModel.branchWT, branchColor),
+// branchWT uses split colorization: branch gets branchColor, [wt] gets worktreeIndicator color (default: dim)
 ```
 
 Also update `branch` token — remove the leading space (it was compensating for the icon):
