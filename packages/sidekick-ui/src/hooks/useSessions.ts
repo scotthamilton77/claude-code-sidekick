@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import type { Project, Session } from '../types'
 
 interface ApiProject {
@@ -44,10 +44,34 @@ function formatDate(isoDate: string): string {
   })
 }
 
+/** Build a stable fingerprint from API-derived fields only (skip empty collections/Maps). */
+export function buildProjectsFingerprint(projects: Project[]): string {
+  return JSON.stringify(
+    projects.map((p) => ({
+      id: p.id,
+      name: p.name,
+      projectDir: p.projectDir,
+      sessionLoadError: p.sessionLoadError,
+      sessions: p.sessions.map((s) => ({
+        id: s.id,
+        title: s.title,
+        dateRaw: s.dateRaw,
+        branch: s.branch,
+        projectId: s.projectId,
+        persona: s.persona,
+        intent: s.intent,
+        intentConfidence: s.intentConfidence,
+        status: s.status,
+      })),
+    }))
+  )
+}
+
 export function useSessions(): UseSessionsResult {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const prevFingerprintRef = useRef<string>('')
 
   useEffect(() => {
     let cancelled = false
@@ -122,7 +146,11 @@ export function useSessions(): UseSessionsResult {
         )
 
         if (!cancelled) {
-          setProjects(projectsWithSessions)
+          const fingerprint = buildProjectsFingerprint(projectsWithSessions)
+          if (fingerprint !== prevFingerprintRef.current) {
+            prevFingerprintRef.current = fingerprint
+            setProjects(projectsWithSessions)
+          }
           setLoading(false)
         }
       } catch (err) {
