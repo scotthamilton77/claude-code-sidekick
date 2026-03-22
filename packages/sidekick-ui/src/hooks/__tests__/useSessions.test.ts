@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
-import { useSessions } from '../useSessions'
+import { useSessions, buildProjectsFingerprint } from '../useSessions'
 
 const mockFetch = vi.fn() as ReturnType<typeof vi.fn>
 
@@ -263,5 +263,81 @@ describe('useSessions', () => {
         { projectId: 'proj-3', projectName: 'project-three', error: 'Failed to fetch sessions: 403' },
       ])
     )
+  })
+})
+
+describe('buildProjectsFingerprint', () => {
+  function makeProject(overrides: Partial<import('../../types').Project> = {}): import('../../types').Project {
+    return {
+      id: 'proj-1',
+      name: 'my-project',
+      projectDir: '/test',
+      sessions: [],
+      ...overrides,
+    }
+  }
+
+  function makeSession(overrides: Partial<import('../../types').Session> = {}): import('../../types').Session {
+    return {
+      id: 'sess-1',
+      title: 'Fix bug',
+      date: '03/10/2026, 2:30 PM',
+      dateRaw: '2026-03-10T14:30:00.000Z',
+      branch: 'main',
+      projectId: 'proj-1',
+      status: 'active',
+      transcriptLines: [],
+      sidekickEvents: [],
+      ledStates: new Map(),
+      stateSnapshots: [],
+      ...overrides,
+    }
+  }
+
+  it('returns identical fingerprints for identical API data', () => {
+    const projectsA = [makeProject({ sessions: [makeSession()] })]
+    const projectsB = [makeProject({ sessions: [makeSession()] })]
+
+    expect(buildProjectsFingerprint(projectsA)).toBe(buildProjectsFingerprint(projectsB))
+  })
+
+  it('returns different fingerprints when session data changes', () => {
+    const projectsA = [makeProject({ sessions: [makeSession({ title: 'Fix bug' })] })]
+    const projectsB = [makeProject({ sessions: [makeSession({ title: 'Add feature' })] })]
+
+    expect(buildProjectsFingerprint(projectsA)).not.toBe(buildProjectsFingerprint(projectsB))
+  })
+
+  it('ignores non-API fields (transcriptLines, ledStates, etc.)', () => {
+    const projectsA = [makeProject({ sessions: [makeSession({ transcriptLines: [] })] })]
+    const projectsB = [
+      makeProject({
+        sessions: [
+          makeSession({
+            transcriptLines: [
+              {
+                id: 'line-1',
+                timestamp: 123,
+                type: 'user-message',
+                content: 'hello',
+              },
+            ],
+          }),
+        ],
+      }),
+    ]
+
+    expect(buildProjectsFingerprint(projectsA)).toBe(buildProjectsFingerprint(projectsB))
+  })
+
+  it('detects project-level changes (sessionLoadError)', () => {
+    const projectsA = [makeProject()]
+    const projectsB = [makeProject({ sessionLoadError: 'Connection refused' })]
+
+    expect(buildProjectsFingerprint(projectsA)).not.toBe(buildProjectsFingerprint(projectsB))
+  })
+
+  it('returns same fingerprint for empty projects array', () => {
+    expect(buildProjectsFingerprint([])).toBe(buildProjectsFingerprint([]))
   })
 })
