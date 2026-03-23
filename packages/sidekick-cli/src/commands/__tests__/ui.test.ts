@@ -113,7 +113,7 @@ describe('handleUiCommand', () => {
   })
 
   describe('process spawning', () => {
-    test('spawns node with production server script', async () => {
+    test('spawns vite binary from sidekick-ui package', async () => {
       const promise = handleUiCommand('/project', logger, stdout)
 
       // Simulate immediate exit
@@ -125,13 +125,13 @@ describe('handleUiCommand', () => {
       await promise
 
       expect(mockSpawn).toHaveBeenCalledWith(
-        'node',
-        expect.arrayContaining([expect.stringContaining('production.js')]),
+        expect.stringContaining('sidekick-ui/node_modules/.bin/vite'),
+        expect.any(Array),
         expect.any(Object)
       )
     })
 
-    test('passes default port 3000', async () => {
+    test('sets cwd to sidekick-ui package directory', async () => {
       const promise = handleUiCommand('/project', logger, stdout)
 
       setTimeout(() => {
@@ -141,7 +141,25 @@ describe('handleUiCommand', () => {
 
       await promise
 
-      expect(mockSpawn).toHaveBeenCalledWith('node', expect.arrayContaining(['--port', '3000']), expect.any(Object))
+      const spawnOptions = (mockSpawn.mock.calls as any)[0][2]
+      expect(spawnOptions.cwd).toMatch(/sidekick-ui$/)
+    })
+
+    test('passes default port 3000 and host localhost', async () => {
+      const promise = handleUiCommand('/project', logger, stdout)
+
+      setTimeout(() => {
+        getServerProcess().exitCode = 0
+        getServerProcess().emit('exit', 0, null)
+      }, 0)
+
+      await promise
+
+      expect(mockSpawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['--port', '3000', '--host', 'localhost']),
+        expect.any(Object)
+      )
     })
 
     test('passes custom port when provided', async () => {
@@ -154,11 +172,15 @@ describe('handleUiCommand', () => {
 
       await promise
 
-      expect(mockSpawn).toHaveBeenCalledWith('node', expect.arrayContaining(['--port', '8080']), expect.any(Object))
+      expect(mockSpawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['--port', '8080']),
+        expect.any(Object)
+      )
     })
 
-    test('passes --prefer-user when preferProject is false', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, { preferProject: false })
+    test('passes custom host when provided', async () => {
+      const promise = handleUiCommand('/project', logger, stdout, { host: '0.0.0.0' })
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -167,21 +189,11 @@ describe('handleUiCommand', () => {
 
       await promise
 
-      expect(mockSpawn).toHaveBeenCalledWith('node', expect.arrayContaining(['--prefer-user']), expect.any(Object))
-    })
-
-    test('does not pass --prefer-user when preferProject is true', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, { preferProject: true })
-
-      setTimeout(() => {
-        getServerProcess().exitCode = 0
-        getServerProcess().emit('exit', 0, null)
-      }, 0)
-
-      await promise
-
-      const args = (mockSpawn.mock.calls as any)[0][1] as string[]
-      expect(args).not.toContain('--prefer-user')
+      expect(mockSpawn).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['--host', '0.0.0.0']),
+        expect.any(Object)
+      )
     })
   })
 
@@ -238,15 +250,15 @@ describe('handleUiCommand', () => {
       expect(stdout.data).toContain('Server starting...')
     })
 
-    test('shows running message when server starts listening', async () => {
+    test('shows running message when Vite server starts listening', async () => {
       const promise = handleUiCommand('/project', logger, stdout, {
         port: 3000,
         host: 'localhost',
       })
 
       setTimeout(() => {
-        // Server emits 'Server listening' to trigger the running message
-        getServerProcess().stdout?.emit('data', Buffer.from('Server listening on port 3000\n'))
+        // Vite emits 'Local:' when the dev server is ready
+        getServerProcess().stdout?.emit('data', Buffer.from('  Local:   http://localhost:3000/\n'))
         getServerProcess().exitCode = 0
         getServerProcess().emit('exit', 0, null)
       }, 0)
@@ -424,7 +436,7 @@ describe('handleUiCommand', () => {
       const promise = handleUiCommand('/project', logger, stdout, { open: true })
 
       setTimeout(() => {
-        getServerProcess().stdout?.emit('data', Buffer.from('Server listening\n'))
+        getServerProcess().stdout?.emit('data', Buffer.from('  Local:   http://localhost:3000/\n'))
         getServerProcess().exitCode = 0
         getServerProcess().emit('exit', 0, null)
       }, 0)
@@ -440,7 +452,7 @@ describe('handleUiCommand', () => {
       const promise = handleUiCommand('/project', logger, stdout, { open: false })
 
       setTimeout(() => {
-        getServerProcess().stdout?.emit('data', Buffer.from('Server listening\n'))
+        getServerProcess().stdout?.emit('data', Buffer.from('  Local:   http://localhost:3000/\n'))
         getServerProcess().exitCode = 0
         getServerProcess().emit('exit', 0, null)
       }, 0)

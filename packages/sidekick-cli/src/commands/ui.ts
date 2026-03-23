@@ -6,12 +6,12 @@
  * Command: sidekick ui [--port PORT] [--host HOST] [--no-open]
  *
  * Features:
- * - Launches the production UI server
+ * - Launches the Vite dev server (with sidekickApiPlugin middleware)
  * - Prints accessible URL
  * - Optionally opens browser (default: yes, disable with --no-open)
  * - Handles graceful shutdown on SIGINT/SIGTERM
  *
- * @see docs/ROADMAP.md
+ * @see packages/sidekick-ui/vite.config.ts
  */
 
 import { spawn, type ChildProcess } from 'node:child_process'
@@ -22,7 +22,6 @@ export interface UiCommandOptions {
   port?: number
   host?: string
   open?: boolean
-  preferProject?: boolean
 }
 
 export interface UiCommandResult {
@@ -30,16 +29,21 @@ export interface UiCommandResult {
 }
 
 /**
- * Resolve path to the UI package's production server script.
+ * Resolve path to the sidekick-ui package directory.
  */
-function resolveProductionServer(): string {
+function resolveUiPackageDir(): string {
   // This file is in packages/sidekick-cli/dist/commands/ui.js
-  // We need packages/sidekick-ui/server/production.js
-  // In CommonJS, __dirname points to the directory containing the current file
   const cliCommandsDir = __dirname // dist/commands
   const cliPackageDir = resolve(cliCommandsDir, '..', '..') // packages/sidekick-cli
-  const workspaceRoot = resolve(cliPackageDir, '..') // packages/
-  return join(workspaceRoot, 'sidekick-ui', 'server', 'production.js')
+  const packagesDir = resolve(cliPackageDir, '..') // packages/
+  return join(packagesDir, 'sidekick-ui')
+}
+
+/**
+ * Resolve path to the Vite binary within the sidekick-ui package.
+ */
+function resolveViteBin(uiPackageDir: string): string {
+  return join(uiPackageDir, 'node_modules', '.bin', 'vite')
 }
 
 /**
@@ -80,9 +84,13 @@ function openBrowser(url: string, logger: Logger): void {
 
 /**
  * Handle the `sidekick ui` command.
+ *
+ * Spawns the Vite dev server from the sidekick-ui package directory.
+ * The Vite config includes the sidekickApiPlugin middleware that provides
+ * the API endpoints, so no separate production server is needed.
  */
 export async function handleUiCommand(
-  projectDir: string,
+  _projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
   options: UiCommandOptions = {}
@@ -90,23 +98,20 @@ export async function handleUiCommand(
   const port = options.port ?? 3000
   const host = options.host ?? 'localhost'
   const shouldOpen = options.open !== false // Default: true
-  const preferProject = options.preferProject !== false
 
-  const serverScript = resolveProductionServer()
+  const uiPackageDir = resolveUiPackageDir()
+  const viteBin = resolveViteBin(uiPackageDir)
   const url = `http://${host}:${port}`
 
-  // Build arguments for production server
-  const args: string[] = ['--port', String(port)]
-  if (!preferProject) {
-    args.push('--prefer-user')
-  }
+  // Build arguments for Vite dev server
+  const args: string[] = ['--port', String(port), '--host', host]
 
-  logger.info('Starting Sidekick UI server', { port, host, serverScript })
+  logger.info('Starting Sidekick UI server', { port, host, viteBin })
 
-  // Spawn the production server as a child process
-  const serverProcess: ChildProcess = spawn('node', [serverScript, ...args], {
+  // Spawn the Vite dev server as a child process
+  const serverProcess: ChildProcess = spawn(viteBin, args, {
     stdio: ['ignore', 'pipe', 'pipe'], // Pipe stdout/stderr so we can capture output
-    cwd: projectDir,
+    cwd: uiPackageDir,
   })
 
   // Track if server started successfully
@@ -118,8 +123,8 @@ export async function handleUiCommand(
       const output = data.toString()
       stdout.write(output)
 
-      // Detect when server is listening
-      if (!serverStarted && output.includes('Server listening')) {
+      // Detect when Vite server is ready (outputs "Local:   http://..." when listening)
+      if (!serverStarted && output.includes('Local:')) {
         serverStarted = true
 
         // Print user-friendly message

@@ -57,7 +57,6 @@ interface ParsedArgs {
   port?: number
   host?: string
   open?: boolean
-  preferProject?: boolean
   sessionIdArg?: string
   messageType?: 'snarky' | 'resume'
   help?: boolean
@@ -200,7 +199,6 @@ function parseArgs(argv: string[]): ParsedArgs {
     port: parsed.port as number | undefined,
     host: parsed.host as string | undefined,
     open: parsed.open as boolean | undefined,
-    preferProject: parsed['prefer-project'] as boolean | undefined,
     sessionIdArg: parsed['session-id'] as string | undefined,
     messageType: parsed.type as 'snarky' | 'resume' | undefined,
     help: Boolean(parsed.help),
@@ -523,7 +521,6 @@ Examples:
       port: parsed.port,
       host: parsed.host,
       open: parsed.open,
-      preferProject: parsed.preferProject,
     })
     return { exitCode: result.exitCode, stdout: '', stderr: '' }
   }
