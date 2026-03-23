@@ -200,24 +200,6 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
     )
   }
 
-  // Command subtype: compact pill with terminal-green accent
-  if (line.type === 'user-message' && line.userSubtype === 'command') {
-    const cmdName = extractCommandName(line.content ?? '') ?? 'command'
-    return (
-      <div onClick={onClick} className="px-2 py-0.5 cursor-pointer">
-        <div className={`rounded-lg px-2.5 py-1 bg-slate-50 dark:bg-slate-800/50 border border-emerald-300 dark:border-emerald-700 ${
-          isSelected ? 'ring-2 ring-indigo-400 dark:ring-indigo-500' : isSynced ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
-        }`}>
-          <div className="flex items-center gap-1.5">
-            <Terminal size={11} className="text-emerald-500" />
-            <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400">/{cmdName}</span>
-            <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">{formatTime(line.timestamp)}</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   // Skill content: purple collapsed pill with skill name
   if (line.type === 'user-message' && line.userSubtype === 'skill-content') {
     const skillName = extractSkillName(line.content ?? '') ?? 'unknown'
@@ -311,7 +293,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
 
   // Positioning: user prompts right-aligned, assistant left-aligned,
   // tools indented, system types center-justified 60% width
-  const isUserPrompt = line.type === 'user-message' && line.userSubtype === 'prompt'
+  const isUserPrompt = line.type === 'user-message' && (line.userSubtype === 'prompt' || line.userSubtype === 'command')
   const isAssistant = line.type === 'assistant-message'
   const isTool = line.type === 'tool-use' || line.type === 'tool-result'
   const isSystemType = line.type === 'turn-duration' || line.type === 'api-error' || line.type === 'pr-link'
@@ -464,7 +446,18 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
 
 function getLineStyles(line: TLine) {
   switch (line.type) {
-    case 'user-message':
+    case 'user-message': {
+      if (line.userSubtype === 'command') {
+        const cmdName = extractCommandName(line.content ?? '') ?? 'command'
+        return {
+          bg: 'bg-white dark:bg-slate-800',
+          border: 'border border-blue-200 dark:border-blue-800',
+          Icon: Terminal,
+          iconColor: 'text-blue-500',
+          label: `/${cmdName}`,
+          labelColor: 'text-blue-600 dark:text-blue-400',
+        }
+      }
       return {
         bg: 'bg-white dark:bg-slate-800',
         border: 'border border-blue-200 dark:border-blue-800',
@@ -473,6 +466,7 @@ function getLineStyles(line: TLine) {
         label: 'User',
         labelColor: 'text-blue-600 dark:text-blue-400',
       }
+    }
     case 'assistant-message':
       return {
         bg: 'bg-white dark:bg-slate-800',

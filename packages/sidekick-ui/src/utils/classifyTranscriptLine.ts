@@ -11,7 +11,7 @@ export function classifyLineCategory(line: TranscriptLine): TranscriptFilter {
   if (type === 'assistant-message' && line.thinking && !line.content) return 'thinking'
   // User messages: only real prompts are 'conversation'
   if (type === 'user-message') {
-    return line.userSubtype === 'prompt' ? 'conversation' : 'system'
+    return (line.userSubtype === 'prompt' || line.userSubtype === 'command') ? 'conversation' : 'system'
   }
   if (type === 'assistant-message') return 'conversation'
   if (type === 'tool-use' || type === 'tool-result') return 'tools'
