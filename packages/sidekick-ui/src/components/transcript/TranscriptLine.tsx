@@ -291,7 +291,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
 
   const styles = getLineStyles(line)
 
-  // Positioning: user prompts right-aligned, assistant left-aligned,
+  // Positioning: user prompts/commands right-aligned, assistant left-aligned,
   // tools indented, system types center-justified 60% width
   const isUserPrompt = line.type === 'user-message' && (line.userSubtype === 'prompt' || line.userSubtype === 'command')
   const isAssistant = line.type === 'assistant-message'
@@ -354,7 +354,7 @@ export function TranscriptLineCard({ line, isSelected, isSynced, onClick, pairNa
         </div>
 
         {/* Content */}
-        {line.content && (
+        {line.content && !(line.type === 'user-message' && line.userSubtype === 'command') && (
           <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed line-clamp-3 mt-0.5">
             {line.content}
           </p>
