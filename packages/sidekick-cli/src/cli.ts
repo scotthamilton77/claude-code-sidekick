@@ -517,7 +517,7 @@ Examples:
 
   if (parsed.command === 'ui') {
     const { handleUiCommand } = await import('./commands/ui.js')
-    const result = await handleUiCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
+    const result = await handleUiCommand(runtime.logger, stdout, {
       port: parsed.port,
       host: parsed.host,
       open: parsed.open,

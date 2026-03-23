@@ -40,13 +40,6 @@ function resolveUiPackageDir(): string {
 }
 
 /**
- * Resolve path to the Vite binary within the sidekick-ui package.
- */
-function resolveViteBin(uiPackageDir: string): string {
-  return join(uiPackageDir, 'node_modules', '.bin', 'vite')
-}
-
-/**
  * Attempt to open URL in default browser (best-effort, cross-platform).
  */
 function openBrowser(url: string, logger: Logger): void {
@@ -90,7 +83,6 @@ function openBrowser(url: string, logger: Logger): void {
  * the API endpoints, so no separate production server is needed.
  */
 export async function handleUiCommand(
-  _projectDir: string,
   logger: Logger,
   stdout: NodeJS.WritableStream,
   options: UiCommandOptions = {}
@@ -100,10 +92,9 @@ export async function handleUiCommand(
   const shouldOpen = options.open !== false // Default: true
 
   const uiPackageDir = resolveUiPackageDir()
-  const viteBin = resolveViteBin(uiPackageDir)
+  const viteBin = join(uiPackageDir, 'node_modules', '.bin', 'vite')
   const url = `http://${host}:${port}`
 
-  // Build arguments for Vite dev server
   const args: string[] = ['--port', String(port), '--host', host]
 
   logger.info('Starting Sidekick UI server', { port, host, viteBin })
@@ -123,7 +114,7 @@ export async function handleUiCommand(
       const output = data.toString()
       stdout.write(output)
 
-      // Detect when Vite server is ready (outputs "Local:   http://..." when listening)
+      // Trigger browser open + status banner once Vite has bound to the port
       if (!serverStarted && output.includes('Local:')) {
         serverStarted = true
 

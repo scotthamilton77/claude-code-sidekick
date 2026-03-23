@@ -114,7 +114,7 @@ describe('handleUiCommand', () => {
 
   describe('process spawning', () => {
     test('spawns vite binary from sidekick-ui package', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       // Simulate immediate exit
       setTimeout(() => {
@@ -132,7 +132,7 @@ describe('handleUiCommand', () => {
     })
 
     test('sets cwd to sidekick-ui package directory', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -146,7 +146,7 @@ describe('handleUiCommand', () => {
     })
 
     test('passes default port 3000 and host localhost', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -163,7 +163,7 @@ describe('handleUiCommand', () => {
     })
 
     test('passes custom port when provided', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, { port: 8080 })
+      const promise = handleUiCommand(logger, stdout, { port: 8080 })
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -180,7 +180,7 @@ describe('handleUiCommand', () => {
     })
 
     test('passes custom host when provided', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, { host: '0.0.0.0' })
+      const promise = handleUiCommand(logger, stdout, { host: '0.0.0.0' })
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -199,7 +199,7 @@ describe('handleUiCommand', () => {
 
   describe('exit code handling', () => {
     test('returns exit code 0 on successful exit', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -211,7 +211,7 @@ describe('handleUiCommand', () => {
     })
 
     test('returns exit code from child process', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 1
@@ -223,7 +223,7 @@ describe('handleUiCommand', () => {
     })
 
     test('returns 0 for null exit code', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().emit('exit', null, 'SIGTERM')
@@ -236,7 +236,7 @@ describe('handleUiCommand', () => {
 
   describe('stdout handling', () => {
     test('forwards child process stdout to output stream', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       // Emit some output
       setTimeout(() => {
@@ -251,7 +251,7 @@ describe('handleUiCommand', () => {
     })
 
     test('shows running message when Vite server starts listening', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, {
+      const promise = handleUiCommand(logger, stdout, {
         port: 3000,
         host: 'localhost',
       })
@@ -270,7 +270,7 @@ describe('handleUiCommand', () => {
     })
 
     test('forwards child process stderr to output stream', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().stderr?.emit('data', Buffer.from('Warning: deprecated API\n'))
@@ -286,7 +286,7 @@ describe('handleUiCommand', () => {
 
   describe('signal handling', () => {
     test('registers SIGINT handler', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -299,7 +299,7 @@ describe('handleUiCommand', () => {
     })
 
     test('registers SIGTERM handler', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -312,7 +312,7 @@ describe('handleUiCommand', () => {
     })
 
     test('kills child process on SIGINT', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       // Give time for handlers to register, then trigger SIGINT
       setTimeout(() => {
@@ -335,7 +335,7 @@ describe('handleUiCommand', () => {
     test('force kills process after timeout if graceful shutdown fails', async () => {
       vi.useFakeTimers()
 
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       // Wait for async operations to settle
       await vi.runAllTimersAsync()
@@ -368,7 +368,7 @@ describe('handleUiCommand', () => {
 
   describe('logging', () => {
     test('logs server start info', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, {
+      const promise = handleUiCommand(logger, stdout, {
         port: 4000,
         host: '0.0.0.0',
       })
@@ -390,7 +390,7 @@ describe('handleUiCommand', () => {
     })
 
     test('logs when server stopped', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 0
@@ -403,7 +403,7 @@ describe('handleUiCommand', () => {
     })
 
     test('logs error when server exits with error code', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().exitCode = 1
@@ -416,7 +416,7 @@ describe('handleUiCommand', () => {
     })
 
     test('logs when terminated by signal', async () => {
-      const promise = handleUiCommand('/project', logger, stdout)
+      const promise = handleUiCommand(logger, stdout)
 
       setTimeout(() => {
         getServerProcess().emit('exit', null, 'SIGKILL')
@@ -433,7 +433,7 @@ describe('handleUiCommand', () => {
 
   describe('browser opening', () => {
     test('opens browser by default when server starts', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, { open: true })
+      const promise = handleUiCommand(logger, stdout, { open: true })
 
       setTimeout(() => {
         getServerProcess().stdout?.emit('data', Buffer.from('  Local:   http://localhost:3000/\n'))
@@ -449,7 +449,7 @@ describe('handleUiCommand', () => {
     })
 
     test('skips browser open when open is false', async () => {
-      const promise = handleUiCommand('/project', logger, stdout, { open: false })
+      const promise = handleUiCommand(logger, stdout, { open: false })
 
       setTimeout(() => {
         getServerProcess().stdout?.emit('data', Buffer.from('  Local:   http://localhost:3000/\n'))
