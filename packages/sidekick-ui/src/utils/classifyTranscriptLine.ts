@@ -9,9 +9,9 @@ const CLAUDE_CODE_TYPES = new Set([
 export function classifyLineCategory(line: TranscriptLine): TranscriptFilter {
   const type = line.type
   if (type === 'assistant-message' && line.thinking && !line.content) return 'thinking'
-  // User messages: only real prompts are 'conversation'
+  // User messages: prompts and commands are 'conversation'; everything else is 'system'
   if (type === 'user-message') {
-    return line.userSubtype === 'prompt' ? 'conversation' : 'system'
+    return (line.userSubtype === 'prompt' || line.userSubtype === 'command') ? 'conversation' : 'system'
   }
   if (type === 'assistant-message') return 'conversation'
   if (type === 'tool-use' || type === 'tool-result') return 'tools'
