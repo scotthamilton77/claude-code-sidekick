@@ -63,8 +63,9 @@ export interface BulkProcessingFinishEvent extends LoggingEventBase<BulkProcessi
 ```
 
 - Source is `'transcript'` (not `'daemon'`) since these are emitted by TranscriptService, matching `transcript:emitted` and `transcript:pre-compact`.
-- Add both to `DaemonLoggingEvent` union (they flow through the daemon's log pipeline).
-- Add to `EventTypePayloadMap`.
+- Add both to `TranscriptLoggingEvent` union (consistent with source `'transcript'`).
+- Add `'bulk-processing:start'` and `'bulk-processing:finish'` to the `UI_EVENT_TYPES` const tuple so the monitoring UI renders them in the timeline.
+- Add entries to `UIEventPayloadMap` for type-safe payload resolution.
 
 #### Factory functions in `packages/sidekick-core/src/structured-logging.ts`
 
@@ -118,6 +119,8 @@ if (isBulkStart && this.isBulkProcessing && !this.hasFiredBulkComplete) {
 | `bulkStartTime` | `number` | `0` | Timestamp for duration calculation in finish event |
 
 Neither field is persisted or reset by `resetStreamingState()`.
+
+**Note on ordering:** `this.isBulkProcessing = false` is set before `emitEvent()` — this is intentional and matches existing behavior. `emitTranscriptEvent()` reads `this.isBulkProcessing` for event metadata; the handler in `update-summary.ts` skips events with `isBulkProcessing = true`, so `BulkProcessingComplete` must have it `false`.
 
 ## Files Changed
 
