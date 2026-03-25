@@ -39,7 +39,7 @@ import type {
 } from '../events.js'
 import { UI_EVENT_TYPES, UI_EVENT_VISIBILITY } from '../events.js'
 
-// All 32 canonical event type names
+// Canonical event type names
 const EXPECTED_EVENT_TYPES = [
   'reminder:staged',
   'reminder:unstaged',
@@ -72,12 +72,14 @@ const EXPECTED_EVENT_TYPES = [
   'statusline:error',
   'transcript:emitted',
   'transcript:pre-compact',
+  'bulk-processing:start',
+  'bulk-processing:finish',
   'error:occurred',
 ] as const
 
 describe('UIEventType', () => {
-  it('contains exactly 32 event types', () => {
-    expect(UI_EVENT_TYPES).toHaveLength(32)
+  it('contains exactly 34 event types', () => {
+    expect(UI_EVENT_TYPES).toHaveLength(34)
   })
 
   it('contains all expected event type names', () => {
