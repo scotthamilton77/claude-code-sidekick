@@ -43,6 +43,8 @@ interface TranscriptServiceTestInternals {
   excerptBufferCount: number
   getBufferedEntries: () => Array<{ lineNumber: number; rawLine: string; uuid: string | null }>
   resetStreamingState: () => void
+  hasFiredBulkComplete: boolean
+  isBulkProcessing: boolean
 }
 
 /**
@@ -94,6 +96,22 @@ function cleanupTestDir(dir: string): void {
   if (existsSync(dir)) {
     rmSync(dir, { recursive: true, force: true })
   }
+}
+
+/**
+ * Extract logEvent calls from logger.info mock by filtering for a specific event type.
+ * logEvent() calls logger.info(msg, { type, source, ...payload }).
+ */
+function findLogEventCalls(
+  mockLogger: Logger,
+  eventType: string
+): Array<Record<string, unknown>> {
+  return (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+    .filter((call: unknown[]) => {
+      const meta = call[1] as Record<string, unknown> | undefined
+      return meta?.type === eventType
+    })
+    .map((call: unknown[]) => call[1] as Record<string, unknown>)
 }
 
 // ============================================================================
@@ -1028,6 +1046,90 @@ describe('TranscriptServiceImpl', () => {
       expect(toolResults).toHaveLength(2)
       expect((toolResults[0].entry as Record<string, unknown>).tool_name).toBe('Bash')
       expect((toolResults[1].entry as Record<string, unknown>).tool_name).toBe('Read')
+    })
+
+    it('emits BulkProcessingComplete on first processing of existing transcript', async () => {
+      const transcript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ text: 'Hi' }] } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const bulkEvents = handlers.emittedEvents.filter(e => e.eventType === 'BulkProcessingComplete')
+      expect(bulkEvents).toHaveLength(1)
+    })
+
+    it('does not emit BulkProcessingComplete a second time after truncation reset (re0)', async () => {
+      const transcript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ text: 'Hi' }] } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // First bulk processing should have fired
+      expect(handlers.emittedEvents.filter(e => e.eventType === 'BulkProcessingComplete')).toHaveLength(1)
+
+      // Simulate /clear truncation: write shorter content
+      const newTranscript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'After clear' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, newTranscript)
+
+      // Process again (simulates watcher tick after truncation)
+      const internals = getTestHelpers(service)
+      await internals.processTranscriptFile()
+
+      // Should NOT have emitted a second BulkProcessingComplete
+      const bulkEvents = handlers.emittedEvents.filter(e => e.eventType === 'BulkProcessingComplete')
+      expect(bulkEvents).toHaveLength(1)
+    })
+
+    it('sets hasFiredBulkComplete flag after first emission', async () => {
+      const transcript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      const internals = getTestHelpers(service)
+      expect(internals.hasFiredBulkComplete).toBe(false)
+
+      await service.start()
+      expect(internals.hasFiredBulkComplete).toBe(true)
+    })
+
+    it('emits bulk-processing:start and bulk-processing:finish log events', async () => {
+      const transcript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ text: 'Hi' }] } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const startEvents = findLogEventCalls(logger, 'bulk-processing:start')
+      expect(startEvents).toHaveLength(1)
+      expect(startEvents[0]).toMatchObject({
+        type: 'bulk-processing:start',
+        source: 'transcript',
+      })
+
+      const finishEvents = findLogEventCalls(logger, 'bulk-processing:finish')
+      expect(finishEvents).toHaveLength(1)
+      expect(finishEvents[0]).toMatchObject({
+        type: 'bulk-processing:finish',
+        source: 'transcript',
+      })
+      // Check payload includes duration and line count
+      expect((finishEvents[0] as any).totalLinesProcessed).toBe(2)
+      expect((finishEvents[0] as any).durationMs).toBeGreaterThanOrEqual(0)
     })
   })
 
