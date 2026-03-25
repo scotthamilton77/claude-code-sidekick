@@ -652,6 +652,18 @@ export interface PreCompactCapturedEvent extends LoggingEventBase<TranscriptPreC
   source: 'transcript'
 }
 
+/** Emitted when bulk transcript replay begins. */
+export interface BulkProcessingStartEvent extends LoggingEventBase<BulkProcessingStartPayload> {
+  type: 'bulk-processing:start'
+  source: 'transcript'
+}
+
+/** Emitted when bulk transcript replay completes. */
+export interface BulkProcessingFinishEvent extends LoggingEventBase<BulkProcessingFinishPayload> {
+  type: 'bulk-processing:finish'
+  source: 'transcript'
+}
+
 /**
  * Error occurred in daemon.
  * @see packages/sidekick-daemon/src/daemon.ts — HookableLogger error hook emits this event.
@@ -721,7 +733,11 @@ export type DaemonLoggingEvent =
  * Union of transcript-related logging events.
  * These are written to a separate transcript-events.log file.
  */
-export type TranscriptLoggingEvent = TranscriptEventEmittedEvent | PreCompactCapturedEvent
+export type TranscriptLoggingEvent =
+  | TranscriptEventEmittedEvent
+  | PreCompactCapturedEvent
+  | BulkProcessingStartEvent
+  | BulkProcessingFinishEvent
 
 /**
  * Union of all logging events (internal, non-triggering).
@@ -772,7 +788,7 @@ export function isTranscriptLoggingEvent(event: LoggingEvent): event is Transcri
 export type EventVisibility = 'timeline' | 'log' | 'both'
 
 /**
- * All 32 canonical UI event type names as a const tuple.
+ * Canonical UI event type names as a const tuple.
  * Single source of truth for both the UIEventType union and runtime validation.
  */
 export const UI_EVENT_TYPES = [
@@ -821,6 +837,9 @@ export const UI_EVENT_TYPES = [
   // Transcript events
   'transcript:emitted',
   'transcript:pre-compact',
+  // Bulk processing lifecycle events
+  'bulk-processing:start',
+  'bulk-processing:finish',
   // General error
   'error:occurred',
 ] as const
@@ -1086,6 +1105,17 @@ export interface TranscriptPreCompactPayload {
   metrics?: TranscriptMetrics
 }
 
+/** Payload for `bulk-processing:start` — transcript bulk replay starting. */
+export interface BulkProcessingStartPayload {
+  fileSize: number
+}
+
+/** Payload for `bulk-processing:finish` — transcript bulk replay completed. */
+export interface BulkProcessingFinishPayload {
+  totalLinesProcessed: number
+  durationMs: number
+}
+
 /** Payload for `error:occurred` — a general error occurred. */
 export interface ErrorOccurredPayload {
   errorMessage: string
@@ -1131,6 +1161,8 @@ export interface UIEventPayloadMap {
   'statusline:error': StatuslineErrorPayload
   'transcript:emitted': TranscriptEmittedPayload
   'transcript:pre-compact': TranscriptPreCompactPayload
+  'bulk-processing:start': BulkProcessingStartPayload
+  'bulk-processing:finish': BulkProcessingFinishPayload
   'error:occurred': ErrorOccurredPayload
 }
 
@@ -1213,4 +1245,6 @@ export const UI_EVENT_VISIBILITY = {
   'resume-message:skipped': 'log',
   'transcript:emitted': 'log',
   'transcript:pre-compact': 'log',
+  'bulk-processing:start': 'log',
+  'bulk-processing:finish': 'log',
 } as const satisfies Record<UIEventType, EventVisibility>
