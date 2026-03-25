@@ -1426,6 +1426,37 @@ describe('Structured Logging', () => {
       expect(event.payload.metrics).toEqual(metrics)
     })
 
+    it('should create BulkProcessingStart events with correct structure', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.bulkProcessingStart(
+        { sessionId: 'sess-123' },
+        { fileSize: 102400 }
+      )
+
+      expect(event.type).toBe('bulk-processing:start')
+      expect(event.source).toBe('transcript')
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.fileSize).toBe(102400)
+      expect(event.time).toBeGreaterThan(0)
+    })
+
+    it('should create BulkProcessingFinish events with correct structure', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.bulkProcessingFinish(
+        { sessionId: 'sess-123' },
+        { totalLinesProcessed: 500, durationMs: 1234 }
+      )
+
+      expect(event.type).toBe('bulk-processing:finish')
+      expect(event.source).toBe('transcript')
+      expect(event.context.sessionId).toBe('sess-123')
+      expect(event.payload.totalLinesProcessed).toBe(500)
+      expect(event.payload.durationMs).toBe(1234)
+      expect(event.time).toBeGreaterThan(0)
+    })
+
     // --- Type Guard Tests ---
 
     it('isLoggingEvent should return true for valid logging events', async () => {

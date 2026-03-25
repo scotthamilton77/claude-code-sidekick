@@ -776,6 +776,8 @@ import type {
   PreCompactCapturedEvent,
   DaemonErrorOccurredEvent,
   CliErrorOccurredEvent,
+  BulkProcessingStartEvent,
+  BulkProcessingFinishEvent,
   LoggingEventBase,
   TranscriptEventType,
   TranscriptMetrics,
@@ -1376,6 +1378,57 @@ export const LogEvents = {
       payload: {
         errorMessage: state.errorMessage,
         errorStack: state.errorStack,
+      },
+    }
+  },
+
+  // --- Bulk Processing Lifecycle Events ---
+
+  /**
+   * Create a BulkProcessingStart event (logged when transcript bulk replay begins).
+   */
+  bulkProcessingStart(
+    context: EventLogContext,
+    metadata: { fileSize: number }
+  ): BulkProcessingStartEvent {
+    return {
+      type: 'bulk-processing:start',
+      time: Date.now(),
+      source: 'transcript',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        fileSize: metadata.fileSize,
+      },
+    }
+  },
+
+  /**
+   * Create a BulkProcessingFinish event (logged when transcript bulk replay completes).
+   */
+  bulkProcessingFinish(
+    context: EventLogContext,
+    metadata: { totalLinesProcessed: number; durationMs: number }
+  ): BulkProcessingFinishEvent {
+    return {
+      type: 'bulk-processing:finish',
+      time: Date.now(),
+      source: 'transcript',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload: {
+        totalLinesProcessed: metadata.totalLinesProcessed,
+        durationMs: metadata.durationMs,
       },
     }
   },
