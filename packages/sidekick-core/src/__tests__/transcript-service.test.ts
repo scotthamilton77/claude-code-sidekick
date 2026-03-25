@@ -1085,6 +1085,17 @@ describe('TranscriptServiceImpl', () => {
       // Should NOT have emitted a second BulkProcessingComplete
       const bulkEvents = handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')
       expect(bulkEvents).toHaveLength(1)
+
+      // Should NOT have emitted a second bulk-processing:start (orphaned start event)
+      const startEvents = findLogEventCalls(logger, 'bulk-processing:start')
+      expect(startEvents).toHaveLength(1)
+
+      // Should still have exactly one bulk-processing:finish
+      const finishEvents = findLogEventCalls(logger, 'bulk-processing:finish')
+      expect(finishEvents).toHaveLength(1)
+
+      // isBulkProcessing should NOT be stuck true
+      expect(internals.isBulkProcessing).toBe(false)
     })
 
     it('sets hasFiredBulkComplete flag after first emission', async () => {
@@ -1121,10 +1132,9 @@ describe('TranscriptServiceImpl', () => {
       expect(finishEvents[0]).toMatchObject({
         type: 'bulk-processing:finish',
         source: 'transcript',
+        totalLinesProcessed: 2,
+        durationMs: expect.any(Number),
       })
-      // Check payload includes duration and line count
-      expect((finishEvents[0] as any).totalLinesProcessed).toBe(2)
-      expect((finishEvents[0] as any).durationMs).toBeGreaterThanOrEqual(0)
     })
   })
 

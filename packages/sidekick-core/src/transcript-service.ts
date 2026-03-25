@@ -1202,7 +1202,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     const startLine = this.metrics.lastProcessedLine
     const isBulkStart = startLine === 0 && this.lastProcessedByteOffset === 0
 
-    if (isBulkStart) {
+    if (isBulkStart && !this.hasFiredBulkComplete) {
       this.isBulkProcessing = true
       this.bulkStartTime = Date.now()
       logEvent(
