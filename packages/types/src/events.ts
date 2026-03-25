@@ -788,7 +788,7 @@ export function isTranscriptLoggingEvent(event: LoggingEvent): event is Transcri
 export type EventVisibility = 'timeline' | 'log' | 'both'
 
 /**
- * All 32 canonical UI event type names as a const tuple.
+ * Canonical UI event type names as a const tuple.
  * Single source of truth for both the UIEventType union and runtime validation.
  */
 export const UI_EVENT_TYPES = [
