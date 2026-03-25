@@ -119,6 +119,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
           decision: 'skipped',
           reason: 'BulkProcessingComplete with no user turns (turnCount=0)',
           detail: 'session-summary analysis',
+          title: 'Skip session analysis',
         })
       )
       return
@@ -130,6 +131,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         decision: 'calling',
         reason: 'BulkProcessingComplete - analyzing full transcript',
         detail: 'session-summary analysis',
+        title: 'Run session analysis',
       })
     )
     const countdown = await loadCountdownState(summaryState, sessionId)
@@ -148,6 +150,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         decision: 'calling',
         reason: 'UserPrompt event forces immediate analysis',
         detail: 'session-summary analysis',
+        title: 'Run session analysis',
       })
     )
     void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
@@ -162,6 +165,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         decision: 'skipped',
         reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
         detail: 'session-summary analysis',
+        title: 'Defer session analysis',
       })
     )
     countdown.countdown--
@@ -176,6 +180,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       decision: 'calling',
       reason: 'countdown reached zero after ToolResult',
       detail: 'session-summary analysis',
+      title: 'Run session analysis',
     })
   )
   void performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached')

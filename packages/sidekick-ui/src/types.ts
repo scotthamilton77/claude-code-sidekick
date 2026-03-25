@@ -82,6 +82,7 @@ export interface TranscriptLine {
   reminderBlocking?: boolean
 
   // decision:recorded
+  decisionTitle?: string
   decisionCategory?: string
   decisionReasoning?: string
 

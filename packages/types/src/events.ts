@@ -929,6 +929,7 @@ export interface DecisionRecordedPayload {
   decision: string
   reason: string
   detail: string
+  title?: string
 }
 
 /** Payload for `session-summary:start` — LLM summary generation began. */

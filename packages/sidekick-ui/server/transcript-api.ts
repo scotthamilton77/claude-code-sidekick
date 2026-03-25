@@ -68,6 +68,7 @@ export interface ApiTranscriptLine {
   // Sidekick event fields
   reminderId?: string
   reminderBlocking?: boolean
+  decisionTitle?: string
   decisionCategory?: string
   decisionReasoning?: string
   previousValue?: string
@@ -396,6 +397,7 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   // Copy event-specific payload fields (use ?? for fallback semantics)
   line.reminderId = (payload.reminderName ?? payload.reminderType) as string | undefined
   if (payload.blocking === true) line.reminderBlocking = true
+  line.decisionTitle = payload.title as string | undefined
   line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string
   if (payload.previousValue) line.previousValue = payload.previousValue as string
