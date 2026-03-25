@@ -1387,10 +1387,7 @@ export const LogEvents = {
   /**
    * Create a BulkProcessingStart event (logged when transcript bulk replay begins).
    */
-  bulkProcessingStart(
-    context: EventLogContext,
-    metadata: { fileSize: number }
-  ): BulkProcessingStartEvent {
+  bulkProcessingStart(context: EventLogContext, metadata: { fileSize: number }): BulkProcessingStartEvent {
     return {
       type: 'bulk-processing:start',
       time: Date.now(),

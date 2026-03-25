@@ -1429,10 +1429,7 @@ describe('Structured Logging', () => {
     it('should create BulkProcessingStart events with correct structure', async () => {
       const { LogEvents } = await import('../structured-logging')
 
-      const event = LogEvents.bulkProcessingStart(
-        { sessionId: 'sess-123' },
-        { fileSize: 102400 }
-      )
+      const event = LogEvents.bulkProcessingStart({ sessionId: 'sess-123' }, { fileSize: 102400 })
 
       expect(event.type).toBe('bulk-processing:start')
       expect(event.source).toBe('transcript')

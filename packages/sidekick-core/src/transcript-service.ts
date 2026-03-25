@@ -1207,10 +1207,7 @@ export class TranscriptServiceImpl implements TranscriptService {
       this.bulkStartTime = Date.now()
       logEvent(
         this.options.logger,
-        LogEvents.bulkProcessingStart(
-          { sessionId: this.sessionId! },
-          { fileSize: currentFileSize }
-        )
+        LogEvents.bulkProcessingStart({ sessionId: this.sessionId! }, { fileSize: currentFileSize })
       )
     }
 
@@ -1294,10 +1291,7 @@ export class TranscriptServiceImpl implements TranscriptService {
       const durationMs = Date.now() - this.bulkStartTime
       logEvent(
         this.options.logger,
-        LogEvents.bulkProcessingFinish(
-          { sessionId: this.sessionId! },
-          { totalLinesProcessed: lineNumber, durationMs }
-        )
+        LogEvents.bulkProcessingFinish({ sessionId: this.sessionId! }, { totalLinesProcessed: lineNumber, durationMs })
       )
       await this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lineNumber)
     }

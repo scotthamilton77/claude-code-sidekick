@@ -102,10 +102,7 @@ function cleanupTestDir(dir: string): void {
  * Extract logEvent calls from logger.info mock by filtering for a specific event type.
  * logEvent() calls logger.info(msg, { type, source, ...payload }).
  */
-function findLogEventCalls(
-  mockLogger: Logger,
-  eventType: string
-): Array<Record<string, unknown>> {
+function findLogEventCalls(mockLogger: Logger, eventType: string): Array<Record<string, unknown>> {
   return (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
     .filter((call: unknown[]) => {
       const meta = call[1] as Record<string, unknown> | undefined
@@ -1058,7 +1055,7 @@ describe('TranscriptServiceImpl', () => {
       await service.prepare('test-session', transcriptPath)
       await service.start()
 
-      const bulkEvents = handlers.emittedEvents.filter(e => e.eventType === 'BulkProcessingComplete')
+      const bulkEvents = handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')
       expect(bulkEvents).toHaveLength(1)
     })
 
@@ -1073,12 +1070,12 @@ describe('TranscriptServiceImpl', () => {
       await service.start()
 
       // First bulk processing should have fired
-      expect(handlers.emittedEvents.filter(e => e.eventType === 'BulkProcessingComplete')).toHaveLength(1)
+      expect(handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')).toHaveLength(1)
 
       // Simulate /clear truncation: write shorter content
-      const newTranscript = [
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'After clear' } }),
-      ].join('\n')
+      const newTranscript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'After clear' } })].join(
+        '\n'
+      )
       writeFileSync(transcriptPath, newTranscript)
 
       // Process again (simulates watcher tick after truncation)
@@ -1086,14 +1083,12 @@ describe('TranscriptServiceImpl', () => {
       await internals.processTranscriptFile()
 
       // Should NOT have emitted a second BulkProcessingComplete
-      const bulkEvents = handlers.emittedEvents.filter(e => e.eventType === 'BulkProcessingComplete')
+      const bulkEvents = handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')
       expect(bulkEvents).toHaveLength(1)
     })
 
     it('sets hasFiredBulkComplete flag after first emission', async () => {
-      const transcript = [
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
-      ].join('\n')
+      const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
       await service.prepare('test-session', transcriptPath)
