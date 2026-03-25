@@ -26,6 +26,11 @@ import {
 } from './persona-utils.js'
 import { ensurePersonaForSession } from './persona-selection.js'
 
+/** Human-readable titles for decision:recorded events shown in the UI timeline. */
+const DECISION_TITLE_SKIP = 'Skip session analysis'
+const DECISION_TITLE_RUN = 'Run session analysis'
+const DECISION_TITLE_DEFER = 'Defer session analysis'
+
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -119,6 +124,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
           decision: 'skipped',
           reason: 'BulkProcessingComplete with no user turns (turnCount=0)',
           detail: 'session-summary analysis',
+          title: DECISION_TITLE_SKIP,
         })
       )
       return
@@ -130,6 +136,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         decision: 'calling',
         reason: 'BulkProcessingComplete - analyzing full transcript',
         detail: 'session-summary analysis',
+        title: DECISION_TITLE_RUN,
       })
     )
     const countdown = await loadCountdownState(summaryState, sessionId)
@@ -148,6 +155,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         decision: 'calling',
         reason: 'UserPrompt event forces immediate analysis',
         detail: 'session-summary analysis',
+        title: DECISION_TITLE_RUN,
       })
     )
     void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
@@ -162,6 +170,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         decision: 'skipped',
         reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
         detail: 'session-summary analysis',
+        title: DECISION_TITLE_DEFER,
       })
     )
     countdown.countdown--
@@ -176,6 +185,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       decision: 'calling',
       reason: 'countdown reached zero after ToolResult',
       detail: 'session-summary analysis',
+      title: DECISION_TITLE_RUN,
     })
   )
   void performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached')

@@ -226,6 +226,11 @@ describe('generateLabel', () => {
     expect(result).toEqual({ label: 'Decision: skip-tests', detail: 'tests already passed' })
   })
 
+  it('generates label for decision:recorded preferring title over decision', () => {
+    const result = generateLabel('decision:recorded', { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns' })
+    expect(result).toEqual({ label: 'Decision: Skip session analysis', detail: 'no user turns' })
+  })
+
   it('generates label for session-title:changed', () => {
     const result = generateLabel('session-title:changed', { newValue: 'Fix auth bug', confidence: 0.85 })
     expect(result).toEqual({ label: 'Title → "Fix auth bug"', detail: 'confidence: 0.85' })

@@ -126,7 +126,7 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
     case 'reminder:cleared':
       return { label: `Cleared ${line.reminderId ?? 'all'}` }
     case 'decision:recorded':
-      return { label: `Decision: ${line.decisionCategory ?? 'unknown'}`, detail: line.decisionReasoning }
+      return { label: `Decision: ${line.decisionTitle ?? line.decisionCategory ?? 'unknown'}`, detail: line.decisionReasoning }
     case 'session-summary:start':
       return { label: 'Summary Analysis Start' }
     case 'session-summary:finish':
@@ -513,7 +513,7 @@ function getLineStyles(line: TLine) {
         border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
         Icon: Lightbulb,
         iconColor: 'text-amber-500',
-        label: line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision',
+        label: `Decision: ${line.decisionTitle ?? line.decisionCategory ?? 'unknown'}`,
         labelColor: 'text-amber-600 dark:text-amber-400',
       }
     case 'session-summary:start':

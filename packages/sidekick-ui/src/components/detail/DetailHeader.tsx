@@ -96,7 +96,7 @@ function getLineLabel(line: TranscriptLine): string {
     case 'reminder:staged':
     case 'reminder:unstaged':
     case 'reminder:consumed': return `${line.type}: ${line.reminderId ?? ''}`
-    case 'decision:recorded': return line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision'
+    case 'decision:recorded': return `Decision: ${line.decisionTitle ?? line.decisionCategory ?? 'unknown'}`
     case 'session-title:changed': return line.newValue ? `Title → ${line.newValue}` : 'Title changed'
     case 'intent:changed': return line.newValue ? `Intent → ${line.newValue}` : 'Intent changed'
     case 'persona:selected': return `Persona: ${line.personaTo ?? ''}`

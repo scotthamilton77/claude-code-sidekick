@@ -88,9 +88,9 @@ export function generateLabel(
       return { label: `Cleared: ${reminderType}` }
     }
     case 'decision:recorded': {
-      const decision = (payload.decision as string) || 'unknown'
+      const title = (payload.title as string) || (payload.decision as string) || 'unknown'
       const reason = payload.reason as string | undefined
-      return { label: `Decision: ${decision}`, ...(reason ? { detail: reason } : {}) }
+      return { label: `Decision: ${title}`, ...(reason ? { detail: reason } : {}) }
     }
     case 'session-title:changed': {
       const newVal = (payload.newValue as string) || 'unknown'
