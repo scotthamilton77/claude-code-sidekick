@@ -513,7 +513,7 @@ function getLineStyles(line: TLine) {
         border: 'border border-dashed border-amber-200 dark:border-amber-800/50',
         Icon: Lightbulb,
         iconColor: 'text-amber-500',
-        label: line.decisionTitle ? `Decision: ${line.decisionTitle}` : line.decisionCategory ? `Decision: ${line.decisionCategory}` : 'Decision',
+        label: `Decision: ${line.decisionTitle ?? line.decisionCategory ?? 'unknown'}`,
         labelColor: 'text-amber-600 dark:text-amber-400',
       }
     case 'session-summary:start':
