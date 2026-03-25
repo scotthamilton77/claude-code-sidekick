@@ -248,6 +248,12 @@ export class TranscriptServiceImpl implements TranscriptService {
   /** Track whether we're in bulk processing mode (first-time transcript replay) */
   private isBulkProcessing = false
 
+  /** One-shot guard — prevents BulkProcessingComplete from firing more than once per instance */
+  private hasFiredBulkComplete = false
+
+  /** Timestamp when bulk processing started (for duration calculation in finish event) */
+  private bulkStartTime = 0
+
   /** Map tool_use_id → tool name so ToolResult events can include the tool name */
   private toolUseIdToName = new Map<string, string>()
 
@@ -1198,10 +1204,14 @@ export class TranscriptServiceImpl implements TranscriptService {
 
     if (isBulkStart) {
       this.isBulkProcessing = true
-      this.options.logger.info('Bulk processing started (streaming)', {
-        sessionId: this.sessionId,
-        fileSize: currentFileSize,
-      })
+      this.bulkStartTime = Date.now()
+      logEvent(
+        this.options.logger,
+        LogEvents.bulkProcessingStart(
+          { sessionId: this.sessionId! },
+          { fileSize: currentFileSize }
+        )
+      )
     }
 
     // Stream from last processed position
@@ -1278,13 +1288,18 @@ export class TranscriptServiceImpl implements TranscriptService {
     })
 
     // Emit BulkProcessingComplete if we were in bulk mode
-    if (isBulkStart && this.isBulkProcessing) {
+    if (isBulkStart && this.isBulkProcessing && !this.hasFiredBulkComplete) {
       this.isBulkProcessing = false
+      this.hasFiredBulkComplete = true
+      const durationMs = Date.now() - this.bulkStartTime
+      logEvent(
+        this.options.logger,
+        LogEvents.bulkProcessingFinish(
+          { sessionId: this.sessionId! },
+          { totalLinesProcessed: lineNumber, durationMs }
+        )
+      )
       await this.emitEvent('BulkProcessingComplete', {} as TranscriptEntry, lineNumber)
-      this.options.logger.info('Bulk processing complete', {
-        sessionId: this.sessionId,
-        totalLinesProcessed: lineNumber,
-      })
     }
 
     // Notify subscribers
