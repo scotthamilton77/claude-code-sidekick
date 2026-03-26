@@ -712,6 +712,54 @@ describe('parseTranscriptLines', () => {
     expect(lines[2].type).toBe('assistant-message')
   })
 
+  it('maps decision:recorded with title to decisionTitle', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'decision:recorded',
+        context: { sessionId: 'session-1' },
+        payload: { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns' },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const decisionLine = lines.find((l) => l.type === 'decision:recorded')
+    expect(decisionLine).toBeDefined()
+    expect(decisionLine!.decisionTitle).toBe('Skip session analysis')
+    expect(decisionLine!.decisionCategory).toBe('skipped')
+    expect(decisionLine!.decisionReasoning).toBe('no user turns')
+  })
+
+  it('maps decision:recorded without title to decisionCategory only', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'decision:recorded',
+        context: { sessionId: 'session-1' },
+        payload: { decision: 'skip-tests', reason: 'tests already passed' },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const decisionLine = lines.find((l) => l.type === 'decision:recorded')
+    expect(decisionLine).toBeDefined()
+    expect(decisionLine!.decisionTitle).toBeUndefined()
+    expect(decisionLine!.decisionCategory).toBe('skip-tests')
+    expect(decisionLine!.decisionReasoning).toBe('tests already passed')
+  })
+
   it('returns only Claude Code lines when no projectDir', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
