@@ -26,7 +26,7 @@ import { createRemindersState } from '../../state.js'
 /** Check whether a single verification tool needs (re-)verification */
 function toolNeedsVerification(
   toolConfig: VerificationToolConfig,
-  state: VerificationToolStatusState | undefined,
+  state: VerificationToolStatusState | undefined
 ): boolean {
   if (!toolConfig.enabled) return false
   if (!state) return true

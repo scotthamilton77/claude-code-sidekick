@@ -625,13 +625,13 @@ function computeLEDStates(lines: ApiTranscriptLine[]): void {
     if (line.type === 'reminder:staged') {
       const key = mapReminderToLED(line.reminderId)
       if (key && typeof state[key] === 'boolean') {
-        ;(state as Record<string, boolean>)[key] = true
+        ;(state as unknown as Record<string, boolean>)[key] = true
         dirty = true
       }
     } else if (line.type === 'reminder:unstaged' || line.type === 'reminder:consumed') {
       const key = mapReminderToLED(line.reminderId)
       if (key && typeof state[key] === 'boolean') {
-        ;(state as Record<string, boolean>)[key] = false
+        ;(state as unknown as Record<string, boolean>)[key] = false
         dirty = true
       }
     } else if (line.type === 'reminder:cleared') {
@@ -644,7 +644,7 @@ function computeLEDStates(lines: ApiTranscriptLine[]): void {
       } else {
         const key = mapReminderToLED(line.reminderId)
         if (key && typeof state[key] === 'boolean') {
-          ;(state as Record<string, boolean>)[key] = false
+          ;(state as unknown as Record<string, boolean>)[key] = false
           dirty = true
         }
       }

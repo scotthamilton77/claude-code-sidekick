@@ -22,7 +22,7 @@
   "devDependencies": {
     "@sidekick/testing-fixtures": "workspace:*",
     "@types/node": "^22.7.4",
-    "typescript": "^5.6.3",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }
 }

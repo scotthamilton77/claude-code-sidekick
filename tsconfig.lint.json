@@ -3,7 +3,16 @@
   "compilerOptions": {
     "noEmit": true,
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "paths": {
+      "@sidekick/types": ["packages/types/src"],
+      "@sidekick/core": ["packages/sidekick-core/src"],
+      "@sidekick/shared-providers": ["packages/shared-providers/src"],
+      "@sidekick/testing-fixtures": ["packages/testing-fixtures/src"],
+      "@sidekick/feature-session-summary": ["packages/feature-session-summary/src"],
+      "@sidekick/feature-reminders": ["packages/feature-reminders/src"],
+      "@sidekick/feature-statusline": ["packages/feature-statusline/src"]
+    }
   },
   "include": [
     "packages/*/src/**/*.ts",
