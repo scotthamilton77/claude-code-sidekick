@@ -5,7 +5,7 @@ interface DecisionDetailProps {
 }
 
 export function DecisionDetail({ line }: DecisionDetailProps) {
-  const displayTitle = line.decisionTitle ?? line.decisionCategory ?? 'unknown'
+  const displayTitle = line.decisionTitle || line.decisionCategory || 'unknown'
 
   return (
     <div className="p-3 space-y-3">
