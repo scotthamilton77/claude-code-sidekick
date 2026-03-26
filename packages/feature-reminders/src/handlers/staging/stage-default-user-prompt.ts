@@ -15,7 +15,7 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
-import type { DaemonContext, ReminderThrottleEntry, StagedReminder, StagingMetrics } from '@sidekick/types'
+import type { DaemonContext, StagedReminder, StagingMetrics } from '@sidekick/types'
 import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
@@ -155,7 +155,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       let changed = false
 
       for (const [reminderId, entry] of Object.entries(state)) {
-        const typedEntry = entry as ReminderThrottleEntry
+        const typedEntry = entry
         const threshold = thresholds[reminderId]
         if (threshold === undefined) continue
 
