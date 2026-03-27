@@ -100,7 +100,7 @@ s1LEDs.set(id, ledOff('amber'))
 
 // Sidekick: decision
 id = lid()
-s1Lines.push({ id, timestamp: t(3), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Root cause: health check race condition', decisionReasoning: 'Health check interval (30s) conflicts with mtime threshold (30s), creating race condition where daemon appears dead during normal operation' })
+s1Lines.push({ id, timestamp: t(3), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Root cause: health check race condition', decisionReasoning: 'Health check interval (30s) conflicts with mtime threshold (30s), creating race condition where daemon appears dead during normal operation', decisionSubsystem: 'session-summary' })
 s1LEDs.set(id, ledOff('amber'))
 s1Events.push(sEvt(id, t(3), 'decision:recorded', 'Root cause: health check race condition', 'Interval and threshold both 30s — GC pause triggers false death'))
 
@@ -294,7 +294,7 @@ s2Events.push(sEvt(id, t(63.5), 'snarky-message:finish', 'Snarky message ready',
 
 // Sidekick: decision to validate voice
 id = lid()
-s2Lines.push({ id, timestamp: t(64), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Validate persona voice', decisionReasoning: 'New persona needs voice validation — generating test snarky comment to verify authenticity' })
+s2Lines.push({ id, timestamp: t(64), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Validate persona voice', decisionReasoning: 'New persona needs voice validation — generating test snarky comment to verify authenticity', decisionSubsystem: 'session-summary' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
 s2Events.push(sEvt(id, t(64), 'decision:recorded', 'Validate persona voice', 'New persona needs voice validation'))
 
@@ -398,7 +398,7 @@ s3LEDs.set(id, ledOff('amber'))
 
 // Decision
 id = lid()
-s3Lines.push({ id, timestamp: t(123), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Bottleneck: config reload', decisionReasoning: 'Config is reloaded from disk on every hook invocation (180ms). Should be cached with file watcher invalidation.' })
+s3Lines.push({ id, timestamp: t(123), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Bottleneck: config reload', decisionReasoning: 'Config is reloaded from disk on every hook invocation (180ms). Should be cached with file watcher invalidation.', decisionSubsystem: 'session-summary' })
 s3LEDs.set(id, ledOff('amber'))
 s3Events.push(sEvt(id, t(123), 'decision:recorded', 'Bottleneck: config reload', 'Config reloaded from disk every invocation (180ms)'))
 
@@ -586,7 +586,7 @@ s4Lines.push({ id, timestamp: t(182.1), type: 'tool-result', toolOutput: '// jwt
 s4LEDs.set(id, ledOff('amber'))
 
 id = lid()
-s4Lines.push({ id, timestamp: t(183), type: 'decision:recorded', decisionCategory: 'summary', decisionTitle: 'Clock skew suspected', decisionReasoning: 'JWT exp check uses strict comparison without clock skew tolerance. With distributed services, clock drift of a few seconds causes intermittent rejections.' })
+s4Lines.push({ id, timestamp: t(183), type: 'decision:recorded', decisionCategory: 'summary', decisionTitle: 'Clock skew suspected', decisionReasoning: 'JWT exp check uses strict comparison without clock skew tolerance. With distributed services, clock drift of a few seconds causes intermittent rejections.', decisionSubsystem: 'session-summary' })
 s4LEDs.set(id, ledOff('amber'))
 s4Events.push(sEvt(id, t(183), 'decision:recorded', 'Clock skew suspected', 'No clock skew tolerance in JWT verification'))
 
@@ -737,7 +737,7 @@ s5LEDs.set(id, ledOff('amber'))
 
 // Decision
 id = lid()
-s5Lines.push({ id, timestamp: t(245), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Middleware compatibility', decisionReasoning: "Express middleware uses (req, res, next) pattern. Hono uses c.next(). Need adapter for existing auth middleware." })
+s5Lines.push({ id, timestamp: t(245), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Middleware compatibility', decisionReasoning: "Express middleware uses (req, res, next) pattern. Hono uses c.next(). Need adapter for existing auth middleware.", decisionSubsystem: 'session-summary' })
 s5LEDs.set(id, ledOff('amber'))
 s5Events.push(sEvt(id, t(245), 'decision:recorded', 'Middleware compatibility', 'Create thin adapter rather than rewriting all middleware'))
 
@@ -900,7 +900,7 @@ s6Lines.push({ id, timestamp: t(303.1), type: 'tool-result', toolOutput: '// Lan
 s6LEDs.set(id, ledOff('red'))
 
 id = lid()
-s6Lines.push({ id, timestamp: t(304), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Typography upgrade', decisionReasoning: 'Current Inter font is generic. Switching to DM Sans for body + Instrument Serif for display creates better contrast.' })
+s6Lines.push({ id, timestamp: t(304), type: 'decision:recorded', decisionCategory: 'handler', decisionTitle: 'Typography upgrade', decisionReasoning: 'Current Inter font is generic. Switching to DM Sans for body + Instrument Serif for display creates better contrast.', decisionSubsystem: 'session-summary' })
 s6LEDs.set(id, ledOff('red'))
 s6Events.push(sEvt(id, t(304), 'decision:recorded', 'Typography upgrade', 'DM Sans + Instrument Serif'))
 

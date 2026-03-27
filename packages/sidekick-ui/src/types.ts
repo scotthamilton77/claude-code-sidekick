@@ -85,6 +85,7 @@ export interface TranscriptLine {
   decisionTitle?: string
   decisionCategory?: string
   decisionReasoning?: string
+  decisionSubsystem?: string
 
   // session-title:changed / intent:changed
   previousValue?: string
