@@ -199,6 +199,8 @@ describe('Per-event payload interfaces', () => {
     expectTypeOf<DecisionRecordedPayload>().toHaveProperty('reason')
     expectTypeOf<DecisionRecordedPayload>().toHaveProperty('subsystem')
     expectTypeOf<DecisionRecordedPayload>().toHaveProperty('title')
+    // Verify title is required (string), not optional (string | undefined)
+    expectTypeOf<DecisionRecordedPayload['title']>().toEqualTypeOf<string>()
   })
 
   it('SessionSummaryStartPayload has correct fields', () => {
