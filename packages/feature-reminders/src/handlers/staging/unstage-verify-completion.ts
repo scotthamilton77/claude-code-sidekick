@@ -203,7 +203,7 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           )
         }
       }
-      daemonCtx.logger.debug('VC unstage: cleanup complete', { deletedCount, totalChecked: ALL_VC_REMINDER_IDS.length })
+      daemonCtx.logger.debug('VC unstage: cleanup complete', { reason, deletedCount, totalChecked: ALL_VC_REMINDER_IDS.length })
     },
   })
 }
