@@ -141,7 +141,7 @@ describe('reminder:unstaged events', () => {
     })
   })
 
-  describe('unstage-verify-completion handler: conditional event emission', () => {
+  describe('orchestrator P&R cascade: conditional event emission', () => {
     it('should NOT emit reminder:unstaged when deleteReminder returns false (no file existed)', async () => {
       const staging = createMockStagingService()
       // Mock deleteReminder to return false (file didn't exist)

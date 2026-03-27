@@ -98,8 +98,8 @@ describe('ReminderOrchestrator', () => {
       expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_TEST)
       expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_LINT)
       expect(logger.debug).toHaveBeenCalledWith(
-        'Unstaged all VC reminders after P&R staged',
-        expect.objectContaining({ sessionId: 'session-123' })
+        'VC unstage: P&R cascade complete',
+        expect.objectContaining({ sessionId: 'session-123', deletedCount: expect.any(Number), totalChecked: expect.any(Number) })
       )
     })
 

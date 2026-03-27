@@ -78,9 +78,11 @@ export class ReminderOrchestrator implements ReminderCoordinator {
         const staging = this.deps.getStagingService(sessionId)
         const eventContext = { sessionId }
         const sessionLogger = this.deps.logger.child({ context: { sessionId } })
+        let deletedCount = 0
         for (const vcId of ALL_VC_REMINDER_IDS) {
           const deleted = await staging.deleteReminder('Stop', vcId)
           if (deleted) {
+            deletedCount++
             logEvent(
               sessionLogger,
               ReminderEvents.reminderUnstaged(eventContext, {
@@ -92,7 +94,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
             )
           }
         }
-        this.deps.logger.debug('Unstaged all VC reminders after P&R staged', { sessionId })
+        this.deps.logger.debug('VC unstage: P&R cascade complete', { sessionId, deletedCount, totalChecked: ALL_VC_REMINDER_IDS.length })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage VC reminders after P&R staged', {
           sessionId,

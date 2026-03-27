@@ -187,9 +187,11 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       // Delete the existing staged reminders (no unverified state or limit reached)
       const eventContext: EventLogContext = { sessionId }
       const reason = unverifiedState?.hasUnverifiedChanges ? 'cycle_limit_reached' : 'no_unverified_changes'
+      let deletedCount = 0
       for (const vcId of ALL_VC_REMINDER_IDS) {
         const deleted = await daemonCtx.staging.deleteReminder('Stop', vcId)
         if (deleted) {
+          deletedCount++
           logEvent(
             daemonCtx.logger,
             ReminderEvents.reminderUnstaged(eventContext, {
@@ -201,7 +203,7 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
           )
         }
       }
-      daemonCtx.logger.debug('VC unstage: deleted all VC reminders')
+      daemonCtx.logger.debug('VC unstage: cleanup complete', { deletedCount, totalChecked: ALL_VC_REMINDER_IDS.length })
     },
   })
 }
