@@ -145,7 +145,8 @@ describe('DecisionEvents', () => {
         {
           decision: 'calling',
           reason: 'UserPrompt event forces immediate analysis',
-          detail: 'session-summary analysis',
+          subsystem: 'session-summary',
+          title: 'Run session analysis',
         }
       )
 
@@ -155,7 +156,7 @@ describe('DecisionEvents', () => {
       expect(event.context.sessionId).toBe('sess-123')
       expect(event.payload.decision).toBe('calling')
       expect(event.payload.reason).toBe('UserPrompt event forces immediate analysis')
-      expect(event.payload.detail).toBe('session-summary analysis')
+      expect(event.payload.subsystem).toBe('session-summary')
     })
 
     it('should create skipped decision events', () => {
@@ -164,7 +165,8 @@ describe('DecisionEvents', () => {
         {
           decision: 'skipped',
           reason: 'countdown not reached (5 tool results remaining)',
-          detail: 'session-summary analysis',
+          subsystem: 'session-summary',
+          title: 'Defer session analysis',
         }
       )
 
@@ -184,7 +186,8 @@ describe('DecisionEvents', () => {
         {
           decision: 'calling',
           reason: 'countdown reached zero',
-          detail: 'session-summary analysis',
+          subsystem: 'session-summary',
+          title: 'Run session analysis',
         }
       )
 

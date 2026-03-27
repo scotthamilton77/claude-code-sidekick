@@ -244,7 +244,7 @@ describe('Session Summary Event Emission', () => {
     expect(decisionLogs).toHaveLength(1)
     expect(decisionLogs[0].meta?.decision).toBe('calling')
     expect(decisionLogs[0].meta?.reason).toBe('UserPrompt event forces immediate analysis')
-    expect(decisionLogs[0].meta?.detail).toBe('session-summary analysis')
+    expect(decisionLogs[0].meta?.subsystem).toBe('session-summary')
     expect(decisionLogs[0].meta?.source).toBe('daemon')
   })
 
@@ -278,7 +278,7 @@ describe('Session Summary Event Emission', () => {
     expect(decisionLogs).toHaveLength(1)
     expect(decisionLogs[0].meta?.decision).toBe('skipped')
     expect(decisionLogs[0].meta?.reason).toContain('countdown not reached')
-    expect(decisionLogs[0].meta?.detail).toBe('session-summary analysis')
+    expect(decisionLogs[0].meta?.subsystem).toBe('session-summary')
   })
 
   it('does not emit title/intent-changed events on first analysis (no previous summary)', async () => {
