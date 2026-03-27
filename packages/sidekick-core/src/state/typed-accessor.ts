@@ -66,7 +66,7 @@ export class SessionStateAccessor<T, D = undefined> {
    */
   async delete(sessionId: string): Promise<void> {
     const path = this.stateService.sessionStatePath(sessionId, this.descriptor.filename)
-    return this.stateService.delete(path)
+    await this.stateService.delete(path)
   }
 
   /**
@@ -129,7 +129,7 @@ export class GlobalStateAccessor<T, D = undefined> {
    */
   async delete(): Promise<void> {
     const path = this.stateService.globalStatePath(this.descriptor.filename)
-    return this.stateService.delete(path)
+    await this.stateService.delete(path)
   }
 
   /**

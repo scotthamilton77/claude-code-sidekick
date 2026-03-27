@@ -58,9 +58,10 @@ export class MockStateService implements MinimalStateService {
     return Promise.resolve()
   }
 
-  delete(path: string): Promise<void> {
+  delete(path: string): Promise<boolean> {
+    const existed = this.storage.has(path)
     this.storage.delete(path)
-    return Promise.resolve()
+    return Promise.resolve(existed)
   }
 
   sessionStatePath(sessionId: string, filename: string): string {

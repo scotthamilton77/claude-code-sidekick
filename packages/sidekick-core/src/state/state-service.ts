@@ -228,9 +228,9 @@ export class StateService {
 
   /**
    * Delete state file if it exists.
-   * No-op if file doesn't exist.
+   * @returns true if the file was actually deleted, false if it didn't exist
    */
-  async delete(path: string): Promise<void> {
+  async delete(path: string): Promise<boolean> {
     try {
       await fs.unlink(path)
 
@@ -240,11 +240,13 @@ export class StateService {
       }
 
       this.logger?.debug('State deleted', { path })
+      return true
     } catch (err) {
       if (!isEnoent(err)) {
         throw err
       }
       // File doesn't exist - that's fine
+      return false
     }
   }
 

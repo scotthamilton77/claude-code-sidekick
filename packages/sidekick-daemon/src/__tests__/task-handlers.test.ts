@@ -66,7 +66,7 @@ const mockContextGetter: ContextGetter = () =>
       readReminder: () => Promise.resolve(null),
       clearStaging: () => Promise.resolve(),
       listReminders: () => Promise.resolve([]),
-      deleteReminder: () => Promise.resolve(),
+      deleteReminder: () => Promise.resolve(false),
       listConsumedReminders: () => Promise.resolve([]),
       getLastConsumed: () => Promise.resolve(null),
     },

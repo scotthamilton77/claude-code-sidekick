@@ -46,7 +46,7 @@ function createMockStateService(): MockStateService {
     read: mockRead as unknown as MinimalStateService['read'],
     delete: vi.fn((path: string) => {
       deletedPaths.push(path)
-      return Promise.resolve()
+      return Promise.resolve(true)
     }),
   }
 }

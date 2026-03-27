@@ -764,8 +764,9 @@ export interface MinimalStateService {
   /**
    * Delete state file if it exists.
    * @param path - Absolute path to state file
+   * @returns true if the file was actually deleted, false if it didn't exist
    */
-  delete(path: string): Promise<void>
+  delete(path: string): Promise<boolean>
 
   /**
    * Get absolute path for a session state file.

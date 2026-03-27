@@ -1300,7 +1300,7 @@ export class Daemon {
           readReminder: () => Promise.resolve(null),
           clearStaging: async () => {},
           listReminders: () => Promise.resolve([]),
-          deleteReminder: async () => {},
+          deleteReminder: () => Promise.resolve(false),
           listConsumedReminders: () => Promise.resolve([]),
           getLastConsumed: () => Promise.resolve(null),
         }

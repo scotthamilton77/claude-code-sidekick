@@ -167,8 +167,9 @@ export interface StagingService {
 
   /**
    * Delete a specific staged reminder.
+   * @returns true if the file was actually deleted, false if it didn't exist
    */
-  deleteReminder(hookName: string, reminderName: string): Promise<void>
+  deleteReminder(hookName: string, reminderName: string): Promise<boolean>
 
   /**
    * List consumed reminder files for a specific reminder ID.
