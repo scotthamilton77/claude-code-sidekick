@@ -42,7 +42,9 @@ function createMockStateService(): MinimalStateService {
       files.set(path, data)
     }),
     delete: vi.fn().mockImplementation((path: string) => {
+      const existed = files.has(path)
       files.delete(path)
+      return existed
     }),
     sessionStatePath: vi.fn().mockImplementation((sessionId: string, filename: string) => {
       return `/state/sessions/${sessionId}/state/${filename}`

@@ -146,7 +146,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
             )
           )
         }
-        this.deps.logger.debug('Unstaged P&R after VC consumed', { sessionId })
+        this.deps.logger.debug('VC unstage: P&R cascade from VC consumed', { sessionId, deleted })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage P&R after VC consumed', {
           sessionId,

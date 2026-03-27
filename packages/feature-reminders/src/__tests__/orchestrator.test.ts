@@ -99,7 +99,7 @@ describe('ReminderOrchestrator', () => {
       expect(staging.deleteReminder).toHaveBeenCalledWith('Stop', ReminderIds.VC_LINT)
       expect(logger.debug).toHaveBeenCalledWith(
         'VC unstage: P&R cascade complete',
-        expect.objectContaining({ sessionId: 'session-123', deletedCount: expect.any(Number), totalChecked: expect.any(Number) })
+        expect.objectContaining({ sessionId: 'session-123', deletedCount: 5, totalChecked: 5 })
       )
     })
 
@@ -170,8 +170,8 @@ describe('ReminderOrchestrator', () => {
       expect(getStagingService).toHaveBeenCalledWith('session-123')
       expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
       expect(logger.debug).toHaveBeenCalledWith(
-        'Unstaged P&R after VC consumed',
-        expect.objectContaining({ sessionId: 'session-123' })
+        'VC unstage: P&R cascade from VC consumed',
+        expect.objectContaining({ sessionId: 'session-123', deleted: true })
       )
     })
 

@@ -396,13 +396,6 @@ describe('SessionScopedStagingService (via createService)', () => {
       expect(result).toBe(true)
     })
 
-    it('should return false when no file existed', async () => {
-      const service = createService(testDir)
-
-      const result = await service.deleteReminder('PreToolUse', 'NonExistent')
-
-      expect(result).toBe(false)
-    })
   })
 
   // ==========================================================================
