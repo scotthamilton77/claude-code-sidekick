@@ -71,6 +71,7 @@ export interface ApiTranscriptLine {
   decisionTitle?: string
   decisionCategory?: string
   decisionReasoning?: string
+  decisionSubsystem?: string
   previousValue?: string
   newValue?: string
   confidence?: number
@@ -400,6 +401,7 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   line.decisionTitle = payload.title as string | undefined
   line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string
+  line.decisionSubsystem = (payload.subsystem ?? payload.detail) as string | undefined
   if (payload.previousValue) line.previousValue = payload.previousValue as string
   if (payload.newValue) line.newValue = payload.newValue as string
   if (payload.confidence != null) line.confidence = payload.confidence as number

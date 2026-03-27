@@ -724,7 +724,7 @@ describe('parseTranscriptLines', () => {
         time: new Date('2025-01-15T10:30:01.000Z').getTime(),
         type: 'decision:recorded',
         context: { sessionId: 'session-1' },
-        payload: { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns' },
+        payload: { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns', subsystem: 'session-summary' },
       },
     ])
 
@@ -734,6 +734,28 @@ describe('parseTranscriptLines', () => {
     expect(decisionLine!.decisionTitle).toBe('Skip session analysis')
     expect(decisionLine!.decisionCategory).toBe('skipped')
     expect(decisionLine!.decisionReasoning).toBe('no user turns')
+    expect(decisionLine!.decisionSubsystem).toBe('session-summary')
+  })
+
+  it('maps decision:recorded with legacy detail field to decisionSubsystem', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'decision:recorded',
+        context: { sessionId: 'session-1' },
+        payload: { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns', detail: 'session-summary analysis' },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const decisionLine = lines.find((l) => l.type === 'decision:recorded')
+    expect(decisionLine!.decisionSubsystem).toBe('session-summary analysis')
   })
 
   it('maps decision:recorded without title to decisionCategory only', async () => {
