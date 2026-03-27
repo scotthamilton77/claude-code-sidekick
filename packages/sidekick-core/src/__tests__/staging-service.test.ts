@@ -384,7 +384,24 @@ describe('SessionScopedStagingService (via createService)', () => {
       const service = createService(testDir)
 
       // Should not throw
-      await expect(service.deleteReminder('PreToolUse', 'NonExistent')).resolves.toBeUndefined()
+      await expect(service.deleteReminder('PreToolUse', 'NonExistent')).resolves.toBe(false)
+    })
+
+    it('should return true when reminder file existed', async () => {
+      const service = createService(testDir)
+
+      await service.stageReminder('PreToolUse', 'ToDelete', createTestReminder())
+      const result = await service.deleteReminder('PreToolUse', 'ToDelete')
+
+      expect(result).toBe(true)
+    })
+
+    it('should return false when no file existed', async () => {
+      const service = createService(testDir)
+
+      const result = await service.deleteReminder('PreToolUse', 'NonExistent')
+
+      expect(result).toBe(false)
     })
   })
 
@@ -684,6 +701,23 @@ describe('StagingServiceCore', () => {
 
       const result = await core.readReminder('session-1', 'PreToolUse', 'ToDelete')
       expect(result).toBeNull()
+    })
+
+    it('deleteReminder should return true when file existed', async () => {
+      const core = createCore(testDir)
+
+      await core.stageReminder('session-1', 'PreToolUse', 'ToDelete', createTestReminder())
+      const result = await core.deleteReminder('session-1', 'PreToolUse', 'ToDelete')
+
+      expect(result).toBe(true)
+    })
+
+    it('deleteReminder should return false when no file existed', async () => {
+      const core = createCore(testDir)
+
+      const result = await core.deleteReminder('session-1', 'PreToolUse', 'NonExistent')
+
+      expect(result).toBe(false)
     })
   })
 

@@ -19,7 +19,7 @@ function createMockStagingService(): StagingService {
     readReminder: vi.fn().mockResolvedValue(null),
     clearStaging: vi.fn().mockResolvedValue(undefined),
     listReminders: vi.fn().mockResolvedValue([]),
-    deleteReminder: vi.fn().mockResolvedValue(undefined),
+    deleteReminder: vi.fn().mockResolvedValue(true),
     listConsumedReminders: vi.fn().mockResolvedValue([]),
     getLastConsumed: vi.fn().mockResolvedValue(null),
   }

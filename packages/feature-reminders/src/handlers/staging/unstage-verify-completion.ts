@@ -54,14 +54,16 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       if (!sessionId) {
         daemonCtx.logger.warn('No sessionId in UserPromptSubmit event')
         for (const vcId of ALL_VC_REMINDER_IDS) {
-          await daemonCtx.staging.deleteReminder('Stop', vcId)
-          logEvent(
-            daemonCtx.logger,
-            ReminderEvents.reminderUnstaged(
-              { sessionId: '' },
-              { reminderName: vcId, hookName: 'Stop', reason: 'no_session_id' }
+          const deleted = await daemonCtx.staging.deleteReminder('Stop', vcId)
+          if (deleted) {
+            logEvent(
+              daemonCtx.logger,
+              ReminderEvents.reminderUnstaged(
+                { sessionId: '' },
+                { reminderName: vcId, hookName: 'Stop', reason: 'no_session_id' }
+              )
             )
-          )
+          }
         }
         return
       }
@@ -186,16 +188,18 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       const eventContext: EventLogContext = { sessionId }
       const reason = unverifiedState?.hasUnverifiedChanges ? 'cycle_limit_reached' : 'no_unverified_changes'
       for (const vcId of ALL_VC_REMINDER_IDS) {
-        await daemonCtx.staging.deleteReminder('Stop', vcId)
-        logEvent(
-          daemonCtx.logger,
-          ReminderEvents.reminderUnstaged(eventContext, {
-            reminderName: vcId,
-            hookName: 'Stop',
-            reason,
-            triggeredBy: unverifiedState?.hasUnverifiedChanges ? 'cycle_limit' : 'no_unverified_changes',
-          })
-        )
+        const deleted = await daemonCtx.staging.deleteReminder('Stop', vcId)
+        if (deleted) {
+          logEvent(
+            daemonCtx.logger,
+            ReminderEvents.reminderUnstaged(eventContext, {
+              reminderName: vcId,
+              hookName: 'Stop',
+              reason,
+              triggeredBy: unverifiedState?.hasUnverifiedChanges ? 'cycle_limit' : 'no_unverified_changes',
+            })
+          )
+        }
       }
       daemonCtx.logger.debug('VC unstage: deleted all VC reminders')
     },

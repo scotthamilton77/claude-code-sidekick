@@ -52,10 +52,11 @@ export class MockStagingService implements StagingService {
     return Promise.resolve(results)
   }
 
-  deleteReminder(hookName: string, reminderName: string): Promise<void> {
+  deleteReminder(hookName: string, reminderName: string): Promise<boolean> {
     const key = this.key(hookName, reminderName)
+    const existed = this.reminders.has(key)
     this.reminders.delete(key)
-    return Promise.resolve()
+    return Promise.resolve(existed)
   }
 
   listConsumedReminders(hookName: string, reminderName: string): Promise<StagedReminder[]> {

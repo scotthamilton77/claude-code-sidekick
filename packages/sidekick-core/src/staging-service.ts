@@ -258,14 +258,15 @@ export class StagingServiceCore {
    * Delete a specific staged reminder.
    * Used after consumption of one-shot reminders.
    *
+   * @returns true if the file was actually deleted, false if it didn't exist
    * @throws Error if hookName or reminderName contain path traversal characters
    */
-  async deleteReminder(sessionId: string, hookName: string, reminderName: string): Promise<void> {
+  async deleteReminder(sessionId: string, hookName: string, reminderName: string): Promise<boolean> {
     validatePathSegment(hookName, 'hookName')
     validatePathSegment(reminderName, 'reminderName')
 
     const reminderPath = this.getReminderFilePath(sessionId, hookName, reminderName)
-    await this.options.stateService.delete(reminderPath)
+    return this.options.stateService.delete(reminderPath)
   }
 
   /**
@@ -367,7 +368,7 @@ export class SessionScopedStagingService implements StagingService {
     return this.core.clearStaging(this.sessionId, hookName, options)
   }
 
-  async deleteReminder(hookName: string, reminderName: string): Promise<void> {
+  async deleteReminder(hookName: string, reminderName: string): Promise<boolean> {
     return this.core.deleteReminder(this.sessionId, hookName, reminderName)
   }
 

@@ -79,16 +79,18 @@ export class ReminderOrchestrator implements ReminderCoordinator {
         const eventContext = { sessionId }
         const sessionLogger = this.deps.logger.child({ context: { sessionId } })
         for (const vcId of ALL_VC_REMINDER_IDS) {
-          await staging.deleteReminder('Stop', vcId)
-          logEvent(
-            sessionLogger,
-            ReminderEvents.reminderUnstaged(eventContext, {
-              reminderName: vcId,
-              hookName: 'Stop',
-              reason: 'pause_and_reflect_cascade',
-              triggeredBy: 'cascade_from_pause_and_reflect',
-            })
-          )
+          const deleted = await staging.deleteReminder('Stop', vcId)
+          if (deleted) {
+            logEvent(
+              sessionLogger,
+              ReminderEvents.reminderUnstaged(eventContext, {
+                reminderName: vcId,
+                hookName: 'Stop',
+                reason: 'pause_and_reflect_cascade',
+                triggeredBy: 'cascade_from_pause_and_reflect',
+              })
+            )
+          }
         }
         this.deps.logger.debug('Unstaged all VC reminders after P&R staged', { sessionId })
       } catch (err) {
@@ -127,19 +129,21 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       // VC consumed → unstage P&R (prevent double block)
       try {
         const staging = this.deps.getStagingService(sessionId)
-        await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
-        logEvent(
-          this.deps.logger.child({ context: { sessionId } }),
-          ReminderEvents.reminderUnstaged(
-            { sessionId },
-            {
-              reminderName: ReminderIds.PAUSE_AND_REFLECT,
-              hookName: 'PreToolUse',
-              reason: 'vc_consumed_cascade',
-              triggeredBy: 'cascade_from_verify_completion',
-            }
+        const deleted = await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
+        if (deleted) {
+          logEvent(
+            this.deps.logger.child({ context: { sessionId } }),
+            ReminderEvents.reminderUnstaged(
+              { sessionId },
+              {
+                reminderName: ReminderIds.PAUSE_AND_REFLECT,
+                hookName: 'PreToolUse',
+                reason: 'vc_consumed_cascade',
+                triggeredBy: 'cascade_from_verify_completion',
+              }
+            )
           )
-        )
+        }
         this.deps.logger.debug('Unstaged P&R after VC consumed', { sessionId })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage P&R after VC consumed', {
