@@ -126,6 +126,10 @@ export class StagingServiceCore {
     // Ensure directory exists
     await this.ensureDir(hookDir)
 
+    // Check if reminder already exists before writing — used to suppress
+    // duplicate reminder:staged events when re-staging (e.g. throttle restage).
+    const isRestage = existsSync(reminderPath)
+
     // Atomic write with schema validation.
     // Retry once on ENOENT — handles race with concurrent clearStaging deleting
     // the directory between ensureDir and write.
@@ -145,23 +149,26 @@ export class StagingServiceCore {
       }
     }
 
-    // Log ReminderStaged event
-    const event = LogEvents.reminderStaged(
-      {
-        sessionId,
-        hook: hookName,
-      },
-      {
-        reminderName: data.name,
-        hookName,
-        blocking: data.blocking,
-        priority: data.priority,
-        persistent: data.persistent,
-        ...enrichment,
-      },
-      { stagingPath: reminderPath }
-    )
-    logEvent(this.options.logger.child({ context: { sessionId } }), event)
+    // Only emit reminder:staged event for new staging, not overwrites.
+    // Re-staging (e.g. throttle) updates the file but doesn't need a timeline event.
+    if (!isRestage) {
+      const event = LogEvents.reminderStaged(
+        {
+          sessionId,
+          hook: hookName,
+        },
+        {
+          reminderName: data.name,
+          hookName,
+          blocking: data.blocking,
+          priority: data.priority,
+          persistent: data.persistent,
+          ...enrichment,
+        },
+        { stagingPath: reminderPath }
+      )
+      logEvent(this.options.logger.child({ context: { sessionId } }), event)
+    }
   }
 
   /**
