@@ -197,7 +197,8 @@ describe('Per-event payload interfaces', () => {
   it('DecisionRecordedPayload has correct fields', () => {
     expectTypeOf<DecisionRecordedPayload>().toHaveProperty('decision')
     expectTypeOf<DecisionRecordedPayload>().toHaveProperty('reason')
-    expectTypeOf<DecisionRecordedPayload>().toHaveProperty('detail')
+    expectTypeOf<DecisionRecordedPayload>().toHaveProperty('subsystem')
+    expectTypeOf<DecisionRecordedPayload>().toHaveProperty('title')
   })
 
   it('SessionSummaryStartPayload has correct fields', () => {

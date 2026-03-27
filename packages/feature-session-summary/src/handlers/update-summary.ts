@@ -123,7 +123,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         DecisionEvents.decisionRecorded(event.context, {
           decision: 'skipped',
           reason: 'BulkProcessingComplete with no user turns (turnCount=0)',
-          detail: 'session-summary analysis',
+          subsystem: 'session-summary',
           title: DECISION_TITLE_SKIP,
         })
       )
@@ -135,7 +135,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       DecisionEvents.decisionRecorded(event.context, {
         decision: 'calling',
         reason: 'BulkProcessingComplete - analyzing full transcript',
-        detail: 'session-summary analysis',
+        subsystem: 'session-summary',
         title: DECISION_TITLE_RUN,
       })
     )
@@ -154,7 +154,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       DecisionEvents.decisionRecorded(event.context, {
         decision: 'calling',
         reason: 'UserPrompt event forces immediate analysis',
-        detail: 'session-summary analysis',
+        subsystem: 'session-summary',
         title: DECISION_TITLE_RUN,
       })
     )
@@ -169,7 +169,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       DecisionEvents.decisionRecorded(event.context, {
         decision: 'skipped',
         reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
-        detail: 'session-summary analysis',
+        subsystem: 'session-summary',
         title: DECISION_TITLE_DEFER,
       })
     )
@@ -184,7 +184,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
     DecisionEvents.decisionRecorded(event.context, {
       decision: 'calling',
       reason: 'countdown reached zero after ToolResult',
-      detail: 'session-summary analysis',
+      subsystem: 'session-summary',
       title: DECISION_TITLE_RUN,
     })
   )
