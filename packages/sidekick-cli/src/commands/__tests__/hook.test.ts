@@ -571,6 +571,31 @@ describe('handleHookCommand', () => {
       expect(completedCall).toBeDefined()
       expect(completedCall![1].returnValue).toBeUndefined()
     })
+
+    test('omits input on hookReceived when buildHookInput returns empty object', async () => {
+      const input: ParsedHookInput = {
+        sessionId: 'test-session',
+        transcriptPath: '/path/transcript.jsonl',
+        cwd: '/project',
+        hookEventName: 'SessionStart',
+        permissionMode: 'default',
+        raw: {
+          // Only system fields — buildHookInput will return {}
+          session_id: 'test-session',
+          transcript_path: '/path/transcript.jsonl',
+          hook_event_name: 'SessionStart',
+        },
+      }
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('SessionStart', { ...baseOptions, hookInput: input }, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const receivedCall = infoCalls.find((args) => args[1]?.type === 'hook:received')
+      expect(receivedCall).toBeDefined()
+      expect(receivedCall![1].input).toBeUndefined()
+    })
   })
 })
 

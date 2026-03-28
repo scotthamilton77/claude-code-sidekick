@@ -35,7 +35,7 @@ import type { RuntimeShell } from '../runtime.js'
 /**
  * Truncate a flat record for log file storage.
  * - Strings longer than 500 chars are sliced with an ellipsis.
- * - Objects with more than 20 keys are trimmed to 20 keys with _truncated: true.
+ * - Records with more than 20 top-level keys are trimmed to 20 keys with _truncated: true.
  * Only top-level values are processed; nested objects are not inspected.
  */
 export function truncateForLog(raw: Record<string, unknown>): Record<string, unknown> {
@@ -379,12 +379,13 @@ export async function handleHookCommand(
     correlationId,
     hook: hookName,
   }
+  const builtInput = buildHookInput(hookInput.raw)
   logEvent(
     logger,
     LogEvents.hookReceived(logContext, {
       cwd: hookInput.cwd,
       mode: 'hook',
-      input: buildHookInput(hookInput.raw),
+      ...(Object.keys(builtInput).length > 0 ? { input: builtInput } : {}),
     })
   )
   logger.debug('Hook invocation received', { hook: hookName, sessionId: hookInput.sessionId })
