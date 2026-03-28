@@ -94,7 +94,11 @@ export class ReminderOrchestrator implements ReminderCoordinator {
             )
           }
         }
-        this.deps.logger.debug('VC unstage: P&R cascade complete', { sessionId, deletedCount, totalChecked: ALL_VC_REMINDER_IDS.length })
+        this.deps.logger.debug('VC unstage: P&R cascade complete', {
+          sessionId,
+          deletedCount,
+          totalChecked: ALL_VC_REMINDER_IDS.length,
+        })
       } catch (err) {
         this.deps.logger.warn('Failed to unstage VC reminders after P&R staged', {
           sessionId,
