@@ -11,7 +11,7 @@
       "name": "sidekick",
       "source": "./packages/sidekick-plugin",
       "description": "AI coding companion with personas, session tracking, and contextual nudges to ensure the AI stays on track to your instructions",
-      "version": "0.1.14",
+      "version": "0.1.15",
       "author": {
         "name": "Scott Hamilton"
       },
