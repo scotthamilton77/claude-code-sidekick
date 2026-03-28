@@ -631,9 +631,7 @@ additionalContext: "Lint needed"
     )
 
     const decisionEvents = getDecisionRecordedEvents()
-    const staged = decisionEvents.filter(
-      (e) => e.meta?.decision === 'staged' && e.meta?.subsystem === 'vc-reminders'
-    )
+    const staged = decisionEvents.filter((e) => e.meta?.decision === 'staged' && e.meta?.subsystem === 'vc-reminders')
     expect(staged.length).toBeGreaterThanOrEqual(1)
     expect(staged[0].meta?.title).toBe('Re-stage VC reminder (threshold reached)')
   })

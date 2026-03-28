@@ -10,6 +10,7 @@
 import type { RuntimeContext } from '@sidekick/core'
 import { logEvent } from '@sidekick/core'
 import type { DaemonContext, VCUnverifiedState, EventLogContext, VerificationToolStatusState } from '@sidekick/types'
+import { DecisionEvents } from '@sidekick/types'
 import { ReminderEvents } from '../../events.js'
 import { isDaemonContext, isHookEvent } from '@sidekick/types'
 import {
@@ -165,6 +166,18 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
             maxCycles,
           })
           await remindersState.vcUnverified.delete(sessionId)
+          logEvent(
+            daemonCtx.logger,
+            DecisionEvents.decisionRecorded(
+              { sessionId },
+              {
+                decision: 'unstaged-all',
+                reason: `verification cycle limit reached (${unverifiedState.cycleCount}/${maxCycles})`,
+                subsystem: 'vc-reminders',
+                title: 'Unstage all VC reminders (cycle limit)',
+              }
+            )
+          )
         }
       } else {
         logEvent(
