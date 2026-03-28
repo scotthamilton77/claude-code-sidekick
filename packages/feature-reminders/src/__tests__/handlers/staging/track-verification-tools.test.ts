@@ -19,6 +19,7 @@ import {
   MockStateService,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
+import type { LogRecord } from '@sidekick/testing-fixtures'
 import type { DaemonContext, TranscriptEvent, TranscriptMetrics, StagedReminder, EventHandler } from '@sidekick/types'
 import {
   registerTrackVerificationTools,
@@ -420,6 +421,71 @@ additionalContext: "Lint needed"
 
     expect(getStagedNames(staging)).toContain(ReminderIds.VC_BUILD)
   })
+
+  // --------------------------------------------------------------------------
+  // decision:recorded event emission
+  // --------------------------------------------------------------------------
+
+  describe('decision:recorded events', () => {
+    function getDecisionRecordedEvents(): LogRecord[] {
+      return logger.recordedLogs.filter((log) => log.level === 'info' && log.meta?.type === 'decision:recorded')
+    }
+
+    it('emits decision:recorded with decision=staged when re-staging after threshold reached', async () => {
+      const handler = getRegisteredHandler()
+
+      // Edit → stage all tools initially
+      await handler(
+        createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
+        ctx as any
+      )
+      // Verify build (moves to "verified" state, threshold = 3)
+      await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+
+      logger.reset()
+
+      // 3 more qualifying edits to hit clearing threshold
+      await handler(
+        createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
+        ctx as any
+      )
+      await handler(
+        createFileEditEvent({ turnCount: 1, toolsThisTurn: 4, toolCount: 4 }, '/mock/project/src/c.ts'),
+        ctx as any
+      )
+      await handler(
+        createFileEditEvent({ turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, '/mock/project/src/d.ts'),
+        ctx as any
+      )
+
+      const decisionEvents = getDecisionRecordedEvents()
+      const staged = decisionEvents.filter((e) => e.meta?.decision === 'staged' && e.meta?.subsystem === 'vc-reminders')
+      expect(staged.length).toBeGreaterThanOrEqual(1)
+      expect(staged[0].meta?.title).toBe('Re-stage VC reminder (threshold reached)')
+    })
+
+    it('emits decision:recorded with decision=unstaged when verification passes', async () => {
+      const handler = getRegisteredHandler()
+
+      // Edit → stage all tools
+      await handler(
+        createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
+        ctx as any
+      )
+
+      logger.reset()
+
+      // Observe a build command → unstages vc-build
+      await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+
+      const decisionEvents = getDecisionRecordedEvents()
+      const unstaged = decisionEvents.filter(
+        (e) => e.meta?.decision === 'unstaged' && e.meta?.subsystem === 'vc-reminders'
+      )
+      expect(unstaged.length).toBeGreaterThanOrEqual(1)
+      expect(unstaged[0].meta?.title).toBe('Unstage VC reminder (verified)')
+    })
+  })
 })
 
 describe('stageToolsForFiles', () => {
@@ -440,7 +506,7 @@ describe('reminder:not-staged events in track-verification-tools', () => {
   let assets: MockAssetResolver
   let stateService: MockStateService
 
-  function getNotStagedEvents(): import('@sidekick/testing-fixtures').LogRecord[] {
+  function getNotStagedEvents(): LogRecord[] {
     return logger.recordedLogs.filter((log) => log.level === 'info' && log.meta?.type === 'reminder:not-staged')
   }
 
@@ -534,128 +600,6 @@ additionalContext: "Lint needed"
     expect(belowThreshold[0].meta?.threshold).toBe(3)
     expect(belowThreshold[0].meta?.currentValue).toBe(1)
     expect(belowThreshold[0].meta?.triggeredBy).toBe('file_edit')
-  })
-})
-
-// --------------------------------------------------------------------------
-// decision:recorded event emission
-// --------------------------------------------------------------------------
-
-describe('decision:recorded events in track-verification-tools', () => {
-  let ctx: DaemonContext
-  let staging: MockStagingService
-  let logger: MockLogger
-  let handlers: MockHandlerRegistry
-  let assets: MockAssetResolver
-  let stateService: MockStateService
-
-  function getDecisionRecordedEvents(): import('@sidekick/testing-fixtures').LogRecord[] {
-    return logger.recordedLogs.filter((log) => log.level === 'info' && log.meta?.type === 'decision:recorded')
-  }
-
-  beforeEach(() => {
-    staging = new MockStagingService()
-    logger = new MockLogger()
-    handlers = new MockHandlerRegistry()
-    assets = new MockAssetResolver()
-    stateService = new MockStateService()
-
-    assets.registerAll({
-      'reminders/verify-completion.yaml': `id: verify-completion
-blocking: true
-priority: 51
-persistent: false
-additionalContext: "Wrapper"
-`,
-      'reminders/vc-build.yaml': `id: vc-build
-blocking: true
-priority: 50
-persistent: false
-additionalContext: "Build needed"
-`,
-      'reminders/vc-typecheck.yaml': `id: vc-typecheck
-blocking: true
-priority: 50
-persistent: false
-additionalContext: "Typecheck needed"
-`,
-      'reminders/vc-test.yaml': `id: vc-test
-blocking: true
-priority: 50
-persistent: false
-additionalContext: "Test needed"
-`,
-      'reminders/vc-lint.yaml': `id: vc-lint
-blocking: true
-priority: 50
-persistent: false
-additionalContext: "Lint needed"
-`,
-    })
-
-    ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
-  })
-
-  function getRegisteredHandler(): EventHandler {
-    registerTrackVerificationTools(ctx)
-    const reg = handlers.getHandler('reminders:track-verification-tools')
-    expect(reg).toBeDefined()
-    return reg!.handler
-  }
-
-  it('emits decision:recorded with decision=staged when re-staging after threshold reached', async () => {
-    const handler = getRegisteredHandler()
-
-    // Edit → stage all tools initially
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-      ctx as any
-    )
-    // Verify build (moves to "verified" state, threshold = 3)
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
-
-    logger.reset()
-
-    // 3 more qualifying edits to hit clearing threshold
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
-      ctx as any
-    )
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 4, toolCount: 4 }, '/mock/project/src/c.ts'),
-      ctx as any
-    )
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, '/mock/project/src/d.ts'),
-      ctx as any
-    )
-
-    const decisionEvents = getDecisionRecordedEvents()
-    const staged = decisionEvents.filter((e) => e.meta?.decision === 'staged' && e.meta?.subsystem === 'vc-reminders')
-    expect(staged.length).toBeGreaterThanOrEqual(1)
-    expect(staged[0].meta?.title).toBe('Re-stage VC reminder (threshold reached)')
-  })
-
-  it('emits decision:recorded with decision=unstaged when verification passes', async () => {
-    const handler = getRegisteredHandler()
-
-    // Edit → stage all tools
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-      ctx as any
-    )
-
-    logger.reset()
-
-    // Observe a build command → unstages vc-build
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
-
-    const decisionEvents = getDecisionRecordedEvents()
-    const unstaged = decisionEvents.filter(
-      (e) => e.meta?.decision === 'unstaged' && e.meta?.subsystem === 'vc-reminders'
-    )
-    expect(unstaged.length).toBeGreaterThanOrEqual(1)
-    expect(unstaged[0].meta?.title).toBe('Unstage VC reminder (verified)')
   })
 })
 

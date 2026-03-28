@@ -17,6 +17,7 @@ import {
   MockStateService,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
+import type { LogRecord } from '@sidekick/testing-fixtures'
 import type {
   DaemonContext,
   SessionStartHookEvent,
@@ -166,6 +167,10 @@ additionalContext: "Lint needed"
 
     ctx = createMockDaemonContext({ staging, logger, handlers, assets })
   })
+
+  function getDecisionRecordedEvents(): LogRecord[] {
+    return logger.recordedLogs.filter((log) => log.level === 'info' && log.meta?.type === 'decision:recorded')
+  }
 
   describe('createStagingHandler factory', () => {
     it('only registers handler in daemon context', () => {
@@ -326,9 +331,7 @@ additionalContext: "Lint needed"
 
       await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
 
-      const decisionEvents = logger.recordedLogs.filter(
-        (log) => log.level === 'info' && log.meta?.type === 'decision:recorded'
-      )
+      const decisionEvents = getDecisionRecordedEvents()
       expect(decisionEvents).toHaveLength(1)
       expect(decisionEvents[0].meta?.decision).toBe('staged')
       expect(decisionEvents[0].meta?.subsystem).toBe('pause-reflect')
@@ -958,9 +961,7 @@ additionalContext: "Standard user prompt reminder"
           await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
         }
 
-        const decisionEvents = logger.recordedLogs.filter(
-          (log) => log.level === 'info' && log.meta?.type === 'decision:recorded'
-        )
+        const decisionEvents = getDecisionRecordedEvents()
         expect(decisionEvents).toHaveLength(1)
         expect(decisionEvents[0].meta?.decision).toBe('staged')
         expect(decisionEvents[0].meta?.subsystem).toBe('user-prompt-reminders')
@@ -1497,9 +1498,7 @@ additionalContext: "Standard user prompt reminder"
       expect(handler).toBeDefined()
       await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
 
-      const decisionEvents = logger.recordedLogs.filter(
-        (log) => log.level === 'info' && log.meta?.type === 'decision:recorded'
-      )
+      const decisionEvents = getDecisionRecordedEvents()
       expect(decisionEvents).toHaveLength(1)
       expect(decisionEvents[0].meta?.decision).toBe('unstaged-all')
       expect(decisionEvents[0].meta?.subsystem).toBe('vc-reminders')
