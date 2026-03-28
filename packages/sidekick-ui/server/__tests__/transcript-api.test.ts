@@ -28,10 +28,7 @@ const DEFAULT_TIMESTAMP = '2025-01-15T10:30:00.000Z'
 const DEFAULT_UUID = 'abc-123'
 const DEFAULT_SESSION_ID = 'session-1'
 
-function makeUserEntry(
-  content: string | unknown[],
-  overrides: Record<string, unknown> = {}
-): string {
+function makeUserEntry(content: string | unknown[], overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     uuid: DEFAULT_UUID,
     type: 'user',
@@ -45,10 +42,7 @@ function makeUserEntry(
   })
 }
 
-function makeAssistantEntry(
-  content: unknown[],
-  overrides: Record<string, unknown> = {}
-): string {
+function makeAssistantEntry(content: unknown[], overrides: Record<string, unknown> = {}): string {
   const { message: messageOverrides, ...rest } = overrides
   const msgOverrides = (messageOverrides as Record<string, unknown>) || {}
   return JSON.stringify({
@@ -66,10 +60,7 @@ function makeAssistantEntry(
   })
 }
 
-function makeSystemEntry(
-  subtype: string,
-  overrides: Record<string, unknown> = {}
-): string {
+function makeSystemEntry(subtype: string, overrides: Record<string, unknown> = {}): string {
   return JSON.stringify({
     uuid: DEFAULT_UUID,
     type: 'system',
@@ -185,9 +176,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('parses user text message (array with text block) -> user-message', async () => {
-    setupTranscript(
-      makeUserEntry([{ type: 'text', text: 'Array text content' }])
-    )
+    setupTranscript(makeUserEntry([{ type: 'text', text: 'Array text content' }]))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -233,9 +222,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('parses assistant text block -> assistant-message with content', async () => {
-    setupTranscript(
-      makeAssistantEntry([{ type: 'text', text: 'Hello from assistant' }])
-    )
+    setupTranscript(makeAssistantEntry([{ type: 'text', text: 'Hello from assistant' }]))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -244,9 +231,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('parses assistant thinking block -> assistant-message with thinking field', async () => {
-    setupTranscript(
-      makeAssistantEntry([{ type: 'thinking', thinking: 'Let me think about this...' }])
-    )
+    setupTranscript(makeAssistantEntry([{ type: 'thinking', thinking: 'Let me think about this...' }]))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -311,9 +296,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('parses system/turn_duration -> turn-duration with durationMs', async () => {
-    setupTranscript(
-      makeSystemEntry('turn_duration', { durationMs: 12500 })
-    )
+    setupTranscript(makeSystemEntry('turn_duration', { durationMs: 12500 }))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -384,10 +367,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('skips system/stop_hook_summary', async () => {
-    const content = [
-      makeUserEntry('Hello'),
-      makeSystemEntry('stop_hook_summary'),
-    ].join('\n')
+    const content = [makeUserEntry('Hello'), makeSystemEntry('stop_hook_summary')].join('\n')
     setupTranscript(content)
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -395,10 +375,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('skips system/local_command', async () => {
-    const content = [
-      makeUserEntry('Hello'),
-      makeSystemEntry('local_command'),
-    ].join('\n')
+    const content = [makeUserEntry('Hello'), makeSystemEntry('local_command')].join('\n')
     setupTranscript(content)
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -406,11 +383,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('skips malformed JSON lines', async () => {
-    const content = [
-      'not valid json',
-      makeUserEntry('Hello'),
-      '{broken',
-    ].join('\n')
+    const content = ['not valid json', makeUserEntry('Hello'), '{broken'].join('\n')
     setupTranscript(content)
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -433,12 +406,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('preserves isSidechain flag', async () => {
-    setupTranscript(
-      makeAssistantEntry(
-        [{ type: 'text', text: 'Sidechain response' }],
-        { isSidechain: true }
-      )
-    )
+    setupTranscript(makeAssistantEntry([{ type: 'text', text: 'Sidechain response' }], { isSidechain: true }))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -447,10 +415,9 @@ describe('parseTranscriptLines', () => {
 
   it('preserves model from assistant entries', async () => {
     setupTranscript(
-      makeAssistantEntry(
-        [{ type: 'text', text: 'Hello' }],
-        { message: { role: 'assistant', content: [{ type: 'text', text: 'Hello' }], model: 'claude-opus-4-20250514' } }
-      )
+      makeAssistantEntry([{ type: 'text', text: 'Hello' }], {
+        message: { role: 'assistant', content: [{ type: 'text', text: 'Hello' }], model: 'claude-opus-4-20250514' },
+      })
     )
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -477,10 +444,7 @@ describe('parseTranscriptLines', () => {
   it('returns lines in file order', async () => {
     const content = [
       makeUserEntry('First', { timestamp: '2025-01-15T10:30:00.000Z' }),
-      makeAssistantEntry(
-        [{ type: 'text', text: 'Second' }],
-        { timestamp: '2025-01-15T10:30:01.000Z' }
-      ),
+      makeAssistantEntry([{ type: 'text', text: 'Second' }], { timestamp: '2025-01-15T10:30:01.000Z' }),
       makeUserEntry('Third', { timestamp: '2025-01-15T10:30:02.000Z' }),
     ].join('\n')
     setupTranscript(content)
@@ -509,12 +473,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('preserves isMeta flag on entries', async () => {
-    setupTranscript(
-      makeAssistantEntry(
-        [{ type: 'text', text: 'Meta response' }],
-        { isMeta: true }
-      )
-    )
+    setupTranscript(makeAssistantEntry([{ type: 'text', text: 'Meta response' }], { isMeta: true }))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -523,10 +482,7 @@ describe('parseTranscriptLines', () => {
 
   it('preserves isCompactSummary flag on entries', async () => {
     setupTranscript(
-      makeAssistantEntry(
-        [{ type: 'text', text: 'Summary of compacted context' }],
-        { isCompactSummary: true }
-      )
+      makeAssistantEntry([{ type: 'text', text: 'Summary of compacted context' }], { isCompactSummary: true })
     )
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -550,27 +506,21 @@ describe('parseTranscriptLines', () => {
   })
 
   it('classifies isMeta message with command-name as command', async () => {
-    setupTranscript(
-      makeUserEntry('<command-name>/commit</command-name>\ncommit content', { isMeta: true })
-    )
+    setupTranscript(makeUserEntry('<command-name>/commit</command-name>\ncommit content', { isMeta: true }))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines[0].userSubtype).toBe('command')
   })
 
   it('classifies message with system-reminder as system-injection', async () => {
-    setupTranscript(
-      makeUserEntry('Some text\n<system-reminder>reminder content</system-reminder>')
-    )
+    setupTranscript(makeUserEntry('Some text\n<system-reminder>reminder content</system-reminder>'))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines[0].userSubtype).toBe('system-injection')
   })
 
   it('classifies non-meta message with command-name as command', async () => {
-    setupTranscript(
-      makeUserEntry('<command-name>/clear</command-name>')
-    )
+    setupTranscript(makeUserEntry('<command-name>/clear</command-name>'))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines[0].userSubtype).toBe('command')
@@ -590,10 +540,9 @@ describe('parseTranscriptLines', () => {
 
   it('classifies isMeta command-name as command even with skill marker', async () => {
     setupTranscript(
-      makeUserEntry(
-        '<command-name>/brainstorm</command-name>\nBase directory for this skill: /path/to/skill',
-        { isMeta: true }
-      )
+      makeUserEntry('<command-name>/brainstorm</command-name>\nBase directory for this skill: /path/to/skill', {
+        isMeta: true,
+      })
     )
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -601,9 +550,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('classifies non-meta message with skill marker as prompt', async () => {
-    setupTranscript(
-      makeUserEntry('Base directory for this skill: /path/to/skill')
-    )
+    setupTranscript(makeUserEntry('Base directory for this skill: /path/to/skill'))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines[0].userSubtype).toBe('prompt')
@@ -612,9 +559,7 @@ describe('parseTranscriptLines', () => {
   // toolUseId capture
   it('captures toolUseId from tool_use blocks', async () => {
     setupTranscript(
-      makeAssistantEntry([
-        { type: 'tool_use', id: 'toolu_abc123', name: 'Read', input: { file_path: '/foo.ts' } },
-      ])
+      makeAssistantEntry([{ type: 'tool_use', id: 'toolu_abc123', name: 'Read', input: { file_path: '/foo.ts' } }])
     )
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
@@ -624,11 +569,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('captures toolUseId from tool_result blocks', async () => {
-    setupTranscript(
-      makeUserEntry([
-        { type: 'tool_result', tool_use_id: 'toolu_abc123', content: 'file contents' },
-      ])
-    )
+    setupTranscript(makeUserEntry([{ type: 'tool_result', tool_use_id: 'toolu_abc123', content: 'file contents' }]))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -638,12 +579,8 @@ describe('parseTranscriptLines', () => {
 
   it('pairs tool_use and tool_result by matching toolUseId', async () => {
     const content = [
-      makeAssistantEntry([
-        { type: 'tool_use', id: 'toolu_xyz', name: 'Bash', input: { command: 'ls' } },
-      ]),
-      makeUserEntry([
-        { type: 'tool_result', tool_use_id: 'toolu_xyz', content: 'output' },
-      ]),
+      makeAssistantEntry([{ type: 'tool_use', id: 'toolu_xyz', name: 'Bash', input: { command: 'ls' } }]),
+      makeUserEntry([{ type: 'tool_result', tool_use_id: 'toolu_xyz', content: 'output' }]),
     ].join('\n')
     setupTranscript(content)
 
@@ -654,11 +591,7 @@ describe('parseTranscriptLines', () => {
   })
 
   it('classifies array text blocks with correct subtypes', async () => {
-    setupTranscript(
-      makeUserEntry([
-        { type: 'text', text: 'Hello, world!' },
-      ])
-    )
+    setupTranscript(makeUserEntry([{ type: 'text', text: 'Hello, world!' }]))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines[0].userSubtype).toBe('prompt')
@@ -666,11 +599,7 @@ describe('parseTranscriptLines', () => {
 
   it('preserves full tool result content without truncation', async () => {
     const longOutput = 'x'.repeat(2000)
-    setupTranscript(
-      makeUserEntry([
-        { type: 'tool_result', tool_use_id: 'tool-1', content: longOutput },
-      ])
-    )
+    setupTranscript(makeUserEntry([{ type: 'tool_result', tool_use_id: 'tool-1', content: longOutput }]))
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(1)
@@ -680,17 +609,16 @@ describe('parseTranscriptLines', () => {
   // Event interleaving tests
   it('interleaves Sidekick events when projectDir is provided', async () => {
     // Set up Claude Code transcript with entries at t=1000 and t=3000
-    setupTranscript([
-      makeUserEntry('Hello', { timestamp: '2025-01-15T10:00:01.000Z' }),
-      makeAssistantEntry(
-        [{ type: 'text', text: 'Hi' }],
-        { timestamp: '2025-01-15T10:00:03.000Z' }
-      ),
-    ].join('\n'))
+    setupTranscript(
+      [
+        makeUserEntry('Hello', { timestamp: '2025-01-15T10:00:01.000Z' }),
+        makeAssistantEntry([{ type: 'text', text: 'Hi' }], { timestamp: '2025-01-15T10:00:03.000Z' }),
+      ].join('\n')
+    )
 
     // Set up Sidekick events at t=2000 (between the two Claude Code entries)
     // findLogFiles is called twice (cli + daemon prefix), return file only for cli
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
@@ -715,7 +643,7 @@ describe('parseTranscriptLines', () => {
   it('maps decision:recorded with title to decisionTitle', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
@@ -724,7 +652,12 @@ describe('parseTranscriptLines', () => {
         time: new Date('2025-01-15T10:30:01.000Z').getTime(),
         type: 'decision:recorded',
         context: { sessionId: 'session-1' },
-        payload: { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns', subsystem: 'session-summary' },
+        payload: {
+          title: 'Skip session analysis',
+          decision: 'skipped',
+          reason: 'no user turns',
+          subsystem: 'session-summary',
+        },
       },
     ])
 
@@ -740,7 +673,7 @@ describe('parseTranscriptLines', () => {
   it('maps decision:recorded with legacy detail field to decisionSubsystem', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
@@ -749,7 +682,12 @@ describe('parseTranscriptLines', () => {
         time: new Date('2025-01-15T10:30:01.000Z').getTime(),
         type: 'decision:recorded',
         context: { sessionId: 'session-1' },
-        payload: { title: 'Skip session analysis', decision: 'skipped', reason: 'no user turns', detail: 'session-summary analysis' },
+        payload: {
+          title: 'Skip session analysis',
+          decision: 'skipped',
+          reason: 'no user turns',
+          detail: 'session-summary analysis',
+        },
       },
     ])
 
@@ -761,7 +699,7 @@ describe('parseTranscriptLines', () => {
   it('maps decision:recorded without title to decisionCategory only', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
