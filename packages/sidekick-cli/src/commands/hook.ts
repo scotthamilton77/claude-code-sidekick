@@ -379,7 +379,11 @@ export async function handleHookCommand(
     correlationId,
     hook: hookName,
   }
-  logEvent(logger, LogEvents.hookReceived(logContext, { cwd: hookInput.cwd, mode: 'hook' }))
+  logEvent(logger, LogEvents.hookReceived(logContext, {
+    cwd: hookInput.cwd,
+    mode: 'hook',
+    input: buildHookInput(hookInput.raw),
+  }))
   logger.debug('Hook invocation received', { hook: hookName, sessionId: hookInput.sessionId })
 
   // Build typed HookEvent from parsed input
@@ -451,12 +455,16 @@ export async function handleHookCommand(
   stdout.write(`${outputStr}\n`)
 
   // Log HookCompleted event
+  const returnValue = Object.keys(mergedResponse).length > 0
+    ? truncateForLog(mergedResponse as Record<string, unknown>)
+    : undefined
+
   logEvent(
     logger,
     LogEvents.hookCompleted(
       logContext,
       { durationMs: Date.now() - startTime },
-      { reminderReturned: !!mergedResponse.additionalContext }
+      { reminderReturned: !!mergedResponse.additionalContext, returnValue }
     )
   )
 

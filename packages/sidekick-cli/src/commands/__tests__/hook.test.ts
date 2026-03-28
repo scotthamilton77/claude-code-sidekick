@@ -501,6 +501,77 @@ describe('handleHookCommand', () => {
     expect(result.exitCode).toBe(0)
     expect(mockSend).not.toHaveBeenCalled()
   })
+
+  describe('hook event payload enrichment', () => {
+    test('passes hook-specific input fields (excluding base fields) to hookReceived event', async () => {
+      const input: ParsedHookInput = {
+        sessionId: 'test-session',
+        transcriptPath: '/path/transcript.jsonl',
+        cwd: '/project',
+        hookEventName: 'UserPromptSubmit',
+        permissionMode: 'default',
+        raw: {
+          session_id: 'test-session',
+          transcript_path: '/path/transcript.jsonl',
+          hook_event_name: 'UserPromptSubmit',
+          cwd: '/project',
+          permission_mode: 'default',
+          prompt: 'fix the bug',
+        },
+      }
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', { ...baseOptions, hookInput: input }, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const receivedCall = infoCalls.find((args) => args[1]?.type === 'hook:received')
+      expect(receivedCall).toBeDefined()
+      expect(receivedCall![1].input).toBeDefined()
+      expect(receivedCall![1].input.session_id).toBeUndefined()
+      expect(receivedCall![1].input.transcript_path).toBeUndefined()
+      expect(receivedCall![1].input.hook_event_name).toBeUndefined()
+      expect(receivedCall![1].input.prompt).toBe('fix the bug')
+      expect(receivedCall![1].input.cwd).toBe('/project')
+    })
+
+    test('passes mergedResponse as returnValue on successful hook:completed', async () => {
+      mockSend.mockResolvedValue({ additionalContext: 'remember to do X' })
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const completedCall = infoCalls.find((args) => args[1]?.type === 'hook:completed')
+      expect(completedCall).toBeDefined()
+      expect(completedCall![1].returnValue).toBeDefined()
+      expect(completedCall![1].returnValue.additionalContext).toBe('remember to do X')
+    })
+
+    test('omits returnValue on hook:completed when response is empty', async () => {
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const completedCall = infoCalls.find((args) => args[1]?.type === 'hook:completed')
+      expect(completedCall).toBeDefined()
+      expect(completedCall![1].returnValue).toBeUndefined()
+    })
+
+    test('does not pass returnValue on the failure path (IPC error)', async () => {
+      mockSend.mockRejectedValue(new Error('IPC timeout'))
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const completedCall = infoCalls.find((args) => args[1]?.type === 'hook:completed')
+      expect(completedCall).toBeDefined()
+      expect(completedCall![1].returnValue).toBeUndefined()
+    })
+  })
 })
 
 describe('truncateForLog', () => {
