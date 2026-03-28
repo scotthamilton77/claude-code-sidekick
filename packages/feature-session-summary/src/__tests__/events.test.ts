@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { SessionSummaryEvents, DecisionEvents } from '../events.js'
+import { SessionSummaryEvents } from '../events.js'
+import { DecisionEvents } from '@sidekick/types'
 import { LogEvents } from '@sidekick/core'
 
 describe('SessionSummaryEvents', () => {

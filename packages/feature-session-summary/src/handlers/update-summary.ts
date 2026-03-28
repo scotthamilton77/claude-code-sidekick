@@ -11,7 +11,8 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { logEvent, LogEvents } from '@sidekick/core'
-import { SessionSummaryEvents, DecisionEvents } from '../events.js'
+import { SessionSummaryEvents } from '../events.js'
+import { DecisionEvents } from '@sidekick/types'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'

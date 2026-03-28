@@ -932,6 +932,29 @@ export interface DecisionRecordedPayload {
   title: string
 }
 
+/**
+ * Factory functions for creating decision:recorded logging events.
+ * Centralized here so any feature package can emit decisions.
+ */
+export const DecisionEvents = {
+  /** Emitted when an architecture-level decision is recorded. */
+  decisionRecorded(context: EventLogContext, payload: DecisionRecordedPayload): DecisionRecordedEvent {
+    return {
+      type: 'decision:recorded',
+      time: Date.now(),
+      source: 'daemon',
+      context: {
+        sessionId: context.sessionId,
+        correlationId: context.correlationId,
+        traceId: context.traceId,
+        hook: context.hook,
+        taskId: context.taskId,
+      },
+      payload,
+    }
+  },
+}
+
 /** Payload for `session-summary:start` — LLM summary generation began. */
 export interface SessionSummaryStartPayload {
   reason: string
