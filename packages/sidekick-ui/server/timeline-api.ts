@@ -135,11 +135,11 @@ export function generateLabel(
       }
     }
     case 'session-summary:start':
-      return { label: 'Summary Analysis Start' }
+      return { label: 'Session Analysis Start' }
     case 'session-summary:finish': {
-      const title = payload.title as string | undefined
+      const title = (payload.session_title ?? payload.title) as string | undefined
       return {
-        label: 'Summary Analysis Finish',
+        label: 'Session Analysis Finish',
         ...(title ? { detail: `"${title}"` } : {}),
       }
     }

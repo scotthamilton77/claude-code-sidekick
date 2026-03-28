@@ -428,6 +428,12 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   if (payload.generatedMessage) line.generatedMessage = payload.generatedMessage as string
   if (payload.snarky_comment) line.generatedMessage = payload.snarky_comment as string
 
+  // session-summary:finish carries session_title in the payload, map it to newValue
+  // so TranscriptLine.tsx can display it as detail text
+  if (entry.type === 'session-summary:finish' && payload.session_title) {
+    line.newValue = payload.session_title as string
+  }
+
   return line
 }
 

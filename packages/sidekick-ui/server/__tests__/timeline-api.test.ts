@@ -265,17 +265,17 @@ describe('generateLabel', () => {
 
   it('generates label for session-summary:start', () => {
     const result = generateLabel('session-summary:start', {})
-    expect(result).toEqual({ label: 'Summary Analysis Start' })
+    expect(result).toEqual({ label: 'Session Analysis Start' })
   })
 
   it('generates label for session-summary:finish', () => {
     const result = generateLabel('session-summary:finish', {})
-    expect(result).toEqual({ label: 'Summary Analysis Finish' })
+    expect(result).toEqual({ label: 'Session Analysis Finish' })
   })
 
-  it('generates label for session-summary:finish with title', () => {
-    const result = generateLabel('session-summary:finish', { title: 'Fix auth bug' })
-    expect(result).toEqual({ label: 'Summary Analysis Finish', detail: '"Fix auth bug"' })
+  it('generates label for session-summary:finish with session_title', () => {
+    const result = generateLabel('session-summary:finish', { session_title: 'Fix auth bug' })
+    expect(result).toEqual({ label: 'Session Analysis Finish', detail: '"Fix auth bug"' })
   })
 
   it('generates label for resume-message:start', () => {
