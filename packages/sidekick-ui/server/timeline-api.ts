@@ -126,30 +126,27 @@ export function generateLabel(
       }
     }
     case 'snarky-message:start':
-      return { label: 'Snarky Message…' }
+      return { label: 'Snarky Message' }
     case 'snarky-message:finish': {
       const msg = payload.generatedMessage as string | undefined
       return {
-        label: 'Snarky Message',
-        ...(msg ? { detail: msg.slice(0, 80) } : {}),
+        label: msg ? `Snarky Message: ${msg.slice(0, 60)}` : 'Snarky Message',
       }
     }
     case 'session-summary:start':
-      return { label: 'Session Analysis Start' }
+      return { label: 'Session Analysis' }
     case 'session-summary:finish': {
       const title = (payload.session_title ?? payload.title) as string | undefined
       return {
-        label: 'Session Analysis Finish',
-        ...(title ? { detail: `"${title}"` } : {}),
+        label: title ? `Session Analysis: "${title}"` : 'Session Analysis',
       }
     }
     case 'resume-message:start':
-      return { label: 'Resume Started' }
+      return { label: 'Resume Message' }
     case 'resume-message:finish': {
       const msg = payload.snarky_comment as string | undefined
       return {
-        label: 'Resume Complete',
-        ...(msg ? { detail: msg.slice(0, 80) } : {}),
+        label: msg ? `Resume Message: ${msg.slice(0, 60)}` : 'Resume Message',
       }
     }
     case 'statusline:rendered': {
