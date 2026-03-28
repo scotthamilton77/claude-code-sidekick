@@ -33,6 +33,51 @@ import { buildCLIContext, registerCLIFeatures } from '../context.js'
 import type { RuntimeShell } from '../runtime.js'
 
 /**
+ * Truncate a flat record for log file storage.
+ * - Strings longer than 500 chars are sliced with an ellipsis.
+ * - Objects with more than 20 keys are trimmed to 20 keys with _truncated: true.
+ * Only top-level values are processed; nested objects are not inspected.
+ */
+export function truncateForLog(raw: Record<string, unknown>): Record<string, unknown> {
+  const entries = Object.entries(raw)
+  const needsKeyTruncation = entries.length > 20
+  const result: Record<string, unknown> = {}
+
+  const toProcess = needsKeyTruncation ? entries.slice(0, 20) : entries
+  for (const [key, value] of toProcess) {
+    if (typeof value === 'string' && value.length > 500) {
+      result[key] = value.slice(0, 500) + '…'
+    } else {
+      result[key] = value
+    }
+  }
+
+  if (needsKeyTruncation) {
+    result['_truncated'] = true
+  }
+
+  return result
+}
+
+/** Base hook input fields to strip before logging (internal/redundant with context). */
+const STRIP_FIELDS = new Set(['session_id', 'transcript_path', 'hook_event_name'])
+
+/**
+ * Build the hook-specific input record for logging:
+ * strips system base fields, then truncates large values.
+ * Exported for testing.
+ */
+export function buildHookInput(raw: Record<string, unknown>): Record<string, unknown> {
+  const filtered: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (!STRIP_FIELDS.has(key)) {
+      filtered[key] = value
+    }
+  }
+  return truncateForLog(filtered)
+}
+
+/**
  * Hook response from Daemon.
  * Contains optional fields that map to Claude Code hook response contract.
  */
