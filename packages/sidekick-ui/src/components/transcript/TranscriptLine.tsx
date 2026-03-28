@@ -128,9 +128,9 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
     case 'decision:recorded':
       return { label: `Decision: ${line.decisionTitle ?? line.decisionCategory ?? 'unknown'}`, detail: line.decisionReasoning }
     case 'session-summary:start':
-      return { label: 'Summary Analysis Start' }
+      return { label: 'Session Analysis Start' }
     case 'session-summary:finish':
-      return { label: 'Summary Analysis Finish', detail: line.newValue ? `"${line.newValue}"` : undefined }
+      return { label: 'Session Analysis Finish', detail: line.newValue ? `"${line.newValue}"` : undefined }
     case 'session-title:changed':
       return {
         label: `Title → "${line.newValue ?? 'unknown'}"`,
@@ -523,7 +523,7 @@ function getLineStyles(line: TLine) {
         border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: line.type === 'session-summary:start' ? Play : Square,
         iconColor: 'text-purple-500',
-        label: line.type === 'session-summary:start' ? 'Summary Analysis' : 'Summary Analysis',
+        label: line.type === 'session-summary:start' ? 'Session Analysis' : 'Session Analysis',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'session-title:changed':

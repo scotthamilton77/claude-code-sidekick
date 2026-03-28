@@ -435,20 +435,7 @@ async function performAnalysis(
       await Promise.all(sideEffects)
     }
 
-    // Log summary completion
-    logEvent(
-      ctx.logger,
-      SessionSummaryEvents.summaryFinish(event.context, {
-        session_title: updatedSummary.session_title,
-        session_title_confidence: updatedSummary.session_title_confidence,
-        latest_intent: updatedSummary.latest_intent,
-        latest_intent_confidence: updatedSummary.latest_intent_confidence,
-        processing_time_ms: updatedSummary.stats?.processing_time_ms ?? 0,
-        pivot_detected: updatedSummary.pivot_detected ?? false,
-      })
-    )
-
-    // Emit title-changed if title differs
+    // Emit title-changed if title differs (before finish event)
     if (currentSummary && updatedSummary.session_title !== currentSummary.session_title) {
       logEvent(
         ctx.logger,
@@ -460,7 +447,7 @@ async function performAnalysis(
       )
     }
 
-    // Emit intent-changed if intent differs
+    // Emit intent-changed if intent differs (before finish event)
     if (currentSummary && updatedSummary.latest_intent !== currentSummary.latest_intent) {
       logEvent(
         ctx.logger,
@@ -471,6 +458,19 @@ async function performAnalysis(
         })
       )
     }
+
+    // Log summary completion (emitted last as the true completion marker)
+    logEvent(
+      ctx.logger,
+      SessionSummaryEvents.summaryFinish(event.context, {
+        session_title: updatedSummary.session_title,
+        session_title_confidence: updatedSummary.session_title_confidence,
+        latest_intent: updatedSummary.latest_intent,
+        latest_intent_confidence: updatedSummary.latest_intent_confidence,
+        processing_time_ms: updatedSummary.stats?.processing_time_ms ?? 0,
+        pivot_detected: updatedSummary.pivot_detected ?? false,
+      })
+    )
 
     ctx.logger.info('Updated session summary', {
       sessionId,
