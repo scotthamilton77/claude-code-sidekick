@@ -1083,6 +1083,29 @@ describe('Structured Logging', () => {
       expect(event.payload.reminderReturned).toBe(true)
     })
 
+    it('should include input in HookReceived payload when provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.hookReceived(
+        { sessionId: 'sess-1', hook: 'UserPromptSubmit' },
+        { mode: 'hook', input: { prompt: 'fix the bug' } }
+      )
+
+      expect(event.payload.input).toEqual({ prompt: 'fix the bug' })
+    })
+
+    it('should include returnValue in HookCompleted payload when provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.hookCompleted(
+        { sessionId: 'sess-1', hook: 'UserPromptSubmit' },
+        { durationMs: 10 },
+        { returnValue: { additionalContext: 'remember X' } }
+      )
+
+      expect(event.payload.returnValue).toEqual({ additionalContext: 'remember X' })
+    })
+
     // Note: ReminderConsumed events moved to @sidekick/feature-reminders (9.5.2)
 
     it('should create EventReceived events for daemon', async () => {

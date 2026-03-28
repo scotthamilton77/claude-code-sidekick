@@ -805,7 +805,7 @@ export const LogEvents = {
    */
   hookReceived(
     context: EventLogContext & { hook: string },
-    metadata: { cwd?: string; mode?: 'hook' | 'interactive' }
+    metadata: { cwd?: string; mode?: 'hook' | 'interactive'; input?: Record<string, unknown> }
   ): HookReceivedEvent {
     return {
       type: 'hook:received',
@@ -821,6 +821,7 @@ export const LogEvents = {
         hook: context.hook,
         cwd: metadata.cwd,
         mode: metadata.mode,
+        input: metadata.input,
       },
     }
   },
@@ -831,7 +832,7 @@ export const LogEvents = {
   hookCompleted(
     context: EventLogContext & { hook: string },
     metadata: { durationMs: number },
-    state?: { reminderReturned?: boolean; responseType?: string }
+    state?: { reminderReturned?: boolean; responseType?: string; returnValue?: Record<string, unknown> }
   ): HookCompletedEvent {
     return {
       type: 'hook:completed',
@@ -848,6 +849,7 @@ export const LogEvents = {
         durationMs: metadata.durationMs,
         reminderReturned: state?.reminderReturned,
         responseType: state?.responseType,
+        returnValue: state?.returnValue,
       },
     }
   },
