@@ -15,8 +15,9 @@
  * @see docs/design/FEATURE-REMINDERS.md §5.1
  */
 import type { RuntimeContext } from '@sidekick/core'
+import { logEvent } from '@sidekick/core'
 import type { DaemonContext, StagedReminder, StagingMetrics } from '@sidekick/types'
-import { isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
+import { DecisionEvents, isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
@@ -174,6 +175,18 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             ...(typedEntry.cachedReminder as StagedReminder),
             stagedAt,
           })
+          logEvent(
+            handlerCtx.logger,
+            DecisionEvents.decisionRecorded(
+              { sessionId },
+              {
+                decision: 'staged',
+                reason: `message count reached threshold (${newCount}/${threshold})`,
+                subsystem: 'user-prompt-reminders',
+                title: 'Stage user-prompt reminder',
+              }
+            )
+          )
           state[reminderId] = { ...typedEntry, messagesSinceLastStaging: 0 }
           handlerCtx.logger.debug('Throttle: re-staged reminder', {
             sessionId,

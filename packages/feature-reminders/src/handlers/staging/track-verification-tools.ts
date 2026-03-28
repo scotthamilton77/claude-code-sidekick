@@ -20,7 +20,7 @@ import type {
   TranscriptEvent,
   VerificationToolsState,
 } from '@sidekick/types'
-import { isDaemonContext, isTranscriptEvent } from '@sidekick/types'
+import { DecisionEvents, isDaemonContext, isTranscriptEvent } from '@sidekick/types'
 import picomatch from 'picomatch'
 import { findMatchingPattern } from '../../tool-pattern-matcher.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
@@ -168,12 +168,27 @@ export async function stageToolsForFiles(
         // verified or cooldown — count edits toward re-staging threshold
         const newEdits = current.editsSinceVerified + 1
         if (newEdits >= toolConfig.clearing_threshold) {
+          const wasAlreadyStaged = stagedNames.has(reminderId)
           const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
             reason: 'threshold_reached',
             triggeredBy: 'file_edit',
             thresholdState: { current: newEdits, threshold: toolConfig.clearing_threshold },
           })
           if (staged) {
+            if (!wasAlreadyStaged) {
+              logEvent(
+                daemonCtx.logger,
+                DecisionEvents.decisionRecorded(
+                  { sessionId },
+                  {
+                    decision: 'staged',
+                    reason: `edits reached clearing threshold (${newEdits}/${toolConfig.clearing_threshold})`,
+                    subsystem: 'vc-reminders',
+                    title: 'Re-stage VC reminder (threshold reached)',
+                  }
+                )
+              )
+            }
             toolsState[toolName] = {
               ...current,
               status: 'staged',
@@ -267,7 +282,21 @@ async function handleBashCommand(
       lastMatchedScope: match.scope,
     }
 
-    await daemonCtx.staging.deleteReminder('Stop', reminderId)
+    const deleted = await daemonCtx.staging.deleteReminder('Stop', reminderId)
+    if (deleted) {
+      logEvent(
+        daemonCtx.logger,
+        DecisionEvents.decisionRecorded(
+          { sessionId },
+          {
+            decision: 'unstaged',
+            reason: `verification passed for ${toolName} (matched ${match.tool_id})`,
+            subsystem: 'vc-reminders',
+            title: 'Unstage VC reminder (verified)',
+          }
+        )
+      )
+    }
     logEvent(
       daemonCtx.logger,
       ReminderEvents.reminderUnstaged(

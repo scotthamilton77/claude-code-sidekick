@@ -222,8 +222,8 @@ describe('Session Summary Event Emission', () => {
     expect(intentLogs).toHaveLength(0)
   })
 
-  it('emits decision:recorded event with decision=calling on UserPrompt', async () => {
-    const sessionId = 'test-decision-calling'
+  it('does not emit decision:recorded on UserPrompt (unconditional action)', async () => {
+    const sessionId = 'test-decision-no-emit'
 
     llm.queueResponses([
       JSON.stringify({
@@ -241,17 +241,12 @@ describe('Session Summary Event Emission', () => {
     await flushPromises()
 
     const decisionLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'decision:recorded')
-    expect(decisionLogs).toHaveLength(1)
-    expect(decisionLogs[0].meta?.decision).toBe('calling')
-    expect(decisionLogs[0].meta?.reason).toBe('UserPrompt event forces immediate analysis')
-    expect(decisionLogs[0].meta?.subsystem).toBe('session-summary')
-    expect(decisionLogs[0].meta?.source).toBe('daemon')
+    expect(decisionLogs).toHaveLength(0)
   })
 
-  it('emits decision:recorded event with decision=skipped on countdown active', async () => {
-    const sessionId = 'test-decision-skipped'
+  it('does not emit decision:recorded on countdown active (noise suppressed)', async () => {
+    const sessionId = 'test-decision-no-skip-emit'
 
-    // Pre-set countdown state so ToolResult is skipped
     stateService.setStored(stateService.sessionStatePath(sessionId, 'summary-countdown.json'), {
       countdown: 5,
       bookmark_line: 0,
@@ -275,10 +270,7 @@ describe('Session Summary Event Emission', () => {
     await updateSessionSummary(toolResultEvent, ctx)
 
     const decisionLogs = logger.getLogsByLevel('info').filter((log) => log.meta?.type === 'decision:recorded')
-    expect(decisionLogs).toHaveLength(1)
-    expect(decisionLogs[0].meta?.decision).toBe('skipped')
-    expect(decisionLogs[0].meta?.reason).toContain('countdown not reached')
-    expect(decisionLogs[0].meta?.subsystem).toBe('session-summary')
+    expect(decisionLogs).toHaveLength(0)
   })
 
   it('does not emit title/intent-changed events on first analysis (no previous summary)', async () => {

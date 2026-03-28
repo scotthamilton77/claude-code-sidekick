@@ -11,7 +11,8 @@
 
 import type { TranscriptEvent } from '@sidekick/core'
 import { logEvent, LogEvents } from '@sidekick/core'
-import { SessionSummaryEvents, DecisionEvents } from '../events.js'
+import { SessionSummaryEvents } from '../events.js'
+import { DecisionEvents } from '@sidekick/types'
 import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
 import { z } from 'zod'
 import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
@@ -29,7 +30,6 @@ import { ensurePersonaForSession } from './persona-selection.js'
 /** Human-readable titles for decision:recorded events shown in the UI timeline. */
 const DECISION_TITLE_SKIP = 'Skip session analysis'
 const DECISION_TITLE_RUN = 'Run session analysis'
-const DECISION_TITLE_DEFER = 'Defer session analysis'
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
@@ -149,30 +149,12 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
 
   // UserPrompt forces immediate analysis
   if (isUserPrompt) {
-    logEvent(
-      ctx.logger,
-      DecisionEvents.decisionRecorded(event.context, {
-        decision: 'calling',
-        reason: 'UserPrompt event forces immediate analysis',
-        subsystem: 'session-summary',
-        title: DECISION_TITLE_RUN,
-      })
-    )
     void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
     return
   }
 
   // ToolResult: check countdown
   if (countdown.countdown > 0) {
-    logEvent(
-      ctx.logger,
-      DecisionEvents.decisionRecorded(event.context, {
-        decision: 'skipped',
-        reason: `countdown not reached (${countdown.countdown} tool results remaining)`,
-        subsystem: 'session-summary',
-        title: DECISION_TITLE_DEFER,
-      })
-    )
     countdown.countdown--
     await saveCountdownState(summaryState, sessionId, countdown)
     return

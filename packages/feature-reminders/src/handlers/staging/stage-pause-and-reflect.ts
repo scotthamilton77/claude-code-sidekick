@@ -10,7 +10,7 @@
  */
 import type { RuntimeContext } from '@sidekick/core'
 import { logEvent } from '@sidekick/core'
-import { isTranscriptEvent, type PRBaselineState } from '@sidekick/types'
+import { DecisionEvents, isTranscriptEvent, type PRBaselineState } from '@sidekick/types'
 import { ReminderEvents } from '../../events.js'
 import { createStagingHandler } from './staging-handler-utils.js'
 import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
@@ -102,6 +102,19 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
 
       // Note: Unstaging verify-completion is now handled by orchestrator.onReminderStaged()
       // in staging-handler-utils.ts after this handler returns the staging action.
+
+      logEvent(
+        ctx.logger,
+        DecisionEvents.decisionRecorded(
+          { sessionId },
+          {
+            decision: 'staged',
+            reason: `tools since baseline reached threshold (${toolsSinceBaseline}/${config.pause_and_reflect_threshold})`,
+            subsystem: 'pause-reflect',
+            title: 'Stage pause-and-reflect reminder',
+          }
+        )
+      )
 
       return {
         reminderId: ReminderIds.PAUSE_AND_REFLECT,

@@ -17,6 +17,7 @@ import {
   MockStateService,
   createDefaultMetrics,
 } from '@sidekick/testing-fixtures'
+import type { LogRecord } from '@sidekick/testing-fixtures'
 import type {
   DaemonContext,
   SessionStartHookEvent,
@@ -167,6 +168,10 @@ additionalContext: "Lint needed"
     ctx = createMockDaemonContext({ staging, logger, handlers, assets })
   })
 
+  function getDecisionRecordedEvents(): LogRecord[] {
+    return logger.recordedLogs.filter((log) => log.level === 'info' && log.meta?.type === 'decision:recorded')
+  }
+
   describe('createStagingHandler factory', () => {
     it('only registers handler in daemon context', () => {
       const cliCtx = createMockCLIContext()
@@ -315,6 +320,22 @@ additionalContext: "Lint needed"
       expect(reminders[0].name).toBe('pause-and-reflect')
       expect(reminders[0].priority).toBe(80)
       expect(reminders[0].blocking).toBe(true)
+    })
+
+    it('emits decision:recorded when threshold reached', async () => {
+      registerStagePauseAndReflect(ctx)
+
+      const handler = handlers.getHandler('reminders:stage-pause-and-reflect')
+      expect(handler).toBeDefined()
+      const event = createTestTranscriptEvent({ toolsThisTurn: 60 })
+
+      await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+
+      const decisionEvents = getDecisionRecordedEvents()
+      expect(decisionEvents).toHaveLength(1)
+      expect(decisionEvents[0].meta?.decision).toBe('staged')
+      expect(decisionEvents[0].meta?.subsystem).toBe('pause-reflect')
+      expect(decisionEvents[0].meta?.title).toBe('Stage pause-and-reflect reminder')
     })
 
     it('is idempotent - does not re-stage if already exists', async () => {
@@ -928,6 +949,25 @@ additionalContext: "Standard user prompt reminder"
         expect(reminders.some((r) => r.name === 'user-prompt-submit')).toBe(true)
       })
 
+      it('emits decision:recorded when throttle threshold reached', async () => {
+        registerStageDefaultUserPrompt(ctx)
+
+        const handler = handlers.getHandler('reminders:throttle-restage')
+        expect(handler).toBeDefined()
+
+        // Fire 10 events (meets default threshold of 10)
+        for (let i = 0; i < 10; i++) {
+          const event = createConversationTranscriptEvent('UserPrompt')
+          await handler!.handler(event, ctx as unknown as import('@sidekick/types').HandlerContext)
+        }
+
+        const decisionEvents = getDecisionRecordedEvents()
+        expect(decisionEvents).toHaveLength(1)
+        expect(decisionEvents[0].meta?.decision).toBe('staged')
+        expect(decisionEvents[0].meta?.subsystem).toBe('user-prompt-reminders')
+        expect(decisionEvents[0].meta?.title).toBe('Stage user-prompt reminder')
+      })
+
       it('includes stagedAt metrics from triggering event when re-staging', async () => {
         registerStageDefaultUserPrompt(ctx)
 
@@ -1418,6 +1458,51 @@ additionalContext: "Standard user prompt reminder"
       // Reminder should be deleted, not re-staged
       expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
       expect(logger.wasLogged('VC unstage: cycle limit reached, clearing')).toBe(true)
+    })
+
+    it('emits decision:recorded when cycle limit reached', async () => {
+      const configWithCycleLimit = new MockConfigService()
+      configWithCycleLimit.set({
+        features: {
+          reminders: { enabled: true, settings: { max_verification_cycles: 2 } },
+        },
+      })
+
+      const stateService = new MockStateService(testProjectDir)
+      const unverifiedState = {
+        hasUnverifiedChanges: true,
+        cycleCount: 2, // At limit
+        setAt: { timestamp: Date.now(), turnCount: 1, toolsThisTurn: 5, toolCount: 5 },
+        lastClassification: { category: 'OTHER', confidence: 0.5 },
+      }
+      const vcUnverifiedPath = stateService.sessionStatePath(sessionId, 'vc-unverified.json')
+      stateService.setStored(vcUnverifiedPath, unverifiedState)
+
+      const ctxWithPath = createMockDaemonContext({
+        staging,
+        logger,
+        handlers,
+        assets,
+        stateService,
+        paths: {
+          projectDir: testProjectDir,
+          userConfigDir: '/mock/user',
+          projectConfigDir: '/mock/project-config',
+        },
+        config: configWithCycleLimit,
+      })
+
+      registerUnstageVerifyCompletion(ctxWithPath)
+
+      const handler = handlers.getHandler('reminders:unstage-verify-completion')
+      expect(handler).toBeDefined()
+      await handler!.handler(createHookEvent(), ctxWithPath as unknown as import('@sidekick/types').HandlerContext)
+
+      const decisionEvents = getDecisionRecordedEvents()
+      expect(decisionEvents).toHaveLength(1)
+      expect(decisionEvents[0].meta?.decision).toBe('unstaged-all')
+      expect(decisionEvents[0].meta?.subsystem).toBe('vc-reminders')
+      expect(decisionEvents[0].meta?.title).toBe('Unstage all VC reminders (cycle limit)')
     })
 
     it('does not re-stage wrapper when all tools are verified with zero pending edits', async () => {
