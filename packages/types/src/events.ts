@@ -1012,6 +1012,8 @@ export interface HookReceivedPayload {
   hook: string
   cwd?: string
   mode?: string
+  /** Hook-specific input fields (system fields stripped, values truncated). */
+  input?: Record<string, unknown>
 }
 
 /** Payload for `hook:completed` — a hook event was processed by the CLI. */
@@ -1020,6 +1022,8 @@ export interface HookCompletedPayload {
   durationMs: number
   reminderReturned?: boolean
   responseType?: string
+  /** Response returned to Claude Code (omitted if empty). Values truncated. */
+  returnValue?: Record<string, unknown>
 }
 
 /** Payload for `event:received` — daemon received an event for processing. */
