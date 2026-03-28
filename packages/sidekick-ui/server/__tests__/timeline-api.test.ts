@@ -260,33 +260,33 @@ describe('generateLabel', () => {
   it('generates label for snarky-message:finish', () => {
     const longMessage = 'b'.repeat(100)
     const result = generateLabel('snarky-message:finish', { generatedMessage: longMessage })
-    expect(result).toEqual({ label: 'Snarky Message', detail: 'b'.repeat(80) })
+    expect(result).toEqual({ label: `Snarky Message: ${'b'.repeat(60)}` })
   })
 
   it('generates label for session-summary:start', () => {
     const result = generateLabel('session-summary:start', {})
-    expect(result).toEqual({ label: 'Session Analysis Start' })
+    expect(result).toEqual({ label: 'Session Analysis' })
   })
 
   it('generates label for session-summary:finish', () => {
     const result = generateLabel('session-summary:finish', {})
-    expect(result).toEqual({ label: 'Session Analysis Finish' })
+    expect(result).toEqual({ label: 'Session Analysis' })
   })
 
   it('generates label for session-summary:finish with session_title', () => {
     const result = generateLabel('session-summary:finish', { session_title: 'Fix auth bug' })
-    expect(result).toEqual({ label: 'Session Analysis Finish', detail: '"Fix auth bug"' })
+    expect(result).toEqual({ label: 'Session Analysis: "Fix auth bug"' })
   })
 
   it('generates label for resume-message:start', () => {
     const result = generateLabel('resume-message:start', {})
-    expect(result).toEqual({ label: 'Resume Started' })
+    expect(result).toEqual({ label: 'Resume Message' })
   })
 
   it('generates label for resume-message:finish', () => {
     const longMessage = 'c'.repeat(100)
     const result = generateLabel('resume-message:finish', { snarky_comment: longMessage })
-    expect(result).toEqual({ label: 'Resume Complete', detail: 'c'.repeat(80) })
+    expect(result).toEqual({ label: `Resume Message: ${'c'.repeat(60)}` })
   })
 
   it('generates label for statusline:rendered', () => {
@@ -306,7 +306,7 @@ describe('generateLabel', () => {
 
   it('generates label for snarky-message:start', () => {
     const result = generateLabel('snarky-message:start', {})
-    expect(result).toEqual({ label: 'Snarky Message…' })
+    expect(result).toEqual({ label: 'Snarky Message' })
   })
 
   it('falls back to "unknown" for missing payload fields', () => {
@@ -325,9 +325,25 @@ describe('generateLabel', () => {
     expect(result.detail).toHaveLength(120)
   })
 
-  it('truncates long detail strings for messages (80 chars)', () => {
+  it('truncates long result strings in label for messages (60 chars)', () => {
     const generatedMessage = 'y'.repeat(200)
     const result = generateLabel('snarky-message:finish', { generatedMessage })
-    expect(result.detail).toHaveLength(80)
+    expect(result.label).toBe(`Snarky Message: ${'y'.repeat(60)}`)
+  })
+
+  it('truncates long session titles in label (60 chars)', () => {
+    const longTitle = 't'.repeat(200)
+    const result = generateLabel('session-summary:finish', { session_title: longTitle })
+    expect(result.label).toBe(`Session Analysis: "${'t'.repeat(60)}"`)
+  })
+
+  it('falls back to operation name for snarky-message:finish with empty payload', () => {
+    const result = generateLabel('snarky-message:finish', {})
+    expect(result).toEqual({ label: 'Snarky Message' })
+  })
+
+  it('falls back to operation name for resume-message:finish with empty payload', () => {
+    const result = generateLabel('resume-message:finish', {})
+    expect(result).toEqual({ label: 'Resume Message' })
   })
 })
