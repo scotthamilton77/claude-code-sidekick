@@ -330,4 +330,20 @@ describe('generateLabel', () => {
     const result = generateLabel('snarky-message:finish', { generatedMessage })
     expect(result.label).toBe(`Snarky Message: ${'y'.repeat(60)}`)
   })
+
+  it('truncates long session titles in label (60 chars)', () => {
+    const longTitle = 't'.repeat(200)
+    const result = generateLabel('session-summary:finish', { session_title: longTitle })
+    expect(result.label).toBe(`Session Analysis: "${'t'.repeat(60)}"`)
+  })
+
+  it('falls back to operation name for snarky-message:finish with empty payload', () => {
+    const result = generateLabel('snarky-message:finish', {})
+    expect(result).toEqual({ label: 'Snarky Message' })
+  })
+
+  it('falls back to operation name for resume-message:finish with empty payload', () => {
+    const result = generateLabel('resume-message:finish', {})
+    expect(result).toEqual({ label: 'Resume Message' })
+  })
 })

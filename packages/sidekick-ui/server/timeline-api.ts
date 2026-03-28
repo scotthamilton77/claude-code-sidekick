@@ -138,7 +138,7 @@ export function generateLabel(
     case 'session-summary:finish': {
       const title = (payload.session_title ?? payload.title) as string | undefined
       return {
-        label: title ? `Session Analysis: "${title}"` : 'Session Analysis',
+        label: title ? `Session Analysis: "${title.slice(0, 60)}"` : 'Session Analysis',
       }
     }
     case 'resume-message:start':
