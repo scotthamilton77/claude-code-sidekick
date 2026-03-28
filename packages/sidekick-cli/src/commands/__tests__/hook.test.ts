@@ -10,10 +10,12 @@ import { describe, expect, test, vi, beforeEach } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
 import {
   buildHookEvent,
+  buildHookInput,
   getHookName,
   handleHookCommand,
   isHookCommand,
   mergeHookResponses,
+  truncateForLog,
   validateHookName,
 } from '../hook.js'
 import type { HandleHookOptions } from '../hook.js'
@@ -498,5 +500,195 @@ describe('handleHookCommand', () => {
 
     expect(result.exitCode).toBe(0)
     expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  describe('hook event payload enrichment', () => {
+    test('passes hook-specific input fields (excluding base fields) to hookReceived event', async () => {
+      const input: ParsedHookInput = {
+        sessionId: 'test-session',
+        transcriptPath: '/path/transcript.jsonl',
+        cwd: '/project',
+        hookEventName: 'UserPromptSubmit',
+        permissionMode: 'default',
+        raw: {
+          session_id: 'test-session',
+          transcript_path: '/path/transcript.jsonl',
+          hook_event_name: 'UserPromptSubmit',
+          cwd: '/project',
+          permission_mode: 'default',
+          prompt: 'fix the bug',
+        },
+      }
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', { ...baseOptions, hookInput: input }, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const receivedCall = infoCalls.find((args) => args[1]?.type === 'hook:received')
+      expect(receivedCall).toBeDefined()
+      expect(receivedCall![1].input).toBeDefined()
+      expect(receivedCall![1].input.session_id).toBeUndefined()
+      expect(receivedCall![1].input.transcript_path).toBeUndefined()
+      expect(receivedCall![1].input.hook_event_name).toBeUndefined()
+      expect(receivedCall![1].input.prompt).toBe('fix the bug')
+      expect(receivedCall![1].input.cwd).toBe('/project')
+    })
+
+    test('passes mergedResponse as returnValue on successful hook:completed', async () => {
+      mockSend.mockResolvedValue({ additionalContext: 'remember to do X' })
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const completedCall = infoCalls.find((args) => args[1]?.type === 'hook:completed')
+      expect(completedCall).toBeDefined()
+      expect(completedCall![1].returnValue).toBeDefined()
+      expect(completedCall![1].returnValue.additionalContext).toBe('remember to do X')
+    })
+
+    test('omits returnValue on hook:completed when response is empty', async () => {
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const completedCall = infoCalls.find((args) => args[1]?.type === 'hook:completed')
+      expect(completedCall).toBeDefined()
+      expect(completedCall![1].returnValue).toBeUndefined()
+    })
+
+    test('does not pass returnValue on the failure path (IPC error)', async () => {
+      mockSend.mockRejectedValue(new Error('IPC timeout'))
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('UserPromptSubmit', baseOptions, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const completedCall = infoCalls.find((args) => args[1]?.type === 'hook:completed')
+      expect(completedCall).toBeDefined()
+      expect(completedCall![1].returnValue).toBeUndefined()
+    })
+
+    test('omits input on hookReceived when buildHookInput returns empty object', async () => {
+      const input: ParsedHookInput = {
+        sessionId: 'test-session',
+        transcriptPath: '/path/transcript.jsonl',
+        cwd: '/project',
+        hookEventName: 'SessionStart',
+        permissionMode: 'default',
+        raw: {
+          // Only system fields — buildHookInput will return {}
+          session_id: 'test-session',
+          transcript_path: '/path/transcript.jsonl',
+          hook_event_name: 'SessionStart',
+        },
+      }
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('SessionStart', { ...baseOptions, hookInput: input }, mockLogger, stdout)
+
+      const infoCalls = (mockLogger.info as ReturnType<typeof vi.fn>).mock.calls
+      const receivedCall = infoCalls.find((args) => args[1]?.type === 'hook:received')
+      expect(receivedCall).toBeDefined()
+      expect(receivedCall![1].input).toBeUndefined()
+    })
+  })
+})
+
+describe('truncateForLog', () => {
+  test('passes through short string values unchanged', () => {
+    const result = truncateForLog({ key: 'short' })
+    expect(result).toEqual({ key: 'short' })
+  })
+
+  test('truncates string values longer than 500 chars', () => {
+    const longStr = 'a'.repeat(600)
+    const result = truncateForLog({ key: longStr })
+    expect(typeof result['key']).toBe('string')
+    expect((result['key'] as string).length).toBeLessThanOrEqual(501) // 500 + '…'
+    expect((result['key'] as string).endsWith('…')).toBe(true)
+  })
+
+  test('passes through string values exactly 500 chars unchanged', () => {
+    const exactly500 = 'a'.repeat(500)
+    const result = truncateForLog({ key: exactly500 })
+    expect(result['key']).toBe(exactly500)
+  })
+
+  test('passes through non-string values unchanged', () => {
+    const result = truncateForLog({ num: 42, bool: true, nil: null, undef: undefined })
+    expect(result['num']).toBe(42)
+    expect(result['bool']).toBe(true)
+    expect(result['nil']).toBeNull()
+    expect(result['undef']).toBeUndefined()
+  })
+
+  test('passes through objects with 20 or fewer keys unchanged', () => {
+    const input: Record<string, unknown> = {}
+    for (let i = 0; i < 20; i++) input[`k${i}`] = i
+    const result = truncateForLog(input)
+    expect(Object.keys(result)).toHaveLength(20)
+    expect(result['_truncated']).toBeUndefined()
+  })
+
+  test('truncates objects with more than 20 keys and sets _truncated flag', () => {
+    const input: Record<string, unknown> = {}
+    for (let i = 0; i < 25; i++) input[`k${i}`] = i
+    const result = truncateForLog(input)
+    // 20 data keys + 1 _truncated flag
+    expect(Object.keys(result)).toHaveLength(21)
+    expect(result['_truncated']).toBe(true)
+  })
+
+  test('returns empty object unchanged', () => {
+    expect(truncateForLog({})).toEqual({})
+  })
+})
+
+describe('buildHookInput', () => {
+  test('strips session_id, transcript_path, and hook_event_name from raw input', () => {
+    const result = buildHookInput({
+      session_id: 'sess-1',
+      transcript_path: '/path/file.jsonl',
+      hook_event_name: 'UserPromptSubmit',
+      cwd: '/project',
+      prompt: 'fix the bug',
+    })
+    expect(result['session_id']).toBeUndefined()
+    expect(result['transcript_path']).toBeUndefined()
+    expect(result['hook_event_name']).toBeUndefined()
+  })
+
+  test('preserves all non-system fields', () => {
+    const result = buildHookInput({
+      session_id: 'sess-1',
+      cwd: '/project',
+      permission_mode: 'default',
+      prompt: 'fix the bug',
+    })
+    expect(result['cwd']).toBe('/project')
+    expect(result['permission_mode']).toBe('default')
+    expect(result['prompt']).toBe('fix the bug')
+  })
+
+  test('returns empty object when only system fields are present', () => {
+    const result = buildHookInput({
+      session_id: 'sess-1',
+      transcript_path: '/path/file.jsonl',
+      hook_event_name: 'SessionStart',
+    })
+    expect(Object.keys(result)).toHaveLength(0)
+  })
+
+  test('delegates truncation to truncateForLog (long strings are truncated)', () => {
+    const result = buildHookInput({
+      prompt: 'a'.repeat(600),
+    })
+    expect((result['prompt'] as string).length).toBeLessThanOrEqual(501)
+    expect((result['prompt'] as string).endsWith('…')).toBe(true)
   })
 })
