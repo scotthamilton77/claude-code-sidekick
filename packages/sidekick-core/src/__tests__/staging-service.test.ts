@@ -395,7 +395,6 @@ describe('SessionScopedStagingService (via createService)', () => {
 
       expect(result).toBe(true)
     })
-
   })
 
   // ==========================================================================
@@ -577,6 +576,75 @@ describe('StagingServiceCore', () => {
           reminderName: 'ContextTest',
         })
       )
+    })
+
+    it('should NOT emit reminder:staged event when re-staging an existing reminder', async () => {
+      const logger = createMockLogger()
+      const core = createCore(testDir, { logger })
+      const reminder = createTestReminder({ name: 'DupTest', priority: 50 })
+
+      // First stage — should emit
+      await core.stageReminder('session-a', 'PreToolUse', 'DupTest', reminder)
+
+      // Clear call history to isolate the second call
+      vi.mocked(logger.info).mockClear()
+      vi.mocked(logger.child).mockClear()
+      vi.mocked(logger.child).mockReturnThis()
+
+      // Re-stage same reminder (overwrite) — should NOT emit
+      await core.stageReminder('session-a', 'PreToolUse', 'DupTest', {
+        ...reminder,
+        stagedAt: { timestamp: Date.now(), turnCount: 5, toolsThisTurn: 2, toolCount: 10 },
+      })
+
+      // No reminder:staged event should have been logged
+      expect(logger.info).not.toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ type: 'reminder:staged' })
+      )
+    })
+
+    it('should emit reminder:staged event when re-staging after file was deleted (consumed)', async () => {
+      const logger = createMockLogger()
+      const core = createCore(testDir, { logger })
+      const reminder = createTestReminder({ name: 'ConsumeTest', priority: 50 })
+
+      // First stage
+      await core.stageReminder('session-a', 'PreToolUse', 'ConsumeTest', reminder)
+
+      // Simulate consumption by deleting the file
+      await core.deleteReminder('session-a', 'PreToolUse', 'ConsumeTest')
+
+      // Clear call history
+      vi.mocked(logger.info).mockClear()
+      vi.mocked(logger.child).mockClear()
+      vi.mocked(logger.child).mockReturnThis()
+
+      // Re-stage after deletion — should emit event again
+      await core.stageReminder('session-a', 'PreToolUse', 'ConsumeTest', reminder)
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          type: 'reminder:staged',
+          reminderName: 'ConsumeTest',
+        })
+      )
+    })
+
+    it('should still write the file even when suppressing the event on re-stage', async () => {
+      const logger = createMockLogger()
+      const core = createCore(testDir, { logger })
+      const original = createTestReminder({ name: 'WriteTest', priority: 50, additionalContext: 'v1' })
+      const updated = createTestReminder({ name: 'WriteTest', priority: 80, additionalContext: 'v2' })
+
+      await core.stageReminder('session-a', 'PreToolUse', 'WriteTest', original)
+      await core.stageReminder('session-a', 'PreToolUse', 'WriteTest', updated)
+
+      // File should contain the updated data
+      const result = await core.readReminder('session-a', 'PreToolUse', 'WriteTest')
+      expect(result?.priority).toBe(80)
+      expect(result?.additionalContext).toBe('v2')
     })
   })
 
