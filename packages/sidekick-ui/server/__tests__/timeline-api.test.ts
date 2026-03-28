@@ -273,8 +273,8 @@ describe('generateLabel', () => {
     expect(result).toEqual({ label: 'Session Analysis Finish' })
   })
 
-  it('generates label for session-summary:finish with title', () => {
-    const result = generateLabel('session-summary:finish', { title: 'Fix auth bug' })
+  it('generates label for session-summary:finish with session_title', () => {
+    const result = generateLabel('session-summary:finish', { session_title: 'Fix auth bug' })
     expect(result).toEqual({ label: 'Session Analysis Finish', detail: '"Fix auth bug"' })
   })
 
