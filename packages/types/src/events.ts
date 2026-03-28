@@ -924,7 +924,7 @@ export interface ReminderNotStagedPayload {
   triggeredBy?: string
 }
 
-/** Payload for `decision:recorded` — an LLM decision was captured. */
+/** Payload for `decision:recorded` — a runtime decision was captured. */
 export interface DecisionRecordedPayload {
   decision: string
   reason: string
@@ -937,7 +937,7 @@ export interface DecisionRecordedPayload {
  * Centralized here so any feature package can emit decisions.
  */
 export const DecisionEvents = {
-  /** Emitted when an architecture-level decision is recorded. */
+  /** Emitted when a runtime decision is recorded. */
   decisionRecorded(context: EventLogContext, payload: DecisionRecordedPayload): DecisionRecordedEvent {
     return {
       type: 'decision:recorded',
