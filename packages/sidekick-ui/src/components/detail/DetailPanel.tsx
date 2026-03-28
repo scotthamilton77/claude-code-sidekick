@@ -7,6 +7,7 @@ import { ToolDetail } from './ToolDetail'
 import { DecisionDetail } from './DecisionDetail'
 import { ReminderDetail } from './ReminderDetail'
 import { ErrorDetail } from './ErrorDetail'
+import { HookDetail } from './HookDetail'
 
 interface DetailPanelProps {
   line: TranscriptLine
@@ -73,6 +74,9 @@ function DetailContent({ line }: { line: TranscriptLine }) {
       return <ReminderDetail line={line} />
     case 'error:occurred':
       return <ErrorDetail line={line} />
+    case 'hook:received':
+    case 'hook:completed':
+      return <HookDetail line={line} />
     case 'user-message':
     case 'assistant-message':
       return <TranscriptMessageDetail line={line} />

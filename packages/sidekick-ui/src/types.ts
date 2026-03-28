@@ -109,6 +109,8 @@ export interface TranscriptLine {
   // hook:received / hook:completed
   hookName?: string
   hookDurationMs?: number
+  hookInput?: Record<string, unknown>
+  hookReturnValue?: Record<string, unknown>
 
   // turn-duration
   durationMs?: number
