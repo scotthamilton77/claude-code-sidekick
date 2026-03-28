@@ -782,6 +782,85 @@ describe('parseTranscriptLines', () => {
     expect(decisionLine!.decisionReasoning).toBe('tests already passed')
   })
 
+  it('maps hook:received with input to hookInput', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'hook:received',
+        context: { sessionId: 'session-1', hook: 'UserPromptSubmit' },
+        payload: {
+          hook: 'UserPromptSubmit',
+          cwd: '/project',
+          mode: 'hook',
+          input: { prompt: 'fix the bug', cwd: '/project' },
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const hookLine = lines.find((l) => l.type === 'hook:received')
+    expect(hookLine).toBeDefined()
+    expect(hookLine!.hookName).toBe('UserPromptSubmit')
+    expect(hookLine!.hookInput).toEqual({ prompt: 'fix the bug', cwd: '/project' })
+    expect(hookLine!.hookReturnValue).toBeUndefined()
+  })
+
+  it('maps hook:completed with returnValue to hookReturnValue', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'hook:completed',
+        context: { sessionId: 'session-1', hook: 'UserPromptSubmit' },
+        payload: {
+          hook: 'UserPromptSubmit',
+          durationMs: 42,
+          returnValue: { additionalContext: 'remember X' },
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const hookLine = lines.find((l) => l.type === 'hook:completed')
+    expect(hookLine).toBeDefined()
+    expect(hookLine!.hookDurationMs).toBe(42)
+    expect(hookLine!.hookReturnValue).toEqual({ additionalContext: 'remember X' })
+    expect(hookLine!.hookInput).toBeUndefined()
+  })
+
+  it('maps hook:completed without returnValue to undefined hookReturnValue', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'hook:completed',
+        context: { sessionId: 'session-1', hook: 'Stop' },
+        payload: { hook: 'Stop', durationMs: 5 },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const hookLine = lines.find((l) => l.type === 'hook:completed')
+    expect(hookLine).toBeDefined()
+    expect(hookLine!.hookReturnValue).toBeUndefined()
+  })
+
   it('returns only Claude Code lines when no projectDir', async () => {
     setupTranscript(makeUserEntry('Hello'))
 

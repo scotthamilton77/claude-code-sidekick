@@ -65,6 +65,8 @@ export interface ApiTranscriptLine {
   // Hook event fields
   hookName?: string
   hookDurationMs?: number
+  hookInput?: Record<string, unknown>
+  hookReturnValue?: Record<string, unknown>
   // Sidekick event fields
   reminderId?: string
   reminderBlocking?: boolean
@@ -419,6 +421,8 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   // Hook events
   if (payload.hook) line.hookName = payload.hook as string
   if (payload.durationMs != null && entry.type === 'hook:completed') line.hookDurationMs = payload.durationMs as number
+  if (payload.input) line.hookInput = payload.input as Record<string, unknown>
+  if (payload.returnValue) line.hookReturnValue = payload.returnValue as Record<string, unknown>
   if (payload.errorMessage) line.errorMessage = payload.errorMessage as string
   if (payload.errorStack) line.errorStack = payload.errorStack as string
   if (payload.generatedMessage) line.generatedMessage = payload.generatedMessage as string
