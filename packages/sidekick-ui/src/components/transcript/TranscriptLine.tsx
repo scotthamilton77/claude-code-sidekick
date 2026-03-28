@@ -523,7 +523,7 @@ function getLineStyles(line: TLine) {
         border: 'border border-dashed border-purple-200 dark:border-purple-800/50',
         Icon: line.type === 'session-summary:start' ? Play : Square,
         iconColor: 'text-purple-500',
-        label: line.type === 'session-summary:start' ? 'Session Analysis' : 'Session Analysis',
+        label: 'Session Analysis',
         labelColor: 'text-purple-600 dark:text-purple-400',
       }
     case 'session-title:changed':

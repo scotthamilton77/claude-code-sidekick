@@ -435,7 +435,7 @@ async function performAnalysis(
       await Promise.all(sideEffects)
     }
 
-    // Emit title-changed if title differs (before finish event)
+    // Emit title-changed if title differs
     if (currentSummary && updatedSummary.session_title !== currentSummary.session_title) {
       logEvent(
         ctx.logger,
@@ -447,7 +447,7 @@ async function performAnalysis(
       )
     }
 
-    // Emit intent-changed if intent differs (before finish event)
+    // Emit intent-changed if intent differs
     if (currentSummary && updatedSummary.latest_intent !== currentSummary.latest_intent) {
       logEvent(
         ctx.logger,
@@ -459,7 +459,7 @@ async function performAnalysis(
       )
     }
 
-    // Log summary completion (emitted last as the true completion marker)
+    // Log summary completion
     logEvent(
       ctx.logger,
       SessionSummaryEvents.summaryFinish(event.context, {
