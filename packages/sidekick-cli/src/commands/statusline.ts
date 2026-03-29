@@ -14,11 +14,11 @@
 import { existsSync } from 'node:fs'
 import * as path from 'node:path'
 import type { Logger, ConfigService, AssetResolver } from '@sidekick/core'
-import { LogEvents, logEvent, StateService, SetupStatusService, type EventLogContext } from '@sidekick/core'
+import { LogEvents, logEvent, StateService, type EventLogContext } from '@sidekick/core'
+import { checkDevModeConflict } from '../utils/dev-mode-guard.js'
 // Re-export for use by CLI
 export type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
 import type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
-import { stripAnsi } from '@sidekick/feature-statusline'
 
 export interface StatuslineCommandOptions {
   /** Output format: 'text' (ANSI) or 'json' (raw data) */
@@ -181,40 +181,11 @@ export async function handleStatuslineCommand(
     return { exitCode: 0 }
   }
 
-  // Dev-mode conflict detection for statusline:
-  // Dev-mode hooks pass --force-dev-mode to identify themselves.
-  // Plugin (no --force-dev-mode) bails early if devMode flag is set.
-  // Safety net: if --force-dev-mode is passed but devMode flag is off, auto-correct it.
-  if (options.forceDevMode) {
-    try {
-      const setupService = new SetupStatusService(projectDir)
-      const devMode = await setupService.getDevMode()
-      if (!devMode) {
-        logger.warn('Dev-mode statusline running but devMode flag is off — auto-correcting')
-        await setupService.setDevMode(true)
-      }
-    } catch (err) {
-      logger.warn('Failed to auto-correct devMode flag in statusline', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-  } else {
-    try {
-      const setupService = new SetupStatusService(projectDir)
-      const devMode = await setupService.getDevMode()
-      if (devMode) {
-        logger.debug('Dev-mode active in statusline, bailing early (let dev-mode win)', {
-          devMode,
-        })
-        stdout.write('\n') // Return empty statusline
-        return { exitCode: 0 }
-      }
-    } catch (err) {
-      // If we can't check status, proceed normally (fail open)
-      logger.warn('Failed to check plugin/dev-mode status for statusline, proceeding normally', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+  // Dev-mode conflict detection
+  const devModeGuard = await checkDevModeConflict(projectDir, options.forceDevMode, logger, 'statusline')
+  if (devModeGuard === 'bail') {
+    stdout.write('\n') // Return empty statusline
+    return { exitCode: 0 }
   }
 
   const format = options.format ?? 'text'
@@ -321,17 +292,6 @@ export async function handleStatuslineCommand(
     }
 
     // Emit structured StatuslineRendered event
-    // Build a compact hookInput summary for the log (full input is too large)
-    const hookInputSummary = options.hookInput
-      ? Object.fromEntries(
-          Object.entries({
-            session_id: options.hookInput.session_id,
-            model: options.hookInput.model?.display_name,
-            cwd: options.hookInput.cwd,
-            version: options.hookInput.version,
-          }).filter(([, value]) => value !== undefined)
-        )
-      : undefined
     const event = LogEvents.statuslineRendered(
       eventContext,
       {
@@ -342,8 +302,6 @@ export async function handleStatuslineCommand(
         model: result.viewModel.model,
         tokens: parseInt(result.viewModel.tokenUsageActual.replace(/[^0-9]/g, ''), 10) || undefined,
         durationMs,
-        renderedText: stripAnsi(result.text),
-        hookInput: hookInputSummary,
       }
     )
     logEvent(logger, event)

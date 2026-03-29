@@ -26,13 +26,16 @@ export default defineConfig({
         'vitest.config.ts',
         // Barrel files (pure re-exports)
         'src/index.ts',
+        'src/utils/index.ts',
         'src/commands/setup.ts',
         // Entry points (process wiring - tested via integration)
         'src/bin.ts',
-        // Interactive wizard (stdin/stdout prompts, tested via E2E)
+        // Interactive wizard and setup subsystem (stdin/stdout prompts, tested via E2E)
         'src/commands/setup/index.ts',
         'src/commands/setup/prompts.ts',
         'src/commands/setup/user-profile-setup.ts',
+        'src/commands/setup/helpers.ts',
+        'src/commands/setup/scripted.ts',
       ],
       thresholds: {
         statements: 90,

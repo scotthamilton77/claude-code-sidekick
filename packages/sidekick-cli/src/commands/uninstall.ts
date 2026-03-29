@@ -14,7 +14,9 @@ import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/types'
 import { DaemonClient, killAllDaemons, removeGitignoreSection, SetupStatusService } from '@sidekick/core'
 import type { KillResult } from '@sidekick/core'
-import { promptConfirm } from './setup/prompts.js'
+import { promptConfirm } from '../utils/prompt.js'
+import { fileExists, readFileOrNull } from '../utils/fs.js'
+import { writeSettingsFile } from '../utils/settings.js'
 
 export interface UninstallCommandOptions {
   /** Skip confirmation prompts */
@@ -291,15 +293,6 @@ async function detectUserScope(userHome: string): Promise<boolean> {
 
 // --- Detection summary ---
 
-async function exists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /** Check whether a parsed settings object contains any sidekick-related hook commands. */
 function containsSidekickHooks(settings: Record<string, unknown>): boolean {
   if (!settings.hooks) return false
@@ -361,7 +354,7 @@ async function collectDetectionSummary(
     }
 
     // Daemon
-    if (await exists(path.join(projectDir, '.sidekick', 'sidekickd.pid'))) {
+    if (await fileExists(path.join(projectDir, '.sidekick', 'sidekickd.pid'))) {
       summary.project.push({ label: 'Daemon', details: 'pid file found' })
     }
 
@@ -432,20 +425,11 @@ async function collectDetectionSummary(
   return summary
 }
 
-/** Return file content or null if the file does not exist or is unreadable. */
-async function readFileOrNull(filePath: string): Promise<string | null> {
-  try {
-    return await fs.readFile(filePath, 'utf-8')
-  } catch {
-    return null
-  }
-}
-
 /** Check which items from a list exist under `baseDir/.sidekick/`, returning their names with an optional suffix. */
 async function detectExistingItems(baseDir: string, items: string[], suffix = ''): Promise<string[]> {
   const found: string[] = []
   for (const item of items) {
-    if (await exists(path.join(baseDir, '.sidekick', item))) {
+    if (await fileExists(path.join(baseDir, '.sidekick', item))) {
       found.push(`${item}${suffix}`)
     }
   }
@@ -621,16 +605,12 @@ async function cleanSettingsFile(
   actions: UninstallAction[],
   options: { dryRun: boolean; removeHooks: boolean }
 ): Promise<void> {
-  let content: string
-  try {
-    content = await fs.readFile(settingsPath, 'utf-8')
-  } catch {
-    return // File doesn't exist, nothing to clean
-  }
+  const raw = await readFileOrNull(settingsPath)
+  if (raw === null) return // File doesn't exist
 
   let settings: Record<string, unknown>
   try {
-    settings = JSON.parse(content) as Record<string, unknown>
+    settings = JSON.parse(raw) as Record<string, unknown>
   } catch {
     logger.warn('Could not parse settings file', { path: settingsPath })
     return
@@ -693,12 +673,10 @@ async function cleanSettingsFile(
     // Prune empty plain objects recursively (e.g. "enabledPlugins": {} after plugin removal)
     pruneEmptyObjects(settings)
 
-    // Check if settings is now empty
-    if (Object.keys(settings).length === 0) {
-      await fs.unlink(settingsPath)
+    const result = await writeSettingsFile(settingsPath, settings)
+    if (result === 'deleted') {
       logger.info('Deleted empty settings file', { path: settingsPath })
     } else {
-      await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
       logger.info('Updated settings file', { path: settingsPath })
     }
   }

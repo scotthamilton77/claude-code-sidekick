@@ -23,6 +23,7 @@ import {
   isInSandbox,
   updateDaemonHealth,
 } from '@sidekick/core'
+import { checkDevModeConflict } from '../utils/dev-mode-guard.js'
 import type { HookName, ParsedHookInput } from '@sidekick/types'
 import type { RuntimeShell } from '../runtime.js'
 import { handleHookCommand, type HookResponse } from './hook.js'
@@ -421,43 +422,11 @@ export async function handleUnifiedHookCommand(
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
 
-  // Dev-mode conflict detection:
-  // Dev-mode hooks pass --force-dev-mode to identify themselves.
-  // Plugin hooks (no --force-dev-mode) bail early if devMode flag is set.
-  // Safety net: if --force-dev-mode is passed but devMode flag is off, auto-correct it.
-  if (forceDevMode) {
-    try {
-      const setupService = new SetupStatusService(projectRoot)
-      const devMode = await setupService.getDevMode()
-      if (!devMode) {
-        logger.warn('Dev-mode hooks running but devMode flag is off — auto-correcting', { hookName })
-        await setupService.setDevMode(true)
-      }
-    } catch (err) {
-      logger.warn('Failed to auto-correct devMode flag', {
-        error: err instanceof Error ? err.message : String(err),
-        hookName,
-      })
-    }
-  } else {
-    try {
-      const setupService = new SetupStatusService(projectRoot)
-      const devMode = await setupService.getDevMode()
-      if (devMode) {
-        logger.debug('Dev-mode active, bailing early (let dev-mode hooks win)', {
-          hookName,
-          devMode,
-        })
-        stdout.write('{}\n')
-        return { exitCode: 0, output: '{}' }
-      }
-    } catch (err) {
-      // If we can't check status, proceed normally (fail open)
-      logger.warn('Failed to check plugin/dev-mode status, proceeding normally', {
-        error: err instanceof Error ? err.message : String(err),
-        hookName,
-      })
-    }
+  // Dev-mode conflict detection
+  const devModeGuard = await checkDevModeConflict(projectRoot, forceDevMode, logger, hookName)
+  if (devModeGuard === 'bail') {
+    stdout.write('{}\n')
+    return { exitCode: 0, output: '{}' }
   }
 
   // On SessionStart, attempt auto-configure if user preference is enabled

@@ -1,6 +1,10 @@
 // packages/sidekick-cli/src/commands/setup/prompts.ts
 import * as readline from 'node:readline'
 
+// Re-export promptConfirm and PromptContext from shared utils
+export { promptConfirm, type PromptContext } from '../../utils/prompt.js'
+import type { PromptContext } from '../../utils/prompt.js'
+
 const colors = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
@@ -10,11 +14,6 @@ const colors = {
   blue: '\x1b[34m',
   cyan: '\x1b[36m',
 } as const
-
-export interface PromptContext {
-  stdin: NodeJS.ReadableStream
-  stdout: NodeJS.WritableStream
-}
 
 /**
  * Display a header/title section.
@@ -87,57 +86,6 @@ export async function promptSelect<T extends string>(
             )
             ask()
           }
-        }
-      })
-    }
-    ask()
-  })
-}
-
-/**
- * Prompt for yes/no confirmation.
- */
-export async function promptConfirm(ctx: PromptContext, question: string, defaultYes = true): Promise<boolean> {
-  const hint = defaultYes ? '[Y/n]' : '[y/N]'
-
-  const rl = readline.createInterface({
-    input: ctx.stdin,
-    output: ctx.stdout,
-    terminal: false,
-  })
-
-  const prompt = `${question} ${hint} `
-
-  return new Promise((resolve) => {
-    let resolved = false
-    const safeResolve = (value: boolean): void => {
-      if (!resolved) {
-        resolved = true
-        resolve(value)
-      }
-    }
-
-    // Handle stdin close/EOF — if no answer was read, resolve with the default
-    rl.once('close', () => {
-      safeResolve(defaultYes)
-    })
-
-    const ask = (): void => {
-      ctx.stdout.write(prompt)
-      rl.once('line', (answer) => {
-        const normalized = answer.trim().toLowerCase()
-        if (normalized === '') {
-          safeResolve(defaultYes)
-          rl.close()
-        } else if (normalized === 'y' || normalized === 'yes') {
-          safeResolve(true)
-          rl.close()
-        } else if (normalized === 'n' || normalized === 'no') {
-          safeResolve(false)
-          rl.close()
-        } else {
-          ctx.stdout.write(`${colors.yellow}Please enter y or n.${colors.reset}\n`)
-          ask()
         }
       })
     }
