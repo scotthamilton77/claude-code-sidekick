@@ -43,8 +43,11 @@ const mockCreateStatuslineService = vi.fn(() => ({
 }))
 
 // Mock the feature-statusline package
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;]*m/g
 vi.mock('@sidekick/feature-statusline', () => ({
   createStatuslineService: mockCreateStatuslineService,
+  stripAnsi: (s: string) => s.replace(ANSI_RE, ''),
 }))
 
 // Mock @sidekick/core to avoid SetupStatusService spawning subprocesses
@@ -353,6 +356,89 @@ describe('handleStatuslineCommand', () => {
           useColors: false,
         })
       )
+    })
+  })
+
+  describe('statusline:rendered event enrichment', () => {
+    const renderResultWithAnsi = {
+      text: '\x1b[32m[session]\x1b[0m opus | 50k',
+      displayMode: 'session_summary' as const,
+      staleData: false,
+      viewModel: {
+        model: 'opus',
+        tokenUsageActual: '50000',
+        tokenUsageEffective: '100k',
+      },
+    }
+
+    test('includes renderedText (ANSI-stripped) in statusline:rendered event', async () => {
+      mockRender.mockResolvedValue(renderResultWithAnsi)
+
+      await handleStatuslineCommand('/project', logger, stdout)
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'statusline:rendered',
+        expect.objectContaining({
+          type: 'statusline:rendered',
+          renderedText: '[session] opus | 50k',
+        })
+      )
+    })
+
+    test('includes hookInput summary in statusline:rendered event when hookInput provided', async () => {
+      mockRender.mockResolvedValue(renderResultWithAnsi)
+
+      await handleStatuslineCommand('/project', logger, stdout, {
+        hookInput: {
+          hook_event_name: 'Status' as const,
+          session_id: 'abc123',
+          transcript_path: '/path/transcript.jsonl',
+          cwd: '/project/dir',
+          version: '2.0.0',
+          model: { id: 'claude-opus', display_name: 'Opus 4.6' },
+          workspace: { current_dir: '/project', project_dir: '/project' },
+          output_style: { name: 'default' },
+          cost: {
+            total_cost_usd: 0,
+            total_duration_ms: 0,
+            total_api_duration_ms: 0,
+            total_lines_added: 0,
+            total_lines_removed: 0,
+          },
+          context_window: {
+            total_input_tokens: 50000,
+            total_output_tokens: 10000,
+            context_window_size: 200000,
+            current_usage: null,
+          },
+        },
+      })
+
+      expect(logger.info).toHaveBeenCalledWith(
+        'statusline:rendered',
+        expect.objectContaining({
+          type: 'statusline:rendered',
+          hookInput: expect.objectContaining({
+            session_id: 'abc123',
+            model: 'Opus 4.6',
+            cwd: '/project/dir',
+            version: '2.0.0',
+          }),
+        })
+      )
+    })
+
+    test('omits hookInput from event when no hookInput provided', async () => {
+      mockRender.mockResolvedValue(renderResultWithAnsi)
+
+      await handleStatuslineCommand('/project', logger, stdout)
+
+      const renderedCall = (logger.info as ReturnType<typeof vi.fn>).mock.calls.find(
+        (call: unknown[]) =>
+          typeof call[1] === 'object' && (call[1] as Record<string, unknown>).type === 'statusline:rendered'
+      )
+      expect(renderedCall).toBeDefined()
+      expect(renderedCall![1]).not.toHaveProperty('hookInput')
     })
   })
 

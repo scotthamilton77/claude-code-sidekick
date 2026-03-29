@@ -193,7 +193,7 @@ export async function handleStatuslineCommand(
   const startTime = performance.now()
 
   // Dynamically import to avoid loading feature package until needed
-  const { createStatuslineService } = await import('@sidekick/feature-statusline')
+  const { createStatuslineService, stripAnsi } = await import('@sidekick/feature-statusline')
 
   // Session ID extracted from hook input JSON by CLI (per CLI.md §3.1.1)
   // Falls back to 'current' for interactive mode
@@ -291,6 +291,18 @@ export async function handleStatuslineCommand(
       stdout.write(result.text + '\n')
     }
 
+    // Build compact hookInput summary for the detail panel (full input is too large)
+    const hookInputSummary = options.hookInput
+      ? Object.fromEntries(
+          Object.entries({
+            session_id: options.hookInput.session_id,
+            model: options.hookInput.model?.display_name,
+            cwd: options.hookInput.cwd,
+            version: options.hookInput.version,
+          }).filter(([, value]) => value !== undefined)
+        )
+      : undefined
+
     // Emit structured StatuslineRendered event
     const event = LogEvents.statuslineRendered(
       eventContext,
@@ -302,6 +314,8 @@ export async function handleStatuslineCommand(
         model: result.viewModel.model,
         tokens: parseInt(result.viewModel.tokenUsageActual.replace(/[^0-9]/g, ''), 10) || undefined,
         durationMs,
+        renderedText: stripAnsi(result.text),
+        ...(hookInputSummary !== undefined && { hookInput: hookInputSummary }),
       }
     )
     logEvent(logger, event)
