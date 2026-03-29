@@ -117,7 +117,10 @@ export function SubagentTranscript({ projectId, sessionId, agentId, agentType, d
     hoveredToolUseIdRef.current = toolUseId ?? null
     // Apply new highlights
     if (toolUseId) {
-      for (const el of container.querySelectorAll(`[data-tool-use-id="${CSS.escape(toolUseId)}"]`)) {
+      const escaped = typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(toolUseId)
+        : toolUseId.replace(/([^\w-])/g, '\\$1')
+      for (const el of container.querySelectorAll(`[data-tool-use-id="${escaped}"]`)) {
         el.classList.add('tool-pair-highlight')
       }
     }

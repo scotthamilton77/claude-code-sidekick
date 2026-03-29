@@ -14,10 +14,12 @@ export function PersonaDetail({ line }: PersonaDetailProps) {
           <p className="text-xs text-slate-500">{line.personaFrom}</p>
         </div>
       )}
-      <div>
-        <h3 className="text-[10px] font-medium text-slate-500 mb-1">To</h3>
-        <p className="text-xs font-medium text-pink-600 dark:text-pink-400">{line.personaTo}</p>
-      </div>
+      {line.personaTo && (
+        <div>
+          <h3 className="text-[10px] font-medium text-slate-500 mb-1">To</h3>
+          <p className="text-xs font-medium text-pink-600 dark:text-pink-400">{line.personaTo}</p>
+        </div>
+      )}
     </div>
   )
 }

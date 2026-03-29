@@ -6,6 +6,8 @@ interface GeneratedMessageDetailProps {
 
 /** Detail view for snarky-message:finish and resume-message:finish events */
 export function GeneratedMessageDetail({ line }: GeneratedMessageDetailProps) {
+  if (!line.generatedMessage) return null
+
   return (
     <div className="p-3">
       <h3 className="text-[10px] font-medium text-slate-500 mb-1">Generated Message</h3>
