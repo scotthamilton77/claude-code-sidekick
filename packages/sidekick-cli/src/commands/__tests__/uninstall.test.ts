@@ -1064,6 +1064,64 @@ describe('handleUninstallCommand', () => {
       expect(stdout.data).toContain('user:')
     })
 
+    test('defaults to no when empty input is given (default answer behavior)', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      // Empty input (just a newline) should default to 'no' for uninstall prompt
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        scope: 'project',
+        stdin: createAutoStdin(''),
+        userHome,
+      })
+
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Uninstall cancelled.')
+    })
+
+    test('resolves (does not hang) when stdin closes without newline (EOF)', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      // Create a stdin that closes immediately without any data (simulates piped EOF)
+      const eofStdin = new Readable({
+        read() {
+          this.push(null) // EOF immediately
+        },
+      })
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        scope: 'project',
+        stdin: eofStdin,
+        userHome,
+      })
+
+      // Should resolve with cancellation (default 'no'), not hang
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Uninstall cancelled.')
+    }, 5000) // 5s timeout — if it hangs, the test fails
+
+    test('resolves when stdin sends partial data then EOF (no newline)', async () => {
+      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+
+      // Create a stdin that sends 'y' but never a newline, then closes.
+      // readline emits a 'line' event with buffered data on stream close,
+      // so 'y' is treated as a valid answer.
+      const partialStdin = new PassThrough()
+      setTimeout(() => {
+        partialStdin.write('y')
+        partialStdin.end() // EOF without newline
+      }, 10)
+
+      const result = await handleUninstallCommand(tempDir, logger, stdout, {
+        scope: 'project',
+        stdin: partialStdin,
+        userHome,
+      })
+
+      // readline processes partial line 'y' as answer — proceeds with uninstall
+      expect(result.exitCode).toBe(0)
+      expect(stdout.data).toContain('Sidekick uninstalled.')
+    }, 5000)
+
     test('shows plugin in summary when plugin is installed', async () => {
       mockExecFile.mockImplementation(
         (cmd: string, args: string[], callback: (err: Error | null, stdout: string, stderr: string) => void) => {
