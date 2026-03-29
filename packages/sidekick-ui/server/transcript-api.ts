@@ -70,6 +70,7 @@ export interface ApiTranscriptLine {
   // Sidekick event fields
   reminderId?: string
   reminderBlocking?: boolean
+  reminderText?: string
   decisionTitle?: string
   decisionCategory?: string
   decisionReasoning?: string
@@ -404,6 +405,8 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   if (entry.type === 'reminder:consumed' && payload.renderedText) {
     line.content = payload.renderedText as string
   }
+  // For reminder:staged events, capture the reminder text at staging time
+  if (payload.reminderText) line.reminderText = payload.reminderText as string
   line.decisionTitle = payload.title as string | undefined
   line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string

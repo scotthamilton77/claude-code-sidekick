@@ -799,6 +799,67 @@ describe('parseTranscriptLines', () => {
     expect(hookLine!.hookReturnValue).toBeUndefined()
   })
 
+  it('maps reminder:staged with reminderText to reminderText field', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'reminder:staged',
+        context: { sessionId: 'session-1' },
+        payload: {
+          reminderName: 'vc-build',
+          hookName: 'PostToolUse',
+          blocking: true,
+          priority: 80,
+          persistent: true,
+          reason: 'tool_threshold',
+          reminderText: 'You MUST run `pnpm build` before claiming work is complete.',
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const reminderLine = lines.find((l) => l.type === 'reminder:staged')
+    expect(reminderLine).toBeDefined()
+    expect(reminderLine!.reminderId).toBe('vc-build')
+    expect(reminderLine!.reminderBlocking).toBe(true)
+    expect(reminderLine!.reminderText).toBe('You MUST run `pnpm build` before claiming work is complete.')
+  })
+
+  it('maps reminder:staged without reminderText to undefined reminderText', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'reminder:staged',
+        context: { sessionId: 'session-1' },
+        payload: {
+          reminderName: 'vc-build',
+          hookName: 'PostToolUse',
+          blocking: true,
+          priority: 80,
+          persistent: true,
+          reason: 'tool_threshold',
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const reminderLine = lines.find((l) => l.type === 'reminder:staged')
+    expect(reminderLine).toBeDefined()
+    expect(reminderLine!.reminderText).toBeUndefined()
+  })
+
   it('maps statusline:rendered with renderedText to statuslineContent', async () => {
     setupTranscript(makeUserEntry('Hello'))
 

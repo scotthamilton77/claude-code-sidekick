@@ -202,6 +202,69 @@ describe('SessionScopedStagingService (via createService)', () => {
       )
     })
 
+    it('should include reminderText from userMessage and additionalContext in logged event', async () => {
+      const logger = createMockLogger()
+      const service = createService(testDir, { logger })
+      const reminder = createTestReminder({
+        name: 'vc-build',
+        priority: 80,
+        userMessage: 'Run pnpm build',
+        additionalContext: 'Build must pass before completion',
+      })
+
+      await service.stageReminder('PostToolUse', 'vc-build', reminder)
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          type: 'reminder:staged',
+          reminderName: 'vc-build',
+          reminderText: 'Run pnpm build\n\nBuild must pass before completion',
+        })
+      )
+    })
+
+    it('should use only userMessage when additionalContext is absent', async () => {
+      const logger = createMockLogger()
+      const service = createService(testDir, { logger })
+      const reminder = createTestReminder({
+        name: 'vc-test',
+        priority: 60,
+        userMessage: 'Run tests',
+        additionalContext: undefined,
+      })
+
+      await service.stageReminder('PostToolUse', 'vc-test', reminder)
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          type: 'reminder:staged',
+          reminderText: 'Run tests',
+        })
+      )
+    })
+
+    it('should omit reminderText when userMessage is absent', async () => {
+      const logger = createMockLogger()
+      const service = createService(testDir, { logger })
+      const reminder = createTestReminder({
+        name: 'vc-lint',
+        priority: 40,
+        userMessage: undefined,
+        additionalContext: undefined,
+      })
+
+      await service.stageReminder('PostToolUse', 'vc-lint', reminder)
+
+      // reminderText should NOT be in the logged event
+      const logCall = (logger.info as any).mock.calls.find(
+        (call: unknown[]) => (call[1] as Record<string, unknown>)?.type === 'reminder:staged'
+      )
+      expect(logCall).toBeDefined()
+      expect(logCall[1]).not.toHaveProperty('reminderText')
+    })
+
     it('should pass enrichment fields through to the logged event', async () => {
       const logger = createMockLogger()
       const service = createService(testDir, { logger })

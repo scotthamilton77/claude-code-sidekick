@@ -870,6 +870,8 @@ export interface ReminderStagedPayload {
     current: number
     threshold: number
   }
+  /** The rendered reminder text at time of staging (userMessage + additionalContext). */
+  reminderText?: string
 }
 
 /** Payload for `reminder:unstaged` — a reminder was removed from staging. */
