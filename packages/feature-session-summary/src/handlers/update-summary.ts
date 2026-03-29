@@ -31,6 +31,17 @@ import { ensurePersonaForSession } from './persona-selection.js'
 const DECISION_TITLE_SKIP = 'Skip session analysis'
 const DECISION_TITLE_RUN = 'Run session analysis'
 
+/**
+ * Per-session concurrency guard for analysis with coalescing.
+ * When analysis is requested while one is already in-flight,
+ * the pending flag is set so a single rerun occurs after completion.
+ * This prevents dropped analyses while bounding concurrency to at most
+ * two sequential runs (current + one coalesced rerun).
+ *
+ * Map key: sessionId, value: true if a rerun is pending.
+ */
+const analysisInFlight = new Map<string, boolean>()
+
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -55,6 +66,14 @@ type SessionSummaryResponse = z.infer<typeof SessionSummaryResponseSchema>
 
 // Re-export for backward compatibility with tests
 export { buildPersonaContext, type PersonaTemplateContext } from './persona-utils.js'
+
+/**
+ * Reset the per-session concurrency guard.
+ * @internal Exported for test isolation only.
+ */
+export function resetAnalysisGuard(): void {
+  analysisInFlight.clear()
+}
 
 /**
  * Simple template processor with Handlebars-like {{#if}}...{{/if}} support.
@@ -134,13 +153,13 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       ctx.logger,
       DecisionEvents.decisionRecorded(event.context, {
         decision: 'calling',
-        reason: 'BulkProcessingComplete - analyzing full transcript',
+        reason: 'Bulk transcript replay complete — running catch-up analysis',
         subsystem: 'session-summary',
         title: DECISION_TITLE_RUN,
       })
     )
     const countdown = await loadCountdownState(summaryState, sessionId)
-    void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
+    void performAnalysis(event, ctx, summaryState, countdown, 'bulk_replay_complete')
     return
   }
 
@@ -165,7 +184,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
     ctx.logger,
     DecisionEvents.decisionRecorded(event.context, {
       decision: 'calling',
-      reason: 'countdown reached zero after ToolResult',
+      reason: 'Prompt countdown reached zero — running scheduled analysis',
       subsystem: 'session-summary',
       title: DECISION_TITLE_RUN,
     })
@@ -247,9 +266,28 @@ async function performAnalysis(
   summaryState: SessionSummaryStateAccessors,
   countdown: SummaryCountdownState,
   // Note: compaction_reset reserved for future compaction-triggered re-analysis
-  reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
+  reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset' | 'bulk_replay_complete'
 ): Promise<void> {
   const { sessionId } = event.context
+
+  // Concurrency guard with coalescing: if analysis is already in-flight,
+  // set the pending flag so a rerun occurs after the current one finishes.
+  // This prevents dropped analyses while bounding concurrency.
+  if (analysisInFlight.has(sessionId)) {
+    analysisInFlight.set(sessionId, true)
+    logEvent(
+      ctx.logger,
+      DecisionEvents.decisionRecorded(event.context, {
+        decision: 'deferred',
+        reason: 'Analysis deferred — will rerun after current analysis completes',
+        subsystem: 'session-summary',
+        title: DECISION_TITLE_SKIP,
+      })
+    )
+    return
+  }
+  analysisInFlight.set(sessionId, false)
+
   try {
     const startTime = Date.now()
 
@@ -467,6 +505,16 @@ async function performAnalysis(
       reason,
       error: err instanceof Error ? err.message : String(err),
     })
+  } finally {
+    const rerunPending = analysisInFlight.get(sessionId) ?? false
+    analysisInFlight.delete(sessionId)
+
+    // If a rerun was requested while we were running, perform one coalesced rerun.
+    // Re-load countdown state to get the latest bookmark/countdown values.
+    if (rerunPending) {
+      const freshCountdown = await loadCountdownState(summaryState, sessionId)
+      void performAnalysis(event, ctx, summaryState, freshCountdown, reason)
+    }
   }
 }
 
