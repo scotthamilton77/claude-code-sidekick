@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { TranscriptLineCard } from '../TranscriptLine'
 import type { TranscriptLine } from '../../../types'
 
@@ -220,11 +220,10 @@ describe('TranscriptLineCard', () => {
 
     it('does not render PR URL link for javascript: URLs', () => {
       const line = makeLine({ type: 'pr-link', prNumber: 1, prUrl: 'javascript:alert(1)' })
-      render(<TranscriptLineCard line={line} {...defaultProps} />)
+      const { container } = render(<TranscriptLineCard line={line} {...defaultProps} />)
       expect(screen.getByText(/PR #1/)).toBeInTheDocument()
-      // No anchor element should be rendered for unsafe URLs
-      const container = screen.getByText(/PR #1/).closest('div')!.parentElement!
-      expect(container.querySelector('a')).toBeNull()
+      // No anchor element should be rendered for unsafe URLs — scope to this render's container
+      expect(within(container).queryByRole('link')).toBeNull()
     })
   })
 
