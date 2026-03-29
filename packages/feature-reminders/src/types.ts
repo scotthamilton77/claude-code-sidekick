@@ -37,6 +37,13 @@ export const VerificationToolsMapSchema = z.record(z.string(), VerificationToolC
 
 export type VerificationToolsMap = z.infer<typeof VerificationToolsMapSchema>
 
+/** Zod schema for a command runner prefix */
+export const CommandRunnerSchema = z.object({
+  prefix: z.string().min(1),
+})
+
+export type CommandRunner = z.infer<typeof CommandRunnerSchema>
+
 /** Default verification tools (fat defaults for all ecosystems) */
 export const DEFAULT_VERIFICATION_TOOLS: VerificationToolsMap = {
   build: {
@@ -189,6 +196,8 @@ export interface RemindersSettings {
   verification_tools?: VerificationToolsMap
   /** Per-reminder throttle thresholds: reminder ID → message count between injections */
   reminder_thresholds?: Record<string, number>
+  /** Command runner prefixes that trigger unanchored pattern matching */
+  command_runners?: CommandRunner[]
 }
 
 /**
@@ -314,6 +323,29 @@ export const DEFAULT_REMINDERS_SETTINGS: RemindersSettings = {
     'user-prompt-submit': 10,
     'remember-your-persona': 5,
   },
+  command_runners: [
+    // Python
+    { prefix: 'uv run' },
+    { prefix: 'poetry run' },
+    { prefix: 'pipx run' },
+    { prefix: 'pdm run' },
+    { prefix: 'hatch run' },
+    { prefix: 'conda run' },
+    // Node.js
+    { prefix: 'npx' },
+    { prefix: 'pnpx' },
+    { prefix: 'bunx' },
+    { prefix: 'pnpm dlx' },
+    { prefix: 'pnpm exec' },
+    { prefix: 'bun run' },
+    { prefix: 'yarn dlx' },
+    { prefix: 'yarn exec' },
+    { prefix: 'npm exec' },
+    // Ruby
+    { prefix: 'bundle exec' },
+    // .NET
+    { prefix: 'dotnet tool run' },
+  ],
 }
 
 /**
