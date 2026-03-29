@@ -1,7 +1,7 @@
 import type { TranscriptLine, TranscriptFilter, SidekickEventType } from '../types'
 import { SIDEKICK_EVENT_TO_FILTER } from '../types'
 
-const CLAUDE_CODE_TYPES = new Set([
+export const CLAUDE_CODE_TYPES: ReadonlySet<string> = new Set([
   'user-message', 'assistant-message', 'tool-use', 'tool-result',
   'compaction', 'turn-duration', 'api-error', 'pr-link',
 ])
