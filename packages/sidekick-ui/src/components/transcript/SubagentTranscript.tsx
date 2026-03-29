@@ -1,4 +1,4 @@
-import { useRef, useCallback, useMemo, useState } from 'react'
+import { useRef, useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { X, Minimize2 } from 'lucide-react'
 import type { TranscriptLine, TranscriptFilter } from '../../types'
 import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
@@ -26,6 +26,42 @@ function matchesSubagentFilter(line: TranscriptLine, filters: Set<TranscriptFilt
   return filters.has(classifyLineCategory(line))
 }
 
+/**
+ * Individual line wrapper that manages its own hover highlight via CSS data attributes.
+ * Each row sets data-tool-use-id on its DOM element; a parent-level CSS rule highlights
+ * siblings with matching toolUseId. This avoids O(n) React re-renders on hover.
+ */
+function SubagentLineRow({
+  line,
+  pair,
+  onLineClick,
+  scrollToIndex,
+}: {
+  line: TranscriptLine
+  pair: { color: string; useIndex: number; resultIndex: number } | undefined
+  onLineClick: (line: TranscriptLine) => void
+  scrollToIndex: (index: number) => void
+}) {
+  return (
+    <div
+      data-tool-use-id={line.toolUseId ?? undefined}
+      className="subagent-line-row"
+    >
+      <TranscriptLineCard
+        line={line}
+        isSelected={false}
+        isSynced={false}
+        onClick={() => onLineClick(line)}
+        pairNavigation={pair ? {
+          color: pair.color,
+          isToolUse: line.type === 'tool-use',
+          onNavigate: () => scrollToIndex(line.type === 'tool-use' ? pair.resultIndex : pair.useIndex),
+        } : undefined}
+      />
+    </div>
+  )
+}
+
 export function SubagentTranscript({ projectId, sessionId, agentId, agentType, depth, onClose }: SubagentTranscriptProps) {
   const { dispatch } = useNavigation()
   const { lines, meta, loading, error } = useSubagentTranscript(projectId, sessionId, agentId)
@@ -34,7 +70,8 @@ export function SubagentTranscript({ projectId, sessionId, agentId, agentType, d
     new Set(SUBAGENT_FILTER_CATEGORIES)
   )
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const [hoveredToolUseId, setHoveredToolUseId] = useState<string | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const hoveredToolUseIdRef = useRef<string | null>(null)
 
   const setRef = useCallback((id: string) => (el: HTMLDivElement | null) => {
     if (el) lineRefs.current.set(id, el)
@@ -56,13 +93,58 @@ export function SubagentTranscript({ projectId, sessionId, agentId, agentType, d
     })
   }
 
-  function scrollToIndex(index: number) {
+  const scrollToIndex = useCallback((index: number) => {
     const targetLine = filteredLines[index]
     if (targetLine) {
       const el = lineRefs.current.get(targetLine.id)
       el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
-  }
+  }, [filteredLines])
+
+  /** Highlight all sibling rows with the same toolUseId via direct DOM class toggling (O(1) React re-renders). */
+  const handleContentMouseOver = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    const row = (e.target as HTMLElement).closest<HTMLElement>('[data-tool-use-id]')
+    const toolUseId = row?.dataset.toolUseId
+    if (toolUseId === hoveredToolUseIdRef.current) return
+    const container = contentRef.current
+    if (!container) return
+    // Clear previous highlights
+    if (hoveredToolUseIdRef.current) {
+      for (const el of container.querySelectorAll('.tool-pair-highlight')) {
+        el.classList.remove('tool-pair-highlight')
+      }
+    }
+    hoveredToolUseIdRef.current = toolUseId ?? null
+    // Apply new highlights
+    if (toolUseId) {
+      const escaped = typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(toolUseId)
+        : toolUseId.replace(/([^\w-])/g, '\\$1')
+      for (const el of container.querySelectorAll(`[data-tool-use-id="${escaped}"]`)) {
+        el.classList.add('tool-pair-highlight')
+      }
+    }
+  }, [])
+
+  const handleContentMouseLeave = useCallback(() => {
+    const container = contentRef.current
+    if (!container || !hoveredToolUseIdRef.current) return
+    for (const el of container.querySelectorAll('.tool-pair-highlight')) {
+      el.classList.remove('tool-pair-highlight')
+    }
+    hoveredToolUseIdRef.current = null
+  }, [])
+
+  const handleLineClick = useCallback((line: TranscriptLine) => {
+    // If this is an Agent tool-use with agentId, open nested subagent
+    if (line.type === 'tool-use' && line.toolName === 'Agent' && line.agentId) {
+      dispatch({
+        type: 'OPEN_SUBAGENT',
+        entry: { projectId, sessionId, agentId: line.agentId },
+        depth: depth + 1,
+      })
+    }
+  }, [dispatch, projectId, sessionId, depth])
 
   const label = meta.agentType ?? agentType ?? `Agent ${agentId.slice(0, 8)}`
 
@@ -113,8 +195,13 @@ export function SubagentTranscript({ projectId, sessionId, agentId, agentType, d
         })}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto py-1">
+      {/* Content — hover highlights managed via DOM class toggling (see handleContentMouseOver) */}
+      <div
+        ref={contentRef}
+        className="flex-1 overflow-y-auto py-1 [&_.tool-pair-highlight]:bg-indigo-50/50 dark:[&_.tool-pair-highlight]:bg-indigo-950/30"
+        onMouseOver={handleContentMouseOver}
+        onMouseLeave={handleContentMouseLeave}
+      >
         {loading && (
           <div className="flex items-center justify-center h-32 text-xs text-slate-400">Loading...</div>
         )}
@@ -126,35 +213,14 @@ export function SubagentTranscript({ projectId, sessionId, agentId, agentType, d
         )}
         {!loading && !error && filteredLines.map((line) => {
           const pair = line.toolUseId ? pairByToolUseId.get(line.toolUseId) : undefined
-          const isHighlightedPair = hoveredToolUseId != null && line.toolUseId === hoveredToolUseId
 
           return (
-            <div
-              key={line.id}
-              ref={setRef(line.id)}
-              className={`${isHighlightedPair ? 'bg-indigo-50/50 dark:bg-indigo-950/30' : ''}`}
-              onMouseEnter={() => line.toolUseId && setHoveredToolUseId(line.toolUseId)}
-              onMouseLeave={() => line.toolUseId && setHoveredToolUseId(null)}
-            >
-              <TranscriptLineCard
+            <div key={line.id} ref={setRef(line.id)}>
+              <SubagentLineRow
                 line={line}
-                isSelected={false}
-                isSynced={false}
-                onClick={() => {
-                  // If this is an Agent tool-use with agentId, open nested subagent
-                  if (line.type === 'tool-use' && line.toolName === 'Agent' && line.agentId) {
-                    dispatch({
-                      type: 'OPEN_SUBAGENT',
-                      entry: { projectId, sessionId, agentId: line.agentId },
-                      depth: depth + 1,
-                    })
-                  }
-                }}
-                pairNavigation={pair ? {
-                  color: pair.color,
-                  isToolUse: line.type === 'tool-use',
-                  onNavigate: () => scrollToIndex(line.type === 'tool-use' ? pair.resultIndex : pair.useIndex),
-                } : undefined}
+                pair={pair}
+                onLineClick={handleLineClick}
+                scrollToIndex={scrollToIndex}
               />
             </div>
           )
