@@ -1511,7 +1511,7 @@ export class TranscriptServiceImpl implements TranscriptService {
    * Delegates to isExcludedBuiltinCommand() for the actual command matching.
    */
   private isBuiltinCommandInvocation(entry: TranscriptEntry): boolean {
-    const message = entry.message as { content?: string } | undefined
+    const message = entry.message as { content?: unknown } | undefined
     if (!message?.content) return false
 
     if (typeof message.content !== 'string') return false

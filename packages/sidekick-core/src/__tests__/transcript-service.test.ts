@@ -672,7 +672,7 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.messageCount).toBe(4) // All messages counted
     })
 
-    it('excludes local-command-stdout messages from turnCount', async () => {
+    it('excludes builtin commands and local-command-stdout from turnCount', async () => {
       const transcript = [
         // Excluded builtin command (/context): should NOT count as a turn
         JSON.stringify({
