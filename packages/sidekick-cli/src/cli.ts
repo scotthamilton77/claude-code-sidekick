@@ -643,13 +643,11 @@ Examples:
   }
 
   if (parsed.command === 'doctor') {
-    const { handleSetupCommand } = await import('./commands/setup.js')
-    const result = await handleSetupCommand(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
-      checkOnly: true,
+    const { runDoctor } = await import('./commands/setup/doctor.js')
+    return runDoctor(runtime.projectRoot || process.cwd(), runtime.logger, stdout, {
       fix: parsed.fix,
       only: parsed.only,
-    })
-    return { exitCode: result.exitCode, stdout: '', stderr: '' }
+    }).then((r) => ({ exitCode: r.exitCode, stdout: '', stderr: '' }))
   }
 
   // Unknown command - show error and hint
