@@ -27,7 +27,10 @@ export class CoalescingGuard<K = string> {
       const rerunPending = this.inflight.get(key)
       this.inflight.delete(key)
       if (rerunPending && succeeded) {
-        void this.run(key, fn)
+        void this.run(key, fn).catch(() => {
+          // Rerun failures are intentionally swallowed — callers
+          // handle errors in their own explicit invocations.
+        })
       }
     }
     return true

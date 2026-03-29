@@ -62,8 +62,8 @@ export interface ResumeCoreParams extends SnarkyCoreParams {
 // Constants
 // ============================================================================
 
-const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
-const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
+export const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
+export const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
 
 // ============================================================================
 // generateSnarkyCore

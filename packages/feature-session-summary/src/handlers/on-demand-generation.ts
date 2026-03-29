@@ -12,8 +12,12 @@ import type { SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState } from '../state.js'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
-import { generateSnarkyCore } from './message-generation-core.js'
-import { generateResumeCore } from './message-generation-core.js'
+import {
+  generateSnarkyCore,
+  generateResumeCore,
+  SNARKY_PROMPT_FILE,
+  RESUME_PROMPT_FILE,
+} from './message-generation-core.js'
 
 /**
  * Result of on-demand generation operations.
@@ -114,7 +118,7 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
         error:
           result.reason === 'persona_disabled'
             ? 'Persona is "disabled" - snarky messages are skipped.'
-            : `Snarky prompt template not found: prompts/snarky-message.prompt.txt`,
+            : `Snarky prompt template not found: ${SNARKY_PROMPT_FILE}`,
       }
     case 'error':
       ctx.logger.error('Failed to generate snarky message on-demand', {
@@ -180,7 +184,7 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
         error:
           result.reason === 'low_confidence'
             ? `Confidence too low for resume generation. Title: ${summary.session_title_confidence}, Intent: ${summary.latest_intent_confidence}, Min: ${RESUME_MIN_CONFIDENCE}`
-            : `Resume prompt template not found: prompts/resume-message.prompt.txt`,
+            : `Resume prompt template not found: ${RESUME_PROMPT_FILE}`,
       }
     case 'error':
       ctx.logger.error('Failed to generate resume message on-demand', {

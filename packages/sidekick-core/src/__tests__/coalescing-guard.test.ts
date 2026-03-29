@@ -29,8 +29,7 @@ describe('CoalescingGuard', () => {
     resolveFirst() // unblock first call
     await p1
     // Wait for fire-and-forget rerun to settle
-    await new Promise<void>((r) => setTimeout(r, 10))
-    expect(fn).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(2))
   })
 
   it('executes independently for different keys', async () => {
@@ -65,8 +64,7 @@ describe('CoalescingGuard', () => {
 
     resolveFirst()
     await p1
-    await new Promise<void>((r) => setTimeout(r, 10))
-    expect(fn).toHaveBeenCalledTimes(2) // not 3
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(2)) // not 3
   })
 
   it('clear() resets inflight state', async () => {
@@ -94,6 +92,33 @@ describe('CoalescingGuard', () => {
     await p1
   })
 
+  it('swallows rerun failures without unhandled rejection', async () => {
+    const guard = new CoalescingGuard<string>()
+    let resolveFirst!: () => void
+    const barrier = new Promise<void>((r) => {
+      resolveFirst = r
+    })
+    let callCount = 0
+    const fn = vi.fn(async () => {
+      callCount++
+      if (callCount === 1) await barrier
+      if (callCount === 2) throw new Error('rerun-boom')
+    })
+
+    const p1 = guard.run('key1', fn)
+    await guard.run('key1', fn) // coalesce
+
+    resolveFirst()
+    await p1
+    // Rerun fires and throws, but .catch() swallows it
+    await vi.waitFor(() => expect(fn).toHaveBeenCalledTimes(2))
+
+    // Guard is clean after rerun failure
+    const successFn = vi.fn().mockResolvedValue(undefined)
+    const result = await guard.run('key1', successFn)
+    expect(result).toBe(true)
+  })
+
   it('cleans up on error — suppresses pending rerun, next call works', async () => {
     const guard = new CoalescingGuard<string>()
     const error = new Error('boom')
@@ -110,7 +135,6 @@ describe('CoalescingGuard', () => {
     expect(coalesced).toBe(false)
 
     await expect(p1).rejects.toThrow('boom')
-    await new Promise<void>((r) => setTimeout(r, 10))
     // Rerun was suppressed because first call failed
     expect(failingFn).toHaveBeenCalledTimes(1)
 
