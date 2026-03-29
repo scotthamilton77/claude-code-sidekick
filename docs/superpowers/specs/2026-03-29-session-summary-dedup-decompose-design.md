@@ -25,15 +25,17 @@ Extract shared snarky and resume generation into core functions that return disc
 ```typescript
 type SnarkyResult =
   | { status: 'success'; state: SnarkyMessageState }
-  | { status: 'skipped'; reason: 'persona_disabled' | 'no_persona' }
+  | { status: 'skipped'; reason: 'persona_disabled' | 'prompt_not_found' }
   | { status: 'error'; error: Error }
 
 type ResumeResult =
   | { status: 'success'; state: ResumeMessageState }
   | { status: 'deterministic'; state: ResumeMessageState }
-  | { status: 'skipped'; reason: 'low_confidence' | 'no_summary' | 'no_persona' }
+  | { status: 'skipped'; reason: 'low_confidence' | 'no_summary' | 'prompt_not_found' }
   | { status: 'error'; error: Error }
 ```
+
+**Note:** Null persona is not a skip reason — both handlers proceed with `buildPersonaContext(null)`, which yields `persona: false` and omits persona blocks from the prompt via `{{#if persona}}`.
 
 **Core functions:**
 
@@ -47,22 +49,24 @@ interface SnarkyCoreParams {
   ctx: DaemonContext
   sessionId: string
   summaryState: SessionSummaryStateAccessors
+  summary: SessionSummaryState       // current analysis result for prompt interpolation
+  config: SessionSummaryConfig       // LLM profile selection, maxSnarkyWords, flags
   logger: Logger
 }
 
 interface ResumeCoreParams extends SnarkyCoreParams {
-  excerptOptions: ExcerptOptions
-  transcript: TranscriptService
+  excerptOptions: ExcerptOptions     // periodic: config-driven, on-demand: hard-coded
+  transcript: TranscriptService      // for getExcerpt()
 }
 ```
 
-**Design rationale:** The core functions take explicit values rather than reaching into `ctx` internally. Callers resolve config-driven vs hard-coded values and pass them in. This keeps the core functions pure-ish and testable without complex context mocking.
+**Design rationale:** Core functions still depend on `ctx` for asset resolution (`ctx.assets.resolve()`), profile factory (`ctx.profileFactory`), and config access. They are not pure functions — they perform I/O (LLM calls, state writes). The value of extraction is deduplication and consistent behavior, not purity. Callers resolve caller-specific values (`summary`, `config`, `excerptOptions`) and pass them in explicitly.
 
 **What moves into core:** The ~80% shared pipeline from persona load through state write.
 
 **What stays with callers:**
 - Periodic: structured `LogEvents.*()` calls, event emission, void return
-- On-demand: write error state on disabled persona, return `GenerationResult` for CLI
+- On-demand: return `GenerationResult` for CLI, `{ success: false }` on skip/error
 
 ### Section 2: performAnalysis Decomposition
 
@@ -72,24 +76,27 @@ The 257-LOC `performAnalysis` becomes a ~40-line orchestrator calling 6 named st
 
 | Function | Responsibility | Input | Output |
 |----------|---------------|-------|--------|
-| `loadAnalysisInputs` | Load config, current summary, transcript excerpt, prompt template, JSON schema, build previous context | ctx, summaryState, transcript | `{ currentSummary, excerpt, previousContext, prompt, schema }` |
+| `loadAnalysisInputs` | Load config, current summary, transcript excerpt (using countdown bookmark), prompt template, JSON schema, build previous context | ctx, summaryState, transcript, countdown | `{ config, currentSummary, excerpt, previousContext, prompt, schema }` |
 | `callSummaryLLM` | Create provider, call LLM, parse and validate response | ctx, prompt, schema, config | `{ parsedResponse, tokenCount }` |
 | `updateSummaryState` | Merge LLM response with current state, compute stats, persist | summaryState, parsedResponse, currentSummary | `updatedSummary` |
-| `resetCountdown` | Apply confidence-based countdown thresholds, update bookmark, persist | summaryState, config, updatedSummary | void |
-| `orchestrateSideEffects` | Spawn snarky + resume generation in parallel via core functions | ctx, sessionId, summaryState, config, transcript | void |
-| `emitAnalysisEvents` | Emit title-changed, intent-changed, summary-finish events | ctx, previousSummary, updatedSummary, stats | void |
+| `resetCountdown` | Apply confidence-based countdown thresholds, update bookmark (uses lineNumber for high-confidence, countdown.bookmark_line for medium), persist | summaryState, config, updatedSummary, lineNumber, countdown | void |
+| `orchestrateSideEffects` | Conditionally spawn snarky + resume generation in parallel via core functions. Gated by: `hasSignificantChange()`, `isInitialAnalysis`, `config.snarkyMessages`, `resumeMessageExists()`, `pivot_detected` | ctx, eventContext, sessionId, summaryState, config, transcript, currentSummary, updatedSummary | void |
+| `emitAnalysisEvents` | Emit title-changed, intent-changed, summary-finish events via EventContext | eventContext, currentSummary, updatedSummary, stats | void |
+
+**Note:** `event: TranscriptEvent` flows through the orchestrator. It provides `event.context` (EventContext) for structured event emission and `event.payload.lineNumber` for bookmark updates.
 
 **Orchestrator shape:**
 
 ```typescript
-async function performAnalysis(ctx, sessionId, summaryState, reason) {
+async function performAnalysis(event, ctx, summaryState, countdown, reason) {
+  const { context: eventContext, payload } = event
   // Emit start event
-  const inputs = await loadAnalysisInputs(...)
-  const llmResult = await callSummaryLLM(...)
-  const updated = await updateSummaryState(...)
-  await resetCountdown(...)
-  await orchestrateSideEffects(...)
-  emitAnalysisEvents(...)
+  const inputs = await loadAnalysisInputs(ctx, summaryState, ctx.transcript, countdown)
+  const llmResult = await callSummaryLLM(ctx, inputs.prompt, inputs.schema, inputs.config)
+  const updated = await updateSummaryState(summaryState, llmResult.parsedResponse, inputs.currentSummary)
+  await resetCountdown(summaryState, inputs.config, updated, payload.lineNumber, countdown)
+  await orchestrateSideEffects(ctx, eventContext, sessionId, summaryState, inputs.config, ctx.transcript, inputs.currentSummary, updated)
+  emitAnalysisEvents(eventContext, inputs.currentSummary, updated, { tokenCount: llmResult.tokenCount, ... })
   // Emit finish event
 }
 ```
@@ -119,13 +126,16 @@ class CoalescingGuard<K = string> {
       return false
     }
     this.inflight.set(key, false)
+    let succeeded = false
     try {
       await fn()
+      succeeded = true
     } finally {
       const rerunPending = this.inflight.get(key)
       this.inflight.delete(key)
-      if (rerunPending) {
-        await this.run(key, fn)
+      if (rerunPending && succeeded) {
+        // Fire-and-forget: matches current behavior where rerun is `void performAnalysis(...)`
+        void this.run(key, fn)
       }
     }
     return true
@@ -137,7 +147,7 @@ class CoalescingGuard<K = string> {
 - Concurrent calls with same key: second coalesces, fn runs exactly twice
 - Concurrent calls with different keys: both execute independently
 - Three rapid calls: fn runs exactly twice (third coalesces into existing pending)
-- fn throws: guard cleans up, next call works normally
+- fn throws: guard cleans up, pending rerun is suppressed, next call works normally
 
 **Usage in update-summary.ts:**
 
@@ -162,7 +172,7 @@ Eliminates: `analysisInFlight` Map, `resetAnalysisGuard()`, and finally-block re
 
 **`on-demand-generation.ts`:**
 
-- `generateSnarkyMessageOnDemand()` (96 LOC) becomes ~15 LOC thin wrapper calling `generateSnarkyCore()`, handling `skipped` by writing error state
+- `generateSnarkyMessageOnDemand()` (96 LOC) becomes ~15 LOC thin wrapper calling `generateSnarkyCore()`, returning `{ success: false }` on skip/error
 - `generateResumeMessageOnDemand()` (125 LOC) becomes ~20 LOC thin wrapper calling `generateResumeCore()`, passing hard-coded excerpt options
 - `setSessionPersona()` unchanged (no duplication, independent concern)
 
