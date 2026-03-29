@@ -107,6 +107,77 @@ describe('matchesToolPattern', () => {
   it('matches cmake --build with path', () => {
     expect(matchesToolPattern('cmake --build ./build', 'cmake --build')).toBe(true)
   })
+
+  // Runner-aware matching (unanchored when runner prefix detected)
+  const runners = [
+    { prefix: 'uv run' },
+    { prefix: 'npx' },
+    { prefix: 'poetry run' },
+    { prefix: 'pnpm dlx' },
+    { prefix: 'pnpm exec' },
+    { prefix: 'bundle exec' },
+    { prefix: 'dotnet tool run' },
+  ]
+
+  it('matches single-token tool through runner', () => {
+    expect(matchesToolPattern('uv run mypy --strict', 'mypy', runners)).toBe(true)
+  })
+
+  it('matches single-token tool through single-token runner', () => {
+    expect(matchesToolPattern('npx jest src/', 'jest', runners)).toBe(true)
+  })
+
+  it('matches multi-token tool through runner', () => {
+    expect(matchesToolPattern('uv run python -m pytest tests/', 'python -m pytest', runners)).toBe(true)
+  })
+
+  it('matches tool through runner with flags between', () => {
+    expect(matchesToolPattern('uv run --python 3.11 mypy --strict', 'mypy', runners)).toBe(true)
+  })
+
+  it('matches longest runner prefix (pnpm dlx beats pnpm)', () => {
+    expect(matchesToolPattern('pnpm dlx jest src/', 'jest', runners)).toBe(true)
+  })
+
+  it('matches wildcard pattern through runner', () => {
+    expect(matchesToolPattern('npx pnpm --filter @scope/pkg build', 'pnpm --filter * build', runners)).toBe(true)
+  })
+
+  it('does not false-positive on tool name as substring in flag value', () => {
+    expect(matchesToolPattern('uv run sometool --formatter=mypy', 'mypy', runners)).toBe(false)
+  })
+
+  it('does not false-positive on tool name as partial token', () => {
+    expect(matchesToolPattern('uv run mypy123', 'mypy', runners)).toBe(false)
+  })
+
+  it('matches runner-wrapped command in chained segments', () => {
+    expect(matchesToolPattern('uv run mypy src/ && uv run pytest tests/', 'pytest', runners)).toBe(true)
+  })
+
+  it('matches runner-wrapped command in chained segments (first segment)', () => {
+    expect(matchesToolPattern('uv run mypy src/ && uv run pytest tests/', 'mypy', runners)).toBe(true)
+  })
+
+  it('still uses anchored matching when no runner matches', () => {
+    expect(matchesToolPattern('echo mypy', 'mypy', runners)).toBe(false)
+  })
+
+  it('still uses anchored matching when runners is empty', () => {
+    expect(matchesToolPattern('uv run mypy', 'mypy', [])).toBe(false)
+  })
+
+  it('still uses anchored matching when runners is undefined', () => {
+    expect(matchesToolPattern('uv run mypy', 'mypy')).toBe(false)
+  })
+
+  it('matches 3-token runner prefix', () => {
+    expect(matchesToolPattern('dotnet tool run formatter --check', 'formatter', runners)).toBe(true)
+  })
+
+  it('does not match runner prefix as a substring of first token', () => {
+    expect(matchesToolPattern('npxtra jest', 'jest', runners)).toBe(false)
+  })
 })
 
 describe('findMatchingPattern', () => {
@@ -138,5 +209,17 @@ describe('findMatchingPattern', () => {
   it('skips disabled patterns (tool: null)', () => {
     const match = findMatchingPattern('disabled', [{ tool_id: 'x', tool: null, scope: 'project' }])
     expect(match).toBeNull()
+  })
+
+  it('matches through runner when runners are provided', () => {
+    const runners = [{ prefix: 'uv run' }]
+    const match = findMatchingPattern('uv run pnpm build', patterns, runners)
+    expect(match?.tool_id).toBe('pnpm-build')
+  })
+
+  it('falls back to anchored matching when no runner matches', () => {
+    const runners = [{ prefix: 'uv run' }]
+    const match = findMatchingPattern('pnpm build', patterns, runners)
+    expect(match?.tool_id).toBe('pnpm-build')
   })
 })
