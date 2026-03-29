@@ -835,8 +835,8 @@ describe('handleUnifiedHookCommand', () => {
       expect(mockHandleHookCommand).not.toHaveBeenCalled()
       // Should log about dev-mode conflict
       expect(mockLogger.debug).toHaveBeenCalledWith(
-        'Dev-mode active, bailing early (let dev-mode hooks win)',
-        expect.objectContaining({ hookName: 'SessionStart' })
+        'Dev-mode active, SessionStart bailing early (let dev-mode hooks win)',
+        expect.objectContaining({ caller: 'SessionStart' })
       )
     })
 
@@ -877,8 +877,8 @@ describe('handleUnifiedHookCommand', () => {
       expect(mockSetDevMode).toHaveBeenCalledWith(true)
       // Should log a warning about the auto-correction
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Dev-mode hooks running but devMode flag is off — auto-correcting',
-        expect.objectContaining({ hookName: 'SessionStart' })
+        'Dev-mode SessionStart running but devMode flag is off — auto-correcting',
+        expect.objectContaining({ caller: 'SessionStart' })
       )
       // Should still proceed with the hook
       expect(mockHandleHookCommand).toHaveBeenCalled()

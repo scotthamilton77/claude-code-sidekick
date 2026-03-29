@@ -692,10 +692,13 @@ export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]
  * Combines {@link findZombieDaemons} with SIGKILL for each discovered zombie.
  *
  * @param logger - Logger instance for diagnostics
+ * @param knownZombies - Optional pre-discovered zombie list to kill directly,
+ *   avoiding a redundant re-scan (eliminates TOCTOU race when callers confirm
+ *   a zombie list before killing)
  * @returns Array of kill results, one per zombie
  */
-export async function killZombieDaemons(logger: Logger): Promise<KillResult[]> {
-  const zombies = await findZombieDaemons(logger)
+export async function killZombieDaemons(logger: Logger, knownZombies?: ZombieProcess[]): Promise<KillResult[]> {
+  const zombies = knownZombies ?? (await findZombieDaemons(logger))
 
   if (zombies.length === 0) {
     return []

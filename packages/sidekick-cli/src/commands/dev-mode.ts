@@ -10,25 +10,25 @@
  * - clean: Truncate logs, kill daemon, clean state folders
  * - clean-all: Full cleanup including sessions and stale sockets
  */
-import { readFile, writeFile, mkdir, readdir, stat, unlink, rm, access, truncate, cp } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, readdir, stat, unlink, rm, truncate, cp } from 'node:fs/promises'
 import { constants } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import * as readline from 'node:readline'
 import {
   Logger,
   DaemonClient,
   getSocketPath,
   getTokenPath,
   getLockPath,
-  getPidPath,
-  getUserPidPath,
-  getUserDaemonsDir,
   SetupStatusService,
   installGitignoreSection,
   removeGitignoreSection,
-  type UserPidInfo,
+  findZombieDaemons,
+  killZombieDaemons,
 } from '@sidekick/core'
+import { fileExists } from '../utils/fs.js'
+import { promptConfirm } from '../utils/prompt.js'
+import { readSettingsFile, writeSettingsFile } from '../utils/settings.js'
 
 // ANSI colors for terminal output
 const colors = {
@@ -76,6 +76,7 @@ export interface DevModeOptions {
 }
 
 interface ClaudeSettings {
+  [key: string]: unknown
   hooks?: Partial<Record<HookType, HookEntry[]>>
   statusLine?: {
     type: string
@@ -89,18 +90,6 @@ interface HookEntry {
     type: string
     command: string
   }>
-}
-
-/**
- * Check if a file exists.
- */
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await access(filePath, constants.F_OK)
-    return true
-  } catch {
-    return false
-  }
 }
 
 /**
@@ -168,126 +157,6 @@ function log(stdout: NodeJS.WritableStream, level: 'info' | 'step' | 'warn' | 'e
   stdout.write(`${prefixes[level]} ${message}\n`)
 }
 
-/**
- * Prompt user for yes/no confirmation.
- * Returns true if user confirms (y/Y/yes/YES), false otherwise.
- */
-async function promptConfirm(
-  question: string,
-  stdout: NodeJS.WritableStream,
-  stdin: NodeJS.ReadableStream
-): Promise<boolean> {
-  const rl = readline.createInterface({
-    input: stdin,
-    output: stdout,
-    terminal: false,
-  })
-
-  return new Promise((resolve) => {
-    stdout.write(`${question} [y/N] `)
-    rl.once('line', (answer) => {
-      const normalized = answer.trim().toLowerCase()
-      // Resolve BEFORE closing - rl.close() synchronously emits 'close'
-      // which would otherwise resolve(false) before we get here
-      resolve(normalized === 'y' || normalized === 'yes')
-      rl.close()
-    })
-    // Handle closed stdin (non-interactive)
-    rl.once('close', () => {
-      resolve(false)
-    })
-  })
-}
-
-interface ZombieDaemon {
-  pid: number
-  projectDir: string
-}
-
-/**
- * List zombie daemon processes without killing them.
- * Returns array of live daemon processes found in user-level PID files.
- */
-async function listZombieDaemons(): Promise<ZombieDaemon[]> {
-  const zombies: ZombieDaemon[] = []
-  const daemonsDir = getUserDaemonsDir()
-
-  let files: string[]
-  try {
-    files = await readdir(daemonsDir)
-  } catch {
-    // Directory doesn't exist - no daemons
-    return zombies
-  }
-
-  const pidFiles = files.filter((f) => f.endsWith('.pid'))
-
-  for (const pidFile of pidFiles) {
-    const pidPath = path.join(daemonsDir, pidFile)
-    try {
-      const content = await readFile(pidPath, 'utf-8')
-      const info = JSON.parse(content) as UserPidInfo
-
-      // Check if process is alive
-      try {
-        process.kill(info.pid, 0)
-        // Process is alive - it's a potential zombie
-        zombies.push({ pid: info.pid, projectDir: info.projectDir })
-      } catch {
-        // Process is dead - tracked for cleanup by cleanupStalePidFiles()
-      }
-    } catch {
-      // Invalid file, skip
-    }
-  }
-
-  return zombies
-}
-
-/**
- * Clean up stale PID files in ~/.sidekick/daemons/ that reference dead processes.
- * Returns number of stale files removed.
- */
-async function cleanupStalePidFiles(logger: Logger): Promise<number> {
-  const daemonsDir = getUserDaemonsDir()
-  let cleanedCount = 0
-
-  let files: string[]
-  try {
-    files = await readdir(daemonsDir)
-  } catch {
-    return 0
-  }
-
-  const pidFiles = files.filter((f) => f.endsWith('.pid'))
-
-  for (const pidFile of pidFiles) {
-    const pidPath = path.join(daemonsDir, pidFile)
-    try {
-      const content = await readFile(pidPath, 'utf-8')
-      const info = JSON.parse(content) as UserPidInfo
-
-      // Check if process is alive
-      try {
-        process.kill(info.pid, 0)
-        // Process is alive - leave file alone
-      } catch {
-        // Process is dead - remove stale file
-        await unlink(pidPath).catch(() => {})
-        logger.debug('Removed stale PID file', { pidFile, pid: info.pid })
-        cleanedCount++
-      }
-    } catch {
-      // Invalid JSON - remove corrupt file
-      await unlink(pidPath).catch(() => {})
-      logger.debug('Removed corrupt PID file', { pidFile })
-      cleanedCount++
-    }
-  }
-
-  return cleanedCount
-}
-
 /** Check if a command string references dev-sidekick. */
 function isDevHookCommand(command: string | undefined): boolean {
   return command?.includes('dev-sidekick') ?? false
@@ -324,18 +193,6 @@ async function removeDirectory(dir: string, label: string, stdout: NodeJS.Writab
     log(stdout, 'info', `Removed ${dir}`)
   } else {
     log(stdout, 'info', `No ${label} directory found`)
-  }
-}
-
-/**
- * Read settings.local.json or return empty object.
- */
-async function readSettings(settingsPath: string): Promise<ClaudeSettings> {
-  try {
-    const content = await readFile(settingsPath, 'utf-8')
-    return JSON.parse(content) as ClaudeSettings
-  } catch {
-    return {}
   }
 }
 
@@ -411,7 +268,7 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   await backupSettings(settingsPath, stdout)
 
   // Read current settings
-  const settings = await readSettings(settingsPath)
+  const settings = await readSettingsFile<ClaudeSettings>(settingsPath)
 
   if (isDevModeEnabled(settings)) {
     log(stdout, 'warn', 'Dev-mode hooks already enabled')
@@ -451,7 +308,7 @@ async function doEnable(projectDir: string, stdout: NodeJS.WritableStream): Prom
   settings.statusLine = { type: 'command', command: `${devHooksPath}/statusline` }
 
   // Write updated settings
-  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  await writeSettingsFile(settingsPath, settings)
 
   // Update devMode flag in project setup-status.json
   const setupService = new SetupStatusService(projectDir)
@@ -489,7 +346,7 @@ async function doDisable(
     return { exitCode: 0 }
   }
 
-  const settings = await readSettings(settingsPath)
+  const settings = await readSettingsFile<ClaudeSettings>(settingsPath)
 
   if (!isDevModeEnabled(settings)) {
     log(stdout, 'info', 'Dev-mode hooks not currently enabled')
@@ -528,11 +385,10 @@ async function doDisable(
   await setupService.setDevMode(false)
 
   // Write or remove settings file based on remaining content
-  if (Object.keys(settings).length === 0) {
-    log(stdout, 'info', `Settings now empty, removing ${settingsPath}`)
-    await unlink(settingsPath)
+  const writeResult = await writeSettingsFile(settingsPath, settings)
+  if (writeResult === 'deleted') {
+    log(stdout, 'info', `Settings now empty, removed ${settingsPath}`)
   } else {
-    await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
     log(stdout, 'info', `Dev-mode hooks removed from ${settingsPath}`)
   }
 
@@ -579,7 +435,7 @@ async function doStatus(projectDir: string, stdout: NodeJS.WritableStream): Prom
     stdout.write('Dev-mode: DISABLED\n')
   } else {
     stdout.write(`Settings file: ${settingsPath}\n`)
-    const settings = await readSettings(settingsPath)
+    const settings = await readSettingsFile<ClaudeSettings>(settingsPath)
 
     if (isDevModeEnabled(settings)) {
       stdout.write(`Dev-mode: ${colors.green}ENABLED${colors.reset}\n\n`)
@@ -683,66 +539,31 @@ async function doClean(
   await cleanStateFolder(path.join(sidekickDir, 'state'), 'Project', stdout)
   await cleanStateFolder(path.join(os.homedir(), '.sidekick', 'state'), 'Global', stdout)
 
-  // Check for zombie daemon processes
+  // Check for zombie daemon processes using @sidekick/core
   stdout.write('\n')
   log(stdout, 'step', 'Checking for zombie daemon processes...')
 
-  const zombies = await listZombieDaemons()
+  const zombies = await findZombieDaemons(logger)
   if (zombies.length === 0) {
     log(stdout, 'info', 'No zombie daemon processes found')
   } else {
     stdout.write('\n')
     stdout.write(`${colors.yellow}Found ${zombies.length} potential zombie daemon process(es):${colors.reset}\n`)
     for (const zombie of zombies) {
-      stdout.write(`  - PID ${zombie.pid}: ${zombie.projectDir}\n`)
+      stdout.write(`  - PID ${zombie.pid}: ${zombie.command}\n`)
     }
     stdout.write('\n')
 
     // Prompt for confirmation unless --force
-    const shouldKill = force || (await promptConfirm('Kill these processes?', stdout, stdin))
+    const shouldKill = force || (await promptConfirm({ stdin, stdout }, 'Kill these processes?'))
 
     if (shouldKill) {
-      // Kill the zombies we already found (avoid TOCTOU race by not re-scanning)
-      let killedCount = 0
-      for (const zombie of zombies) {
-        // Clean up associated files regardless of kill outcome
-        const filesToRemove = [
-          getUserPidPath(zombie.projectDir),
-          getPidPath(zombie.projectDir),
-          getSocketPath(zombie.projectDir),
-          getTokenPath(zombie.projectDir),
-        ]
-
-        try {
-          process.kill(zombie.pid, 'SIGKILL')
-          logger.info('Killed zombie daemon', { pid: zombie.pid, projectDir: zombie.projectDir })
-          killedCount++
-        } catch (err) {
-          const code = (err as NodeJS.ErrnoException).code
-          if (code === 'ESRCH') {
-            // ESRCH = no such process - it died between detection and kill (still success)
-            logger.info('Zombie daemon already exited', { pid: zombie.pid, projectDir: zombie.projectDir })
-            killedCount++
-          } else {
-            logger.warn('Failed to kill zombie daemon', {
-              pid: zombie.pid,
-              error: err instanceof Error ? err.message : String(err),
-            })
-          }
-        }
-
-        await Promise.all(filesToRemove.map((f) => unlink(f).catch(() => {})))
-      }
+      const results = await killZombieDaemons(logger, zombies)
+      const killedCount = results.filter((r) => r.killed).length
       log(stdout, 'info', `Killed ${killedCount} zombie daemon(s)`)
     } else {
       log(stdout, 'info', 'Skipping zombie cleanup')
     }
-  }
-
-  // Final sweep: clean up any stale PID files referencing dead processes
-  const staleCount = await cleanupStalePidFiles(logger)
-  if (staleCount > 0) {
-    log(stdout, 'info', `Cleaned up ${staleCount} stale PID file(s)`)
   }
 
   stdout.write('\n')
@@ -784,7 +605,7 @@ async function doCleanAll(
         log(stdout, 'info', `Found ${sessionCount} session directories`)
 
         // Prompt for confirmation unless --force
-        const shouldRemove = force || (await promptConfirm('Remove all session directories?', stdout, stdin))
+        const shouldRemove = force || (await promptConfirm({ stdin, stdout }, 'Remove all session directories?'))
 
         if (shouldRemove) {
           await rm(sessionsDir, { recursive: true, force: true })

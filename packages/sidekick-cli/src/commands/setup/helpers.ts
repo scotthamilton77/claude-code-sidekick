@@ -9,6 +9,7 @@
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import type { Logger } from '@sidekick/types'
+import { readSettingsFile, writeSettingsFile } from '../../utils/settings.js'
 import type { ApiKeyHealth } from '@sidekick/types'
 import type { ApiKeySource, PluginInstallationStatus, PluginLivenessStatus } from '@sidekick/core'
 import type { InstallScope } from './plugin-installer.js'
@@ -79,17 +80,7 @@ export function statuslineSettingsPath(scope: InstallScope, homeDir: string, pro
  * Returns true if written, false if skipped (e.g. dev-mode statusline detected).
  */
 export async function configureStatusline(settingsPath: string, logger?: Logger): Promise<boolean> {
-  let settings: Record<string, unknown> = {}
-
-  try {
-    const content = await fs.readFile(settingsPath, 'utf-8')
-    settings = JSON.parse(content) as Record<string, unknown>
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      throw err
-    }
-    // File doesn't exist, start fresh
-  }
+  const settings = await readSettingsFile(settingsPath)
 
   // Guard: don't overwrite dev-mode statusline
   const existing = settings.statusLine as { command?: string } | undefined
@@ -103,9 +94,7 @@ export async function configureStatusline(settingsPath: string, logger?: Logger)
     command: STATUSLINE_COMMAND,
   }
 
-  const dir = path.dirname(settingsPath)
-  await fs.mkdir(dir, { recursive: true })
-  await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n')
+  await writeSettingsFile(settingsPath, settings)
   logger?.info('Statusline configured', { path: settingsPath })
   return true
 }
