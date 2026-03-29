@@ -126,27 +126,27 @@ export function generateLabel(
       }
     }
     case 'snarky-message:start':
-      return { label: 'Snarky Message' }
+      return { label: 'Snarky Message Start' }
     case 'snarky-message:finish': {
       const msg = payload.generatedMessage as string | undefined
       return {
-        label: msg ? `Snarky Message: ${msg.slice(0, 60)}` : 'Snarky Message',
+        label: msg ? `Snarky Message Finish: ${msg.slice(0, 60)}` : 'Snarky Message Finish',
       }
     }
     case 'session-summary:start':
-      return { label: 'Session Analysis' }
+      return { label: 'Session Analysis Start' }
     case 'session-summary:finish': {
       const title = (payload.session_title ?? payload.title) as string | undefined
       return {
-        label: title ? `Session Analysis: "${title.slice(0, 60)}"` : 'Session Analysis',
+        label: title ? `Session Analysis Finish: "${title.slice(0, 60)}"` : 'Session Analysis Finish',
       }
     }
     case 'resume-message:start':
-      return { label: 'Resume Message' }
+      return { label: 'Resume Message Start' }
     case 'resume-message:finish': {
       const msg = payload.snarky_comment as string | undefined
       return {
-        label: msg ? `Resume Message: ${msg.slice(0, 60)}` : 'Resume Message',
+        label: msg ? `Resume Message Finish: ${msg.slice(0, 60)}` : 'Resume Message Finish',
       }
     }
     case 'statusline:rendered': {
@@ -157,10 +157,10 @@ export function generateLabel(
       const parts: string[] = []
       if (mode) parts.push(mode.replace(/_/g, ' '))
       if (stale) parts.push('(stale)')
-      if (tokens) parts.push(`${tokens} tokens`)
+      if (tokens) parts.push(`${tokens} chat tokens`)
       if (durMs != null) parts.push(`${durMs}ms`)
       const detail = parts.length > 0 ? parts.join(' · ') : undefined
-      return { label: 'Statusline', ...(detail ? { detail } : {}) }
+      return { label: 'Statusline called', ...(detail ? { detail } : {}) }
     }
     case 'hook:received': {
       const hookName = (payload.hook as string) || 'unknown'
