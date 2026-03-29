@@ -149,6 +149,27 @@ export {
   type ScopeDetectionResult,
   type AllScopesDetectionResult,
 } from './setup-status-service'
+// Extracted modules — direct access to detection and reconciliation functions
+export {
+  toScopeStatus,
+  determineOverallStatus,
+  readKeyFromEnvFile,
+  detectActualApiKey,
+  detectAllApiKeys,
+  buildUserApiKeyStatus,
+  buildProjectApiKeyStatus,
+  userApiKeyStatusFromHealth,
+  projectApiKeyStatusFromHealth,
+  DOCTOR_TIMEOUTS,
+  getDoctorTimeout,
+} from './api-key-detector'
+export {
+  spawnWithTimeout,
+  detectActualStatusline,
+  detectPluginInstallation,
+  detectPluginLiveness,
+} from './plugin-detector'
+export { runDoctorCheck, type StatusFileIO } from './doctor-engine'
 // Re-export validation utilities from shared-providers
 export { validateOpenRouterKey, validateOpenAIKey, type ValidationResult } from '@sidekick/shared-providers'
 export {
