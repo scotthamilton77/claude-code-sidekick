@@ -690,8 +690,8 @@ export function createLoggerFacade(options: LoggerFacadeOptions = {}): LoggerFac
       return childFacade
     },
     async flush() {
-      // Replay buffer if we have one and are now upgraded
-      if (upgraded && buffer.length > 0) {
+      // Replay buffer to the active logger (upgraded Pino or bootstrap/stderr fallback)
+      if (buffer.length > 0) {
         for (const entry of buffer) {
           activeLogger[entry.level](entry.msg, entry.meta)
         }
