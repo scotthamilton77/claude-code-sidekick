@@ -142,9 +142,9 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
         detail: line.confidence != null ? `${Math.round(line.confidence * 100)}%` : undefined,
       }
     case 'snarky-message:start':
-      return { label: 'Snarky Message…' }
+      return { label: 'Snarky Message Start' }
     case 'snarky-message:finish':
-      return { label: 'Snarky Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+      return { label: 'Snarky Message Finish', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
     case 'resume-message:start':
       return { label: 'Resume Message…' }
     case 'resume-message:finish':
