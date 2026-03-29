@@ -31,6 +31,13 @@ import { ensurePersonaForSession } from './persona-selection.js'
 const DECISION_TITLE_SKIP = 'Skip session analysis'
 const DECISION_TITLE_RUN = 'Run session analysis'
 
+/**
+ * Per-session concurrency guard for analysis.
+ * Prevents overlapping start/finish events when BulkProcessingComplete
+ * and UserPrompt arrive in quick succession (fire-and-forget race).
+ */
+const analysisInFlight = new Set<string>()
+
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
 const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
@@ -55,6 +62,14 @@ type SessionSummaryResponse = z.infer<typeof SessionSummaryResponseSchema>
 
 // Re-export for backward compatibility with tests
 export { buildPersonaContext, type PersonaTemplateContext } from './persona-utils.js'
+
+/**
+ * Reset the per-session concurrency guard.
+ * @internal Exported for test isolation only.
+ */
+export function resetAnalysisGuard(): void {
+  analysisInFlight.clear()
+}
 
 /**
  * Simple template processor with Handlebars-like {{#if}}...{{/if}} support.
@@ -134,13 +149,13 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       ctx.logger,
       DecisionEvents.decisionRecorded(event.context, {
         decision: 'calling',
-        reason: 'BulkProcessingComplete - analyzing full transcript',
+        reason: 'First prompt in new session — running initial analysis',
         subsystem: 'session-summary',
         title: DECISION_TITLE_RUN,
       })
     )
     const countdown = await loadCountdownState(summaryState, sessionId)
-    void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
+    void performAnalysis(event, ctx, summaryState, countdown, 'bulk_replay_complete')
     return
   }
 
@@ -165,7 +180,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
     ctx.logger,
     DecisionEvents.decisionRecorded(event.context, {
       decision: 'calling',
-      reason: 'countdown reached zero after ToolResult',
+      reason: 'Prompt countdown reached zero — running scheduled analysis',
       subsystem: 'session-summary',
       title: DECISION_TITLE_RUN,
     })
@@ -247,9 +262,27 @@ async function performAnalysis(
   summaryState: SessionSummaryStateAccessors,
   countdown: SummaryCountdownState,
   // Note: compaction_reset reserved for future compaction-triggered re-analysis
-  reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset'
+  reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset' | 'bulk_replay_complete'
 ): Promise<void> {
   const { sessionId } = event.context
+
+  // Concurrency guard: skip if analysis already in-flight for this session.
+  // Prevents interleaved start/finish events when BulkProcessingComplete
+  // and UserPrompt fire in quick succession.
+  if (analysisInFlight.has(sessionId)) {
+    logEvent(
+      ctx.logger,
+      DecisionEvents.decisionRecorded(event.context, {
+        decision: 'skipped',
+        reason: 'Analysis already in-flight for this session',
+        subsystem: 'session-summary',
+        title: DECISION_TITLE_SKIP,
+      })
+    )
+    return
+  }
+  analysisInFlight.add(sessionId)
+
   try {
     const startTime = Date.now()
 
@@ -467,6 +500,8 @@ async function performAnalysis(
       reason,
       error: err instanceof Error ? err.message : String(err),
     })
+  } finally {
+    analysisInFlight.delete(sessionId)
   }
 }
 
