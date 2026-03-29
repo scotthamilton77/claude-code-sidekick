@@ -13,7 +13,8 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/__tests__/**/*.test.ts', 'server/**/__tests__/**/*.test.ts'],
+    include: ['src/**/__tests__/**/*.test.{ts,tsx}', 'server/**/__tests__/**/*.test.ts'],
+    setupFiles: ['src/test-setup.ts'],
     coverage: {
       enabled: true,
       provider: 'v8',

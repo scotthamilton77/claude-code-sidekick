@@ -1,54 +1,13 @@
 import { useState, useMemo } from 'react'
 import { FolderOpen, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
-import type { Project, Session } from '../types'
+import type { Project } from '../types'
 import { useNavigation } from '../hooks/useNavigation'
 import { PanelHeader } from './PanelHeader'
 import { CompressedLabel } from './CompressedLabel'
+import { groupSessionsByDate, DATE_GROUP_ORDER, type DateGroup } from '../utils/dateGrouping'
 
 interface SessionSelectorProps {
   projects: Project[]
-}
-
-type DateGroup = 'Today' | 'Yesterday' | 'This Week' | 'This Month' | 'Older'
-
-const DATE_GROUP_ORDER: DateGroup[] = ['Today', 'Yesterday', 'This Week', 'This Month', 'Older']
-
-function isToday(d: Date, now: Date): boolean {
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
-}
-
-function isYesterday(d: Date, now: Date): boolean {
-  const yesterday = new Date(now)
-  yesterday.setDate(yesterday.getDate() - 1)
-  return d.getFullYear() === yesterday.getFullYear() && d.getMonth() === yesterday.getMonth() && d.getDate() === yesterday.getDate()
-}
-
-function isThisWeek(d: Date, now: Date): boolean {
-  const startOfWeek = new Date(now)
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
-  startOfWeek.setHours(0, 0, 0, 0)
-  return d >= startOfWeek
-}
-
-function isThisMonth(d: Date, now: Date): boolean {
-  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-}
-
-function groupSessionsByDate(sessions: Session[]): Map<DateGroup, Session[]> {
-  const groups = new Map<DateGroup, Session[]>()
-  const now = new Date()
-  for (const session of sessions) {
-    const d = new Date(session.dateRaw)
-    const key: DateGroup = isToday(d, now) ? 'Today'
-      : isYesterday(d, now) ? 'Yesterday'
-      : isThisWeek(d, now) ? 'This Week'
-      : isThisMonth(d, now) ? 'This Month'
-      : 'Older'
-    const arr = groups.get(key) ?? []
-    arr.push(session)
-    groups.set(key, arr)
-  }
-  return groups
 }
 
 export function SessionSelector({ projects }: SessionSelectorProps) {

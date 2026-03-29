@@ -7,6 +7,15 @@ import {
 } from 'lucide-react'
 import type { TranscriptLine as TLine } from '../../types'
 import { formatTime } from '../../utils/formatTime'
+import {
+  truncate,
+  formatToolInput,
+  isSafeUrl,
+  formatDuration,
+  extractCommandName,
+  extractSkillName,
+  getSystemInjectionLabel,
+} from '../../utils/transcriptLineHelpers'
 import { CollapsibleContent } from './CollapsibleContent'
 import { truncate, formatToolInput, extractSkillName, getSystemInjectionLabel, isSafeUrl } from './TranscriptLineUtils'
 import { getLineStyles, buildSidekickSingleLine, isSidekickEventType } from './TranscriptLineStyles'
