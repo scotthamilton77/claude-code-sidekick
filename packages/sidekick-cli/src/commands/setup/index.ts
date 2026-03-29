@@ -40,7 +40,6 @@ import {
 } from './helpers.js'
 
 export type { SetupCommandResult, SetupCommandOptions } from './helpers.js'
-// Import for local use
 import type { SetupCommandOptions, SetupCommandResult } from './helpers.js'
 
 const USAGE_TEXT = `Usage: sidekick setup [options]

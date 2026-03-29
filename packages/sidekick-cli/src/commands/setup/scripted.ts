@@ -88,6 +88,7 @@ export async function runScripted(
   }
 
   let configuredCount = 0
+  let gitignoreResult: 'installed' | 'already-installed' | 'error' | undefined
 
   // 0. Install marketplace/plugin if specified
   if (options.marketplaceScope !== undefined || options.pluginScope !== undefined) {
@@ -122,14 +123,16 @@ export async function runScripted(
   // 2. Configure gitignore if specified
   if (options.gitignore === true) {
     const result = await installGitignoreSection(projectDir)
+    gitignoreResult = result.status
     if (result.status === 'error') {
       stdout.write(`⚠ Failed to update .gitignore: ${result.error}\n`)
     } else if (result.status === 'already-installed') {
       stdout.write('✓ Gitignore already configured\n')
+      configuredCount++
     } else {
       stdout.write('✓ Gitignore configured\n')
+      configuredCount++
     }
-    configuredCount++
   } else if (options.gitignore === false) {
     stdout.write('- Gitignore skipped\n')
   }
@@ -216,18 +219,20 @@ export async function runScripted(
         if (result === 'installed') {
           stdout.write(`✓ Shell alias added to ~/${shellInfo.rcFile}\n`)
           stdout.write(`  Run 'source ~/${shellInfo.rcFile}' or open a new terminal to activate.\n`)
+          configuredCount++
         } else {
           stdout.write(`✓ Shell alias already configured in ~/${shellInfo.rcFile}\n`)
+          configuredCount++
         }
       } else {
         const result = uninstallAlias(rcPath)
         if (result === 'removed') {
           stdout.write(`✓ Shell alias removed from ~/${shellInfo.rcFile}\n`)
+          configuredCount++
         } else {
           stdout.write(`- No shell alias found in ~/${shellInfo.rcFile}\n`)
         }
       }
-      configuredCount++
     }
   }
 
@@ -270,7 +275,10 @@ export async function runScripted(
         OPENROUTER_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('missing'),
         OPENAI_API_KEY: SetupStatusService.projectApiKeyStatusFromHealth('not-required'),
       },
-      gitignore: options.gitignore ? 'installed' : (existingProject?.gitignore ?? 'unknown'),
+      gitignore:
+        gitignoreResult === 'installed' || gitignoreResult === 'already-installed'
+          ? 'installed'
+          : (existingProject?.gitignore ?? 'unknown'),
       ...(existingProject?.devMode !== undefined && { devMode: existingProject.devMode }),
     }
     await setupService.writeProjectStatus(projectStatus)
