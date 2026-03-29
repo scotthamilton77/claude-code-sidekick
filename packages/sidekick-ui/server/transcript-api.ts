@@ -414,7 +414,7 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
     const parts: string[] = []
     if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
     if (payload.staleData === true) parts.push('(stale)')
-    if (payload.tokens) parts.push(`${payload.tokens} tokens`)
+    if (payload.tokens) parts.push(`${payload.tokens} chat tokens`)
     if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
     if (parts.length > 0) line.statuslineContent = parts.join(' · ')
   }

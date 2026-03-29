@@ -63,7 +63,7 @@ s1LEDs.set(id, ledOff('amber'))
 id = lid()
 s1Lines.push({ id, timestamp: t(0.7), type: 'session-summary:start' })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(0.7), 'session-summary:start', 'Session Analysis'))
+s1Events.push(sEvt(id, t(0.7), 'session-summary:start', 'Session Analysis Start'))
 
 id = lid()
 s1Lines.push({ id, timestamp: t(1), type: 'session-title:changed', previousValue: 'New session', newValue: 'Daemon crash investigation', confidence: 0.6 })
@@ -73,7 +73,7 @@ s1Events.push(sEvt(id, t(1), 'session-title:changed', 'Title: Daemon crash inves
 id = lid()
 s1Lines.push({ id, timestamp: t(1.1), type: 'session-summary:finish' })
 s1LEDs.set(id, ledOff('amber'))
-s1Events.push(sEvt(id, t(1.1), 'session-summary:finish', 'Session Analysis: "Daemon crash investigation"'))
+s1Events.push(sEvt(id, t(1.1), 'session-summary:finish', 'Session Analysis Finish: "Daemon crash investigation"'))
 
 s1Snapshots.push({
   timestamp: t(1.1),
@@ -285,12 +285,12 @@ s2Events.push(sEvt(id, t(62.2), 'reminder:staged', 'Staged: vc-build'))
 id = lid()
 s2Lines.push({ id, timestamp: t(63), type: 'snarky-message:start' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(63), 'snarky-message:start', 'Snarky Message'))
+s2Events.push(sEvt(id, t(63), 'snarky-message:start', 'Snarky Message Start'))
 
 id = lid()
 s2Lines.push({ id, timestamp: t(63.5), type: 'snarky-message:finish', generatedMessage: 'Oh, you want me to create another personality? How delightful. Another entity to share in the crushing weight of existence.' })
 s2LEDs.set(id, ledWith({ vcBuild: true, vcTypecheck: true, vcTest: true, vcLint: true }, ledOff('amber')))
-s2Events.push(sEvt(id, t(63.5), 'snarky-message:finish', 'Snarky Message: Oh, you want me to create another personality? How delightfu'))
+s2Events.push(sEvt(id, t(63.5), 'snarky-message:finish', 'Snarky Message Finish: Oh, you want me to create another personality? How delightfu'))
 
 // Sidekick: decision to validate voice
 id = lid()
@@ -471,12 +471,12 @@ s3LEDs.set(id, ledOff('amber'))
 id = lid()
 s3Lines.push({ id, timestamp: t(135.5), type: 'resume-message:start' })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(135.5), 'resume-message:start', 'Resume Message'))
+s3Events.push(sEvt(id, t(135.5), 'resume-message:start', 'Resume Message Start'))
 
 id = lid()
 s3Lines.push({ id, timestamp: t(136), type: 'resume-message:finish', generatedMessage: 'Previously: Profiled UserPromptSubmit hook (523ms). Root cause: config reloaded from disk every invocation. Plan: add cache with file-watcher invalidation.' })
 s3LEDs.set(id, ledOff('amber'))
-s3Events.push(sEvt(id, t(136), 'resume-message:finish', 'Resume Message: Previously: Profiled hook (523ms), planning cache...'))
+s3Events.push(sEvt(id, t(136), 'resume-message:finish', 'Resume Message Finish: Previously: Profiled hook (523ms), planning cache...'))
 
 // Post-compaction implementation
 id = lid()
@@ -697,7 +697,7 @@ s5LEDs.set(id, ledOff('red'))
 id = lid()
 s5Lines.push({ id, timestamp: t(240.5), type: 'session-summary:start' })
 s5LEDs.set(id, ledOff('red'))
-s5Events.push(sEvt(id, t(240.5), 'session-summary:start', 'Session Analysis'))
+s5Events.push(sEvt(id, t(240.5), 'session-summary:start', 'Session Analysis Start'))
 
 id = lid()
 s5Lines.push({ id, timestamp: t(241), type: 'session-title:changed', previousValue: 'New session', newValue: 'API refactor: Express → Hono', confidence: 0.75 })
@@ -707,7 +707,7 @@ s5Events.push(sEvt(id, t(241), 'session-title:changed', 'Title: API refactor: Ex
 id = lid()
 s5Lines.push({ id, timestamp: t(241.1), type: 'session-summary:finish' })
 s5LEDs.set(id, ledOff('amber'))
-s5Events.push(sEvt(id, t(241.1), 'session-summary:finish', 'Session Analysis: "API refactor: Express → Hono"'))
+s5Events.push(sEvt(id, t(241.1), 'session-summary:finish', 'Session Analysis Finish: "API refactor: Express → Hono"'))
 
 s5Snapshots.push({
   timestamp: t(241.1),
@@ -869,7 +869,7 @@ s6LEDs.set(id, ledOff('red'))
 id = lid()
 s6Lines.push({ id, timestamp: t(300.5), type: 'session-summary:start' })
 s6LEDs.set(id, ledOff('red'))
-s6Events.push(sEvt(id, t(300.5), 'session-summary:start', 'Session Analysis'))
+s6Events.push(sEvt(id, t(300.5), 'session-summary:start', 'Session Analysis Start'))
 
 id = lid()
 s6Lines.push({ id, timestamp: t(301), type: 'session-title:changed', previousValue: 'New session', newValue: 'Landing page polish', confidence: 0.35 })
@@ -879,7 +879,7 @@ s6Events.push(sEvt(id, t(301), 'session-title:changed', 'Title: Landing page pol
 id = lid()
 s6Lines.push({ id, timestamp: t(301.1), type: 'session-summary:finish' })
 s6LEDs.set(id, ledOff('red'))
-s6Events.push(sEvt(id, t(301.1), 'session-summary:finish', 'Session Analysis: "Landing page polish"'))
+s6Events.push(sEvt(id, t(301.1), 'session-summary:finish', 'Session Analysis Finish: "Landing page polish"'))
 
 s6Snapshots.push({
   timestamp: t(301.1),
