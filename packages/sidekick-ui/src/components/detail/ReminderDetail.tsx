@@ -6,7 +6,7 @@ interface ReminderDetailProps {
 }
 
 export function ReminderDetail({ line }: ReminderDetailProps) {
-  const action = line.type.split('-').pop() ?? ''
+  const action = line.type.split(':').pop() ?? ''
   const isConsumed = action === 'consumed'
   const [expanded, setExpanded] = useState(false)
 
