@@ -117,7 +117,7 @@ export async function promptConfirm(ctx: PromptContext, question: string, defaul
       }
     }
 
-    // Handle stdin close/EOF — resolve with default before 'line' fires
+    // Handle stdin close/EOF — if no answer was read, resolve with the default
     rl.once('close', () => {
       safeResolve(defaultYes)
     })
