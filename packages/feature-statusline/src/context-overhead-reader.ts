@@ -81,17 +81,11 @@ async function readProjectMetrics(projectDir: string): Promise<ProjectContextMet
 }
 
 /**
- * Read and combine context overhead from base and project metrics.
- *
- * @param config - Reader configuration with paths
- * @returns Combined overhead metrics
+ * Build a ContextOverhead from base and project metrics.
+ * Single source of truth for the overhead summation — eliminates duplication
+ * between readContextOverhead and getDefaultOverhead.
  */
-export async function readContextOverhead(config: ContextOverheadReaderConfig): Promise<ContextOverhead> {
-  const [base, project] = await Promise.all([
-    readBaseMetrics(config.userConfigDir),
-    readProjectMetrics(config.projectDir),
-  ])
-
+function buildOverhead(base: BaseTokenMetricsState, project: ProjectContextMetrics): ContextOverhead {
   const totalOverhead =
     base.systemPromptTokens +
     base.systemToolsTokens +
@@ -113,29 +107,24 @@ export async function readContextOverhead(config: ContextOverheadReaderConfig): 
 }
 
 /**
+ * Read and combine context overhead from base and project metrics.
+ *
+ * @param config - Reader configuration with paths
+ * @returns Combined overhead metrics
+ */
+export async function readContextOverhead(config: ContextOverheadReaderConfig): Promise<ContextOverhead> {
+  const [base, project] = await Promise.all([
+    readBaseMetrics(config.userConfigDir),
+    readProjectMetrics(config.projectDir),
+  ])
+
+  return buildOverhead(base, project)
+}
+
+/**
  * Get total overhead from defaults (no file I/O).
  * Use when async reading is not possible.
  */
 export function getDefaultOverhead(): ContextOverhead {
-  const base = DEFAULT_BASE_METRICS
-  const project = DEFAULT_PROJECT_METRICS
-
-  const totalOverhead =
-    base.systemPromptTokens +
-    base.systemToolsTokens +
-    project.mcpToolsTokens +
-    project.customAgentsTokens +
-    project.memoryFilesTokens +
-    base.autocompactBufferTokens
-
-  return {
-    systemPromptTokens: base.systemPromptTokens,
-    systemToolsTokens: base.systemToolsTokens,
-    mcpToolsTokens: project.mcpToolsTokens,
-    customAgentsTokens: project.customAgentsTokens,
-    memoryFilesTokens: project.memoryFilesTokens,
-    autocompactBufferTokens: base.autocompactBufferTokens,
-    totalOverhead,
-    usingDefaults: true,
-  }
+  return buildOverhead(DEFAULT_BASE_METRICS, DEFAULT_PROJECT_METRICS)
 }

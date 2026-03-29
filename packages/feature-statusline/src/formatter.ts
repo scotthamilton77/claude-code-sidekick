@@ -224,50 +224,8 @@ export class Formatter {
       contextBar: formatContextBar(viewModel.contextUsage, this.useColors, symbolMode),
     }
 
-    // Colorization function per token — returns colored version of a value
+    // Derive branch/persona colors for token colorization
     const personaColor = (this.theme.colors as Record<string, string>).persona ?? 'cyan'
-    const colorizeToken = (tokenName: string, value: string): string => {
-      switch (tokenName) {
-        case 'tokenUsageActual':
-        case 'tokenUsageEffective':
-        case 'tokenPercentageActual':
-        case 'tokenPercentageEffective':
-          return this.colorizeByStatus(value, viewModel.tokensStatus)
-        case 'cost':
-          return this.colorizeByStatus(value, viewModel.costStatus)
-        case 'logs':
-          return this.colorizeByStatus(value, viewModel.logStatus)
-        case 'model':
-          return this.colorize(value, this.theme.colors.model)
-        case 'contextWindow':
-          return this.colorize(value, this.theme.colors.tokens)
-        case 'duration':
-          return this.colorize(value, this.theme.colors.duration)
-        case 'cwd':
-        case 'projectDirShort':
-        case 'projectDirFull':
-          return this.colorize(value, this.theme.colors.cwd)
-        case 'branch':
-        case 'worktreeName':
-          return this.colorize(value, branchColor)
-        case 'branchWT': {
-          const coloredBranch = this.colorize(value, branchColor)
-          if (!viewModel.worktreeName) return coloredBranch
-          const wtColor = (this.theme.colors as Record<string, string>).worktreeIndicator ?? 'dim'
-          return `${coloredBranch} ${this.colorize('[wt]', wtColor)}`
-        }
-        case 'summary':
-          return this.colorize(value, this.theme.colors.summary)
-        case 'title':
-          return this.colorize(value, this.theme.colors.title)
-        case 'personaName':
-          return this.colorize(value, personaColor)
-        case 'contextBar':
-          return value // already formatted with colors
-        default:
-          return value
-      }
-    }
 
     // Marker for empty values
     const EMPTY_MARKER = '\x00EMPTY\x00'
@@ -310,7 +268,7 @@ export class Formatter {
       }
 
       // Colorize the (possibly truncated) value
-      const colorized = colorizeToken(tokenName, value)
+      const colorized = this.colorizeToken(tokenName, value, viewModel, branchColor, personaColor)
 
       // Choose prefix/suffix, applying wrapAt logic if specified
       let prefix = options.prefix ?? ''
@@ -369,6 +327,68 @@ export class Formatter {
     if (!this.useColors || !text) return text
     const color = getColor(colorName)
     return color ? `${color}${text}${ANSI.reset}` : text
+  }
+
+  /**
+   * Apply theme-based colorization to a named token value.
+   *
+   * Maps each token name to its color source: status-based thresholds (tokens, cost, logs),
+   * theme colors (model, cwd, branch), or pass-through (contextBar, already colored).
+   *
+   * @param tokenName - Template token name (e.g., "model", "cost", "branchWT")
+   * @param value - Raw text value to colorize
+   * @param viewModel - View model for threshold status lookups
+   * @param branchColor - Resolved branch color (from theme override or pattern detection)
+   * @param personaColor - Resolved persona color (from theme override or default cyan)
+   * @returns Colorized string with ANSI codes (or plain text when colors disabled)
+   */
+  private colorizeToken(
+    tokenName: string,
+    value: string,
+    viewModel: StatuslineViewModel,
+    branchColor: string,
+    personaColor: string
+  ): string {
+    switch (tokenName) {
+      case 'tokenUsageActual':
+      case 'tokenUsageEffective':
+      case 'tokenPercentageActual':
+      case 'tokenPercentageEffective':
+        return this.colorizeByStatus(value, viewModel.tokensStatus)
+      case 'cost':
+        return this.colorizeByStatus(value, viewModel.costStatus)
+      case 'logs':
+        return this.colorizeByStatus(value, viewModel.logStatus)
+      case 'model':
+        return this.colorize(value, this.theme.colors.model)
+      case 'contextWindow':
+        return this.colorize(value, this.theme.colors.tokens)
+      case 'duration':
+        return this.colorize(value, this.theme.colors.duration)
+      case 'cwd':
+      case 'projectDirShort':
+      case 'projectDirFull':
+        return this.colorize(value, this.theme.colors.cwd)
+      case 'branch':
+      case 'worktreeName':
+        return this.colorize(value, branchColor)
+      case 'branchWT': {
+        const coloredBranch = this.colorize(value, branchColor)
+        if (!viewModel.worktreeName) return coloredBranch
+        const wtColor = (this.theme.colors as Record<string, string>).worktreeIndicator ?? 'dim'
+        return `${coloredBranch} ${this.colorize('[wt]', wtColor)}`
+      }
+      case 'summary':
+        return this.colorize(value, this.theme.colors.summary)
+      case 'title':
+        return this.colorize(value, this.theme.colors.title)
+      case 'personaName':
+        return this.colorize(value, personaColor)
+      case 'contextBar':
+        return value // already formatted with colors
+      default:
+        return value
+    }
   }
 
   /**
