@@ -893,6 +893,8 @@ export interface ReminderConsumedPayload {
   blocking?: boolean
   priority?: number
   persistent?: boolean
+  /** The rendered reminder text that was injected into the conversation */
+  renderedText?: string
   /** For verify-completion: the LLM classification result */
   classificationResult?: {
     category: string

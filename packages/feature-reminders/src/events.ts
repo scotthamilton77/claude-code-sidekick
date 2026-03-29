@@ -35,6 +35,7 @@ export const ReminderEvents = {
       blocking?: boolean
       priority?: number
       persistent?: boolean
+      renderedText?: string
       classificationResult?: {
         category: string
         confidence: number
@@ -60,6 +61,9 @@ export const ReminderEvents = {
         blocking: state.blocking,
         priority: state.priority,
         persistent: state.persistent,
+        ...(state.renderedText !== undefined && {
+          renderedText: state.renderedText,
+        }),
         ...(state.classificationResult !== undefined && {
           classificationResult: state.classificationResult,
         }),

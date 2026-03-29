@@ -131,6 +131,11 @@ export function resolveReminder(
 /**
  * Stage a reminder for a specific hook.
  * Delegates to StagingService for atomic file operations.
+ *
+ * Callers that need deduplication should use the `skipIfExists` option
+ * in `createStagingHandler` or check existence before calling.
+ * StagingServiceCore already handles duplicate `reminder:staged` event
+ * suppression internally via its `isRestage` check.
  */
 export async function stageReminder(
   ctx: DaemonContext,
