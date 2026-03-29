@@ -1057,6 +1057,8 @@ export const LogEvents = {
       model?: string
       tokens?: number
       durationMs: number
+      renderedText?: string
+      hookInput?: Record<string, unknown>
     }
   ): StatuslineRenderedEvent {
     return {
@@ -1076,6 +1078,8 @@ export const LogEvents = {
         model: metadata.model,
         tokens: metadata.tokens,
         durationMs: metadata.durationMs,
+        ...(metadata.renderedText !== undefined && { renderedText: metadata.renderedText }),
+        ...(metadata.hookInput !== undefined && { hookInput: metadata.hookInput }),
       },
     }
   },

@@ -1030,6 +1030,10 @@ export interface StatuslineRenderedPayload {
   model?: string
   tokens?: number
   durationMs: number
+  /** The rendered statusline text (ANSI codes stripped). */
+  renderedText?: string
+  /** Summary of hook input data from Claude Code. */
+  hookInput?: Record<string, unknown>
 }
 
 /** Payload for `hook:received` — a hook event was received by the CLI. */

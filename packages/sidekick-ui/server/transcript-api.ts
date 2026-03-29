@@ -413,14 +413,22 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   if (payload.confidence != null) line.confidence = payload.confidence as number
   if (payload.personaFrom) line.personaFrom = payload.personaFrom as string
   line.personaTo = (payload.personaTo ?? payload.personaId) as string | undefined
-  // Statusline: build rich content from available fields
+  // Statusline: capture rendered output and hook input; fall back to mode summary
   if (entry.type === 'statusline:rendered') {
-    const parts: string[] = []
-    if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
-    if (payload.staleData === true) parts.push('(stale)')
-    if (payload.tokens) parts.push(`${payload.tokens} chat tokens`)
-    if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
-    if (parts.length > 0) line.statuslineContent = parts.join(' · ')
+    // Prefer the actual rendered text (ANSI-stripped) if available
+    if (payload.renderedText) {
+      line.statuslineContent = payload.renderedText as string
+    } else {
+      // Legacy fallback: build summary from individual fields
+      const parts: string[] = []
+      if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
+      if (payload.staleData === true) parts.push('(stale)')
+      if (payload.tokens) parts.push(`${payload.tokens} chat tokens`)
+      if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
+      if (parts.length > 0) line.statuslineContent = parts.join(' · ')
+    }
+    // Surface hook input summary for detail panel
+    if (payload.hookInput) line.hookInput = payload.hookInput as Record<string, unknown>
   }
   // Hook events
   if (payload.hook) line.hookName = payload.hook as string

@@ -85,12 +85,7 @@ function DetailContent({ line }: { line: TranscriptLine }) {
     case 'compaction':
       return <CompactionDetail line={line} />
     case 'statusline:rendered':
-      return (
-        <div className="p-3">
-          <h3 className="text-[10px] font-medium text-slate-500 mb-1">Statusline Content</h3>
-          <p className="text-xs font-mono text-teal-600 dark:text-teal-400">{line.statuslineContent}</p>
-        </div>
-      )
+      return <StatuslineDetail line={line} />
     case 'session-title:changed':
     case 'intent:changed':
       return (
@@ -222,6 +217,36 @@ function CompactionDetail({ line }: { line: TranscriptLine }) {
           <span className="text-xs tabular-nums text-slate-700 dark:text-slate-300">
             {line.compactionTokensAfter.toLocaleString()}
           </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatuslineDetail({ line }: { line: TranscriptLine }) {
+  return (
+    <div className="p-3 space-y-3">
+      {line.hookInput != null && (
+        <div>
+          <h3 className="text-[10px] font-medium text-slate-500 mb-1">Hook Input</h3>
+          <div className="space-y-1">
+            {Object.entries(line.hookInput).map(([key, value]) => (
+              <div key={key} className="flex gap-2 min-w-0">
+                <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400 shrink-0">{key}</span>
+                <span className="text-[10px] font-mono text-slate-700 dark:text-slate-300 break-all">
+                  {String(value)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {line.statuslineContent && (
+        <div>
+          <h3 className="text-[10px] font-medium text-slate-500 mb-1">Rendered Output</h3>
+          <pre className="text-xs font-mono text-teal-600 dark:text-teal-400 whitespace-pre-wrap bg-slate-50 dark:bg-slate-800/50 rounded p-2">
+            {line.statuslineContent}
+          </pre>
         </div>
       )}
     </div>

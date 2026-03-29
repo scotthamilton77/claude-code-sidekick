@@ -18,6 +18,7 @@ import { LogEvents, logEvent, StateService, SetupStatusService, type EventLogCon
 // Re-export for use by CLI
 export type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
 import type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
+import { stripAnsi } from '@sidekick/feature-statusline'
 
 export interface StatuslineCommandOptions {
   /** Output format: 'text' (ANSI) or 'json' (raw data) */
@@ -320,6 +321,13 @@ export async function handleStatuslineCommand(
     }
 
     // Emit structured StatuslineRendered event
+    // Build a compact hookInput summary for the log (full input is too large)
+    const hookInputSummary = options.hookInput ? {
+      session_id: options.hookInput.session_id,
+      model: options.hookInput.model?.display_name,
+      cwd: options.hookInput.cwd,
+      version: options.hookInput.version,
+    } : undefined
     const event = LogEvents.statuslineRendered(
       eventContext,
       {
@@ -330,6 +338,8 @@ export async function handleStatuslineCommand(
         model: result.viewModel.model,
         tokens: parseInt(result.viewModel.tokenUsageActual.replace(/[^0-9]/g, ''), 10) || undefined,
         durationMs,
+        renderedText: stripAnsi(result.text),
+        hookInput: hookInputSummary,
       }
     )
     logEvent(logger, event)

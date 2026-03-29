@@ -799,6 +799,66 @@ describe('parseTranscriptLines', () => {
     expect(hookLine!.hookReturnValue).toBeUndefined()
   })
 
+  it('maps statusline:rendered with renderedText to statuslineContent', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'statusline:rendered',
+        context: { sessionId: 'session-1' },
+        payload: {
+          displayMode: 'session_summary',
+          staleData: false,
+          tokens: 3200,
+          durationMs: 145,
+          renderedText: '[sidekick] Fix auth bug | 3.2k tokens | $0.02',
+          hookInput: { session_id: 'session-1', model: 'Claude Opus', cwd: '/project' },
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const statusLine = lines.find((l) => l.type === 'statusline:rendered')
+    expect(statusLine).toBeDefined()
+    // Prefers renderedText over legacy mode summary
+    expect(statusLine!.statuslineContent).toBe('[sidekick] Fix auth bug | 3.2k tokens | $0.02')
+    // Hook input summary is captured
+    expect(statusLine!.hookInput).toEqual({ session_id: 'session-1', model: 'Claude Opus', cwd: '/project' })
+  })
+
+  it('maps statusline:rendered without renderedText uses legacy mode summary', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'statusline:rendered',
+        context: { sessionId: 'session-1' },
+        payload: {
+          displayMode: 'session_summary',
+          staleData: false,
+          tokens: 3200,
+          durationMs: 145,
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const statusLine = lines.find((l) => l.type === 'statusline:rendered')
+    expect(statusLine).toBeDefined()
+    expect(statusLine!.statuslineContent).toBe('session summary · 3200 chat tokens · 145ms')
+    expect(statusLine!.hookInput).toBeUndefined()
+  })
+
   it('returns only Claude Code lines when no projectDir', async () => {
     setupTranscript(makeUserEntry('Hello'))
 

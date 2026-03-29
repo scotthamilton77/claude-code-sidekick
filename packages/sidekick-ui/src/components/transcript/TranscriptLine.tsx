@@ -154,11 +154,10 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
     case 'persona:changed':
       return { label: `Persona: ${line.personaFrom ?? '?'} → ${line.personaTo ?? '?'}` }
     case 'statusline:rendered': {
-      // Split "resume message · 26 tokens · 38ms" into mode + stats
-      const parts = (line.statuslineContent ?? '').split(' · ')
-      const mode = parts[0] || 'unknown'
-      const stats = parts.slice(1).join(' · ')
-      return { label: `Statusline: ${mode}`, detail: stats || undefined }
+      const content = line.statuslineContent
+      // Show truncated rendered text as detail if available, otherwise fall back to mode summary
+      const detail = content ? truncate(content, 80) : undefined
+      return { label: 'Statusline called', detail }
     }
     case 'error:occurred':
       return { label: `Error: ${line.errorMessage ?? 'unknown'}` }
