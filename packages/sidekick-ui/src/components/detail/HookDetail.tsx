@@ -13,7 +13,7 @@ function ValueRenderer({ value }: { value: unknown }) {
   if (typeof value === 'string') {
     if (value.length > LONG_VALUE_THRESHOLD) {
       return (
-        <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-y-auto">
+        <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-all bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-y-auto">
           {value}
         </pre>
       )
@@ -27,7 +27,7 @@ function ValueRenderer({ value }: { value: unknown }) {
 
   if (typeof value === 'object' && value !== null) {
     return (
-      <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-y-auto">
+      <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-all bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-y-auto">
         {JSON.stringify(value, null, 2)}
       </pre>
     )
@@ -72,7 +72,9 @@ function Collapsible({ label, open, onToggle, children }: { label: string; open:
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded">
       <button
+        type="button"
         onClick={onToggle}
+        aria-expanded={open}
         className="flex items-center gap-1 w-full px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
       >
         {open ? <ChevronDown size={12} className="text-slate-400" /> : <ChevronRight size={12} className="text-slate-400" />}
@@ -132,17 +134,21 @@ export function HookDetail({ line }: HookDetailProps) {
 
       {line.hookInput != null && (
         <Collapsible label="Raw Input JSON" open={showRawInput} onToggle={() => setShowRawInput(!showRawInput)}>
-          <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
-            {JSON.stringify(line.hookInput, null, 2)}
-          </pre>
+          {showRawInput && (
+            <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-all">
+              {JSON.stringify(line.hookInput, null, 2)}
+            </pre>
+          )}
         </Collapsible>
       )}
 
       {line.hookReturnValue != null && (
         <Collapsible label="Raw Return JSON" open={showRawReturn} onToggle={() => setShowRawReturn(!showRawReturn)}>
-          <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap">
-            {JSON.stringify(line.hookReturnValue, null, 2)}
-          </pre>
+          {showRawReturn && (
+            <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-all">
+              {JSON.stringify(line.hookReturnValue, null, 2)}
+            </pre>
+          )}
         </Collapsible>
       )}
     </div>
