@@ -200,16 +200,23 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
 
       // Log ReminderConsumed for secondary reminders so they appear in the timeline
       for (const secondary of reminders.slice(1)) {
+        const secondaryRenderedText =
+          typeof secondary.additionalContext === 'string' && secondary.additionalContext.trim().length > 0
+            ? secondary.additionalContext
+            : undefined
+        const secondaryReminderReturned = secondaryRenderedText !== undefined
+
         logEvent(
           cliCtx.logger,
           ReminderEvents.reminderConsumed(
             { sessionId, hook },
             {
               reminderName: secondary.name,
-              reminderReturned: true,
+              reminderReturned: secondaryReminderReturned,
               blocking: false,
               priority: secondary.priority,
               persistent: secondary.persistent,
+              renderedText: secondaryRenderedText,
             }
           )
         )
