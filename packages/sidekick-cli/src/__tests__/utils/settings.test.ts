@@ -40,6 +40,12 @@ describe('readSettingsFile', () => {
     expect(result).toEqual({})
   })
 
+  test('throws on non-ENOENT filesystem errors (e.g. EISDIR)', async () => {
+    await mkdir(TEST_DIR, { recursive: true })
+    // Attempting to read a directory as a file triggers EISDIR
+    await expect(readSettingsFile(TEST_DIR)).rejects.toThrow()
+  })
+
   test('supports generic type parameter', async () => {
     await mkdir(TEST_DIR, { recursive: true })
     const filePath = path.join(TEST_DIR, 'typed.json')

@@ -558,7 +558,7 @@ async function doClean(
     const shouldKill = force || (await promptConfirm({ stdin, stdout }, 'Kill these processes?'))
 
     if (shouldKill) {
-      const results = await killZombieDaemons(logger)
+      const results = await killZombieDaemons(logger, zombies)
       const killedCount = results.filter((r) => r.killed).length
       log(stdout, 'info', `Killed ${killedCount} zombie daemon(s)`)
     } else {

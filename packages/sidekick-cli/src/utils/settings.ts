@@ -8,16 +8,30 @@ import * as path from 'node:path'
  * Read a Claude Code settings JSON file, returning an empty object if
  * the file does not exist or contains invalid JSON.
  *
+ * Only ENOENT (missing file) and JSON parse errors are swallowed.
+ * Other errors (EACCES, EISDIR, etc.) propagate to the caller.
+ *
  * @param settingsPath - Absolute path to the settings file
- * @returns Parsed settings object (never throws)
+ * @returns Parsed settings object
+ * @throws On non-ENOENT filesystem errors (EACCES, EISDIR, etc.)
  */
 export async function readSettingsFile<T extends Record<string, unknown> = Record<string, unknown>>(
   settingsPath: string
 ): Promise<T> {
+  let content: string
   try {
-    const content = await readFile(settingsPath, 'utf-8')
+    content = await readFile(settingsPath, 'utf-8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return {} as T
+    }
+    throw err
+  }
+
+  try {
     return JSON.parse(content) as T
   } catch {
+    // Invalid JSON — treat as empty settings
     return {} as T
   }
 }
