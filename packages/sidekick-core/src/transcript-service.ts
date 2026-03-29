@@ -1392,6 +1392,8 @@ export class TranscriptServiceImpl implements TranscriptService {
    * - tool_result wrappers (arrays containing only tool_result blocks)
    * - isMeta messages (disclaimer/caveat messages injected by Claude Code)
    * - local-command-stdout messages (output from slash commands like /context)
+   * - excluded builtin command invocations (e.g. /clear, /compact — see EXCLUDED_BUILTIN_COMMANDS)
+   *   Note: unlike local-command-stdout, these do NOT emit UserPrompt events
    */
   private async processEntry(entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const entryType = entry.type as string | undefined
@@ -1402,14 +1404,16 @@ export class TranscriptServiceImpl implements TranscriptService {
         const isToolResultWrapper = this.isToolResultOnlyMessage(entry)
         const isMetaMessage = (entry as { isMeta?: boolean }).isMeta === true
         const isLocalCommandOutput = this.isLocalCommandStdoutMessage(entry)
+        const isExcludedBuiltin = this.isExcludedBuiltinCommandInvocation(entry)
 
-        if (isToolResultWrapper || isMetaMessage || isLocalCommandOutput) {
+        if (isToolResultWrapper || isMetaMessage || isLocalCommandOutput || isExcludedBuiltin) {
           // Non-user-prompt message: increment messageCount but DON'T increment turnCount
           // This allows toolsThisTurn to accumulate across multiple tool calls
           this.metrics.messageCount++
 
           // Still emit UserPrompt for local command output (e.g., /context) so handlers can process it
           // Handlers that want to scrape /context output need to receive these events
+          // Don't emit UserPrompt for excluded builtin command invocations — no handler needs them
           if (isLocalCommandOutput) {
             await this.emitEvent('UserPrompt', entry, lineNumber)
           }
@@ -1495,6 +1499,22 @@ export class TranscriptServiceImpl implements TranscriptService {
     if (typeof message.content !== 'string') return false
 
     return message.content.includes('<local-command-stdout>')
+  }
+
+  /**
+   * Check if a transcript entry is an excluded builtin command invocation that should be suppressed.
+   *
+   * When the user runs `/clear`, `/compact`, etc., Claude Code emits a user message with
+   * `<command-name>/clear</command-name>` content. These are not real user prompts and
+   * should not increment turnCount or emit UserPrompt events.
+   */
+  private isExcludedBuiltinCommandInvocation(entry: TranscriptEntry): boolean {
+    const message = entry.message as { content?: unknown } | undefined
+    if (!message?.content) return false
+
+    if (typeof message.content !== 'string') return false
+
+    return this.isExcludedBuiltinCommand(message.content)
   }
 
   /**

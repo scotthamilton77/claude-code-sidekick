@@ -672,9 +672,9 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.messageCount).toBe(4) // All messages counted
     })
 
-    it('excludes local-command-stdout messages from turnCount', async () => {
+    it('excludes builtin commands and local-command-stdout from turnCount', async () => {
       const transcript = [
-        // Command message (with <command-name>): should count as a turn
+        // Excluded builtin command (/context): should NOT count as a turn
         JSON.stringify({
           type: 'user',
           message: {
@@ -707,11 +707,11 @@ describe('TranscriptServiceImpl', () => {
       await service.start()
 
       const metrics = service.getMetrics()
-      expect(metrics.turnCount).toBe(2) // Command message + real prompt
+      expect(metrics.turnCount).toBe(1) // Only real prompt — /context is an excluded builtin
       expect(metrics.messageCount).toBe(4) // All messages counted
     })
 
-    it('excludes both isMeta and local-command-stdout in mixed transcript', async () => {
+    it('excludes isMeta, local-command-stdout, and builtin commands in mixed transcript', async () => {
       const transcript = [
         // isMeta disclaimer
         JSON.stringify({
@@ -719,7 +719,7 @@ describe('TranscriptServiceImpl', () => {
           isMeta: true,
           message: { role: 'user', content: 'Caveat: DO NOT respond to these messages.' },
         }),
-        // Command (counts)
+        // Excluded builtin command (excluded)
         JSON.stringify({
           type: 'user',
           message: { role: 'user', content: '<command-name>/clear</command-name>' },
@@ -735,7 +735,7 @@ describe('TranscriptServiceImpl', () => {
           isMeta: true,
           message: { role: 'user', content: 'Caveat: DO NOT respond.' },
         }),
-        // Command (counts)
+        // Excluded builtin command (excluded)
         JSON.stringify({
           type: 'user',
           message: { role: 'user', content: '<command-name>/context</command-name>' },
@@ -754,10 +754,107 @@ describe('TranscriptServiceImpl', () => {
       await service.start()
 
       const metrics = service.getMetrics()
-      // Turns: /clear command + /context command + real prompt = 3
-      expect(metrics.turnCount).toBe(3)
+      // Turns: only real prompt — /clear and /context are excluded builtins
+      expect(metrics.turnCount).toBe(1)
       // Messages: all 7 user messages counted
       expect(metrics.messageCount).toBe(7)
+    })
+
+    it('excludes builtin command invocations from turnCount and UserPrompt', async () => {
+      const transcript = [
+        // Excluded builtin command (/clear): should NOT count as a turn, should NOT emit UserPrompt
+        JSON.stringify({
+          type: 'user',
+          message: { role: 'user', content: '<command-name>/clear</command-name>' },
+        }),
+        // Real user prompt: SHOULD count as a turn
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello after clear' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const metrics = service.getMetrics()
+      // /clear is an excluded builtin — should NOT increment turnCount
+      expect(metrics.turnCount).toBe(1)
+      // Both messages should increment messageCount
+      expect(metrics.messageCount).toBe(2)
+
+      // Only the real user prompt should emit UserPrompt, not the /clear command
+      const userPromptEvents = handlers.emittedEvents.filter((e) => e.eventType === 'UserPrompt')
+      expect(userPromptEvents).toHaveLength(1)
+      expect(userPromptEvents[0].lineNumber).toBe(2) // Line 2 is the real prompt
+    })
+
+    it('still emits UserPrompt for local-command-stdout (unchanged behavior)', async () => {
+      const transcript = [
+        // Local command stdout: should NOT count as a turn, but SHOULD emit UserPrompt
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: '<local-command-stdout>Context Usage: 73k/200k tokens</local-command-stdout>',
+          },
+        }),
+        // Real user prompt
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Real question' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const metrics = service.getMetrics()
+      expect(metrics.turnCount).toBe(1) // Only real prompt
+      expect(metrics.messageCount).toBe(2)
+
+      // Both should emit UserPrompt (local-command-stdout emits for handler scraping)
+      const userPromptEvents = handlers.emittedEvents.filter((e) => e.eventType === 'UserPrompt')
+      expect(userPromptEvents).toHaveLength(2)
+    })
+
+    it('excludes multiple builtin commands while preserving non-builtin commands', async () => {
+      const transcript = [
+        // /clear — excluded builtin
+        JSON.stringify({
+          type: 'user',
+          message: { role: 'user', content: '<command-name>/clear</command-name>' },
+        }),
+        // /compact — excluded builtin
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: '<command-name>/compact</command-name>\n<command-args>focus on tests</command-args>',
+          },
+        }),
+        // /my-custom-command — NOT excluded (custom command)
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: '<command-name>/my-custom-command</command-name>\n<command-args>args</command-args>',
+          },
+        }),
+        // Real user prompt
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'What happened?' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      const metrics = service.getMetrics()
+      // /clear and /compact excluded; /my-custom-command and real prompt count
+      expect(metrics.turnCount).toBe(2)
+      expect(metrics.messageCount).toBe(4)
+
+      const userPromptEvents = handlers.emittedEvents.filter((e) => e.eventType === 'UserPrompt')
+      // /my-custom-command (line 3) + real prompt (line 4)
+      expect(userPromptEvents).toHaveLength(2)
+      expect(userPromptEvents[0].lineNumber).toBe(3)
+      expect(userPromptEvents[1].lineNumber).toBe(4)
     })
   })
 
