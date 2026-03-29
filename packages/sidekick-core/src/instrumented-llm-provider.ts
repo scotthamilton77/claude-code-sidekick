@@ -101,8 +101,8 @@ export class InstrumentedLLMProvider implements LLMProvider {
   private persistPromise: Promise<void> | null = null
 
   // Store individual latencies for percentile calculation
-  // Map key is `${provider}:${model}`
-  private latencyBuffers: Map<string, number[]> = new Map()
+  // Nested map: provider -> model -> latencies[]
+  private latencyBuffers: Map<string, Map<string, number[]>> = new Map()
 
   constructor(
     private readonly delegate: LLMProvider,
@@ -366,6 +366,41 @@ export class InstrumentedLLMProvider implements LLMProvider {
   }
 
   /**
+   * Ensure provider and model entries exist in metrics, returning both.
+   * DRYs the duplicated guard blocks from recordSuccess/recordFailure.
+   */
+  private getOrCreateModelMetrics(
+    provider: string,
+    model: string
+  ): { providerMetrics: LLMProviderMetrics; modelMetrics: LLMModelMetrics } {
+    if (!this.metrics.byProvider[provider]) {
+      this.metrics.byProvider[provider] = this.createEmptyProviderMetrics()
+    }
+    const providerMetrics = this.metrics.byProvider[provider]
+
+    if (!providerMetrics.byModel[model]) {
+      providerMetrics.byModel[model] = this.createEmptyModelMetrics()
+    }
+    const modelMetrics = providerMetrics.byModel[model]
+
+    return { providerMetrics, modelMetrics }
+  }
+
+  /**
+   * Get or create the latency buffer for a provider/model pair.
+   */
+  private getOrCreateLatencyBuffer(provider: string, model: string): number[] {
+    if (!this.latencyBuffers.has(provider)) {
+      this.latencyBuffers.set(provider, new Map())
+    }
+    const providerBuffers = this.latencyBuffers.get(provider)!
+    if (!providerBuffers.has(model)) {
+      providerBuffers.set(model, [])
+    }
+    return providerBuffers.get(model)!
+  }
+
+  /**
    * Record a successful LLM call.
    */
   private recordSuccess(
@@ -375,17 +410,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
     inputTokens: number,
     outputTokens: number
   ): void {
-    // Ensure provider exists
-    if (!this.metrics.byProvider[provider]) {
-      this.metrics.byProvider[provider] = this.createEmptyProviderMetrics()
-    }
-    const providerMetrics = this.metrics.byProvider[provider]
-
-    // Ensure model exists
-    if (!providerMetrics.byModel[model]) {
-      providerMetrics.byModel[model] = this.createEmptyModelMetrics()
-    }
-    const modelMetrics = providerMetrics.byModel[model]
+    const { providerMetrics, modelMetrics } = this.getOrCreateModelMetrics(provider, model)
 
     // Update model metrics
     modelMetrics.callCount++
@@ -410,12 +435,8 @@ export class InstrumentedLLMProvider implements LLMProvider {
     this.metrics.totals.averageLatencyMs =
       this.metrics.totals.successCount > 0 ? this.metrics.totals.totalLatencyMs / this.metrics.totals.successCount : 0
 
-    // Store latency for percentile calculation
-    const bufferKey = `${provider}:${model}`
-    if (!this.latencyBuffers.has(bufferKey)) {
-      this.latencyBuffers.set(bufferKey, [])
-    }
-    this.latencyBuffers.get(bufferKey)!.push(latencyMs)
+    // Store latency for percentile calculation (nested map avoids delimiter collision)
+    this.getOrCreateLatencyBuffer(provider, model).push(latencyMs)
 
     this.metrics.lastUpdatedAt = Date.now()
     this.schedulePersist()
@@ -425,17 +446,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
    * Record a failed LLM call.
    */
   private recordFailure(provider: string, model: string, _latencyMs: number): void {
-    // Ensure provider exists
-    if (!this.metrics.byProvider[provider]) {
-      this.metrics.byProvider[provider] = this.createEmptyProviderMetrics()
-    }
-    const providerMetrics = this.metrics.byProvider[provider]
-
-    // Ensure model exists
-    if (!providerMetrics.byModel[model]) {
-      providerMetrics.byModel[model] = this.createEmptyModelMetrics()
-    }
-    const modelMetrics = providerMetrics.byModel[model]
+    const { providerMetrics, modelMetrics } = this.getOrCreateModelMetrics(provider, model)
 
     // Update model metrics (only counts, not latency stats for failures)
     modelMetrics.callCount++
@@ -512,40 +523,37 @@ export class InstrumentedLLMProvider implements LLMProvider {
 
   /**
    * Compute percentiles from latency buffers.
+   * Iterates nested maps (provider -> model -> latencies[]) to avoid
+   * delimiter-based key parsing that corrupts model names containing colons.
    */
   private computePercentiles(): void {
-    for (const [key, latencies] of this.latencyBuffers.entries()) {
-      if (latencies.length === 0) continue
-
-      const [provider, model] = key.split(':')
+    for (const [provider, modelBuffers] of this.latencyBuffers.entries()) {
       const providerMetrics = this.metrics.byProvider[provider]
       if (!providerMetrics) continue
 
-      const modelMetrics = providerMetrics.byModel[model]
-      if (!modelMetrics) continue
+      const allProviderLatencies: number[] = []
 
-      // Sort for percentile calculation
-      const sorted = [...latencies].sort((a, b) => a - b)
+      for (const [model, latencies] of modelBuffers.entries()) {
+        if (latencies.length === 0) continue
 
-      // Update model percentiles
-      modelMetrics.latency.p50 = this.percentile(sorted, 50)
-      modelMetrics.latency.p90 = this.percentile(sorted, 90)
-      modelMetrics.latency.p95 = this.percentile(sorted, 95)
-    }
+        const modelMetrics = providerMetrics.byModel[model]
+        if (!modelMetrics) continue
 
-    // Compute provider-level percentiles by combining all model latencies
-    for (const [provider, providerMetrics] of Object.entries(this.metrics.byProvider)) {
-      const allLatencies: number[] = []
-      for (const model of Object.keys(providerMetrics.byModel)) {
-        const bufferKey = `${provider}:${model}`
-        const buffer = this.latencyBuffers.get(bufferKey)
-        if (buffer) {
-          allLatencies.push(...buffer)
-        }
+        // Sort for percentile calculation
+        const sorted = [...latencies].sort((a, b) => a - b)
+
+        // Update model percentiles
+        modelMetrics.latency.p50 = this.percentile(sorted, 50)
+        modelMetrics.latency.p90 = this.percentile(sorted, 90)
+        modelMetrics.latency.p95 = this.percentile(sorted, 95)
+
+        // Accumulate for provider-level percentiles
+        allProviderLatencies.push(...latencies)
       }
 
-      if (allLatencies.length > 0) {
-        const sorted = allLatencies.sort((a, b) => a - b)
+      // Compute provider-level percentiles from all model latencies
+      if (allProviderLatencies.length > 0) {
+        const sorted = allProviderLatencies.sort((a, b) => a - b)
         providerMetrics.latency.p50 = this.percentile(sorted, 50)
         providerMetrics.latency.p90 = this.percentile(sorted, 90)
         providerMetrics.latency.p95 = this.percentile(sorted, 95)
