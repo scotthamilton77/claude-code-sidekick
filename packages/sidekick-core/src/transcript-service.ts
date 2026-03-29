@@ -1507,8 +1507,6 @@ export class TranscriptServiceImpl implements TranscriptService {
    * When the user runs `/clear`, `/compact`, etc., Claude Code emits a user message with
    * `<command-name>/clear</command-name>` content. These are not real user prompts and
    * should not increment turnCount or emit UserPrompt events.
-   *
-   * Delegates to isExcludedBuiltinCommand() for the actual command matching.
    */
   private isBuiltinCommandInvocation(entry: TranscriptEntry): boolean {
     const message = entry.message as { content?: unknown } | undefined
