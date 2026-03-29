@@ -18,6 +18,34 @@ settings:
     user-prompt-submit: 10
     remember-your-persona: 5
 
+  # Command runner prefixes that trigger unanchored pattern matching.
+  # When a bash command starts with one of these prefixes, the tool pattern
+  # matcher drops its first-token anchor and scans for the tool name at any
+  # position. This allows commands like 'uv run mypy' to match pattern 'mypy'.
+  # Array merge strategy: replace (project/user config replaces defaults entirely).
+  command_runners:
+    # Python
+    - prefix: "uv run"
+    - prefix: "poetry run"
+    - prefix: "pipx run"
+    - prefix: "pdm run"
+    - prefix: "hatch run"
+    - prefix: "conda run"
+    # Node.js
+    - prefix: "npx"
+    - prefix: "pnpx"
+    - prefix: "bunx"
+    - prefix: "pnpm dlx"
+    - prefix: "pnpm exec"
+    - prefix: "bun run"
+    - prefix: "yarn dlx"
+    - prefix: "yarn exec"
+    - prefix: "npm exec"
+    # Ruby
+    - prefix: "bundle exec"
+    # .NET
+    - prefix: "dotnet tool run"
+
   # Glob patterns that trigger verify-completion reminder on file edit.
   # Uses picomatch syntax: https://github.com/micromatch/picomatch
   # Only edits to files matching these patterns will stage the reminder.

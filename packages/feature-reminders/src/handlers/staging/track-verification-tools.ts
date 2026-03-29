@@ -29,6 +29,7 @@ import {
   TOOL_REMINDER_MAP,
   DEFAULT_REMINDERS_SETTINGS,
   VC_TOOL_REMINDER_IDS,
+  type CommandRunner,
   type RemindersSettings,
   type VerificationToolsMap,
 } from '../../types.js'
@@ -65,6 +66,7 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
       const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
       const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
       const verificationTools = config.verification_tools ?? {}
+      const runners = config.command_runners ?? []
 
       const remindersState = createRemindersState(daemonCtx.stateService)
       const stateResult = await remindersState.verificationTools.read(sessionId)
@@ -73,7 +75,7 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
       if (FILE_EDIT_TOOLS.includes(toolName)) {
         await handleFileEdit(event, daemonCtx, sessionId, verificationTools, toolsState, remindersState)
       } else if (toolName === 'Bash') {
-        await handleBashCommand(event, daemonCtx, sessionId, verificationTools, toolsState, remindersState)
+        await handleBashCommand(event, daemonCtx, sessionId, verificationTools, toolsState, remindersState, runners)
       }
     },
   })
@@ -258,7 +260,8 @@ async function handleBashCommand(
   sessionId: string,
   verificationTools: VerificationToolsMap,
   toolsState: VerificationToolsState,
-  remindersState: RemindersStateAccessors
+  remindersState: RemindersStateAccessors,
+  runners: CommandRunner[] = []
 ): Promise<void> {
   const command = extractToolInput(event)?.command as string | undefined
   if (!command) return
@@ -270,7 +273,7 @@ async function handleBashCommand(
 
     const reminderId = TOOL_REMINDER_MAP[toolName]
     if (!reminderId) continue
-    const match = findMatchingPattern(command, toolConfig.patterns)
+    const match = findMatchingPattern(command, toolConfig.patterns, runners)
     if (!match) continue
 
     toolsState[toolName] = {
