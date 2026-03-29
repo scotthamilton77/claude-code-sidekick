@@ -48,6 +48,20 @@ import type {
 // Re-export for backward compatibility
 export type { EventLogContext } from '@sidekick/types'
 
+/** Pick only the context fields needed for logging events. */
+function buildContext(ctx: EventLogContext): EventLogContext {
+  return {
+    sessionId: ctx.sessionId,
+    correlationId: ctx.correlationId,
+    traceId: ctx.traceId,
+    hook: ctx.hook,
+    taskId: ctx.taskId,
+  }
+}
+
+/** Sentinel context for daemon lifecycle events emitted before any session exists. */
+const EMPTY_CONTEXT: EventLogContext = { sessionId: '' }
+
 /**
  * Factory functions for creating properly-typed logging events.
  * These events are logged for observability but don't trigger handlers.
@@ -70,12 +84,7 @@ export const LogEvents = {
       type: 'hook:received',
       time: Date.now(),
       source: 'cli',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-      },
+      context: { ...buildContext(context), hook: context.hook },
       payload: {
         hook: context.hook,
         cwd: metadata.cwd,
@@ -97,12 +106,7 @@ export const LogEvents = {
       type: 'hook:completed',
       time: Date.now(),
       source: 'cli',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-      },
+      context: { ...buildContext(context), hook: context.hook },
       payload: {
         hook: context.hook,
         durationMs: metadata.durationMs,
@@ -126,13 +130,7 @@ export const LogEvents = {
       type: 'event:received',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         eventKind: metadata.eventKind,
         ...(metadata.eventType !== undefined && { eventType: metadata.eventType }),
@@ -154,13 +152,7 @@ export const LogEvents = {
       type: 'event:processed',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         handlerId: state.handlerId,
         success: state.success,
@@ -191,13 +183,7 @@ export const LogEvents = {
       type: 'reminder:staged',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         reminderName: state.reminderName,
         hookName: state.hookName,
@@ -221,9 +207,7 @@ export const LogEvents = {
       type: 'daemon:starting',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: '',
-      },
+      context: EMPTY_CONTEXT,
       payload: {
         projectDir: metadata.projectDir,
         pid: metadata.pid,
@@ -239,9 +223,7 @@ export const LogEvents = {
       type: 'daemon:started',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: '',
-      },
+      context: EMPTY_CONTEXT,
       payload: {
         startupDurationMs: metadata.startupDurationMs,
       },
@@ -256,9 +238,7 @@ export const LogEvents = {
       type: 'ipc:started',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: '',
-      },
+      context: EMPTY_CONTEXT,
       payload: {
         socketPath: metadata.socketPath,
       },
@@ -273,9 +253,7 @@ export const LogEvents = {
       type: 'config:watcher-started',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: '',
-      },
+      context: EMPTY_CONTEXT,
       payload: {
         projectDir: metadata.projectDir,
         watchedFiles: metadata.watchedFiles,
@@ -291,9 +269,7 @@ export const LogEvents = {
       type: 'session:eviction-started',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: '',
-      },
+      context: EMPTY_CONTEXT,
       payload: {
         intervalMs: metadata.intervalMs,
       },
@@ -322,13 +298,7 @@ export const LogEvents = {
       type: 'statusline:rendered',
       time: Date.now(),
       source: 'cli',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         displayMode: state.displayMode,
         staleData: state.staleData,
@@ -356,13 +326,7 @@ export const LogEvents = {
       type: 'statusline:error',
       time: Date.now(),
       source: 'cli',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         reason,
         file: metadata.file,
@@ -389,13 +353,7 @@ export const LogEvents = {
       type: 'resume-message:start',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         title_confidence: metadata.title_confidence,
         intent_confidence: metadata.intent_confidence,
@@ -418,13 +376,7 @@ export const LogEvents = {
       type: 'resume-message:finish',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         snarky_comment: state.snarky_comment,
         timestamp: state.timestamp,
@@ -449,13 +401,7 @@ export const LogEvents = {
       type: 'resume-message:skipped',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         title_confidence: metadata.title_confidence,
         intent_confidence: metadata.intent_confidence,
@@ -475,13 +421,7 @@ export const LogEvents = {
       type: 'persona:selected',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload,
     }
   },
@@ -494,13 +434,7 @@ export const LogEvents = {
       type: 'persona:changed',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload,
     }
   },
@@ -529,13 +463,7 @@ export const LogEvents = {
       type: 'transcript:emitted',
       time: Date.now(),
       source: 'transcript',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         eventType: state.eventType,
         lineNumber: state.lineNumber,
@@ -567,13 +495,7 @@ export const LogEvents = {
       type: 'transcript:pre-compact',
       time: Date.now(),
       source: 'transcript',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         snapshotPath: state.snapshotPath,
         lineCount: state.lineCount,
@@ -600,13 +522,7 @@ export const LogEvents = {
       type: 'error:occurred',
       time: Date.now(),
       source: 'daemon',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         errorMessage: state.errorMessage,
         errorStack: state.errorStack,
@@ -629,13 +545,7 @@ export const LogEvents = {
       type: 'error:occurred',
       time: Date.now(),
       source: 'cli',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         errorMessage: state.errorMessage,
         errorStack: state.errorStack,
@@ -653,13 +563,7 @@ export const LogEvents = {
       type: 'bulk-processing:start',
       time: Date.now(),
       source: 'transcript',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         fileSize: metadata.fileSize,
       },
@@ -677,13 +581,7 @@ export const LogEvents = {
       type: 'bulk-processing:finish',
       time: Date.now(),
       source: 'transcript',
-      context: {
-        sessionId: context.sessionId,
-        correlationId: context.correlationId,
-        traceId: context.traceId,
-        hook: context.hook,
-        taskId: context.taskId,
-      },
+      context: buildContext(context),
       payload: {
         totalLinesProcessed: metadata.totalLinesProcessed,
         durationMs: metadata.durationMs,
