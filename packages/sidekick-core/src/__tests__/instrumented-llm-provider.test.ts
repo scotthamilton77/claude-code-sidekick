@@ -586,6 +586,139 @@ describe('InstrumentedLLMProvider', () => {
     })
   })
 
+  describe('model names with colons', () => {
+    it('should correctly track metrics for model names containing colons', async () => {
+      const provider = createMockProvider({
+        id: 'openrouter',
+        complete: () =>
+          Promise.resolve({
+            content: 'response',
+            model: 'anthropic:claude-3:opus',
+            usage: { inputTokens: 200, outputTokens: 100 },
+            rawResponse: { status: 200, body: '{}' },
+          }),
+      })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateService,
+        sessionDir: tempDir,
+        logger,
+        persistDebounceMs: 10,
+      })
+
+      await instrumented.complete({ messages: [{ role: 'user', content: 'test' }] })
+      await instrumented.shutdown()
+
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      const saved = stateService.store.get(statePath) as LLMMetricsState
+
+      // The model name with colons must be preserved exactly
+      expect(saved.byProvider['openrouter']).toBeDefined()
+      expect(saved.byProvider['openrouter'].byModel['anthropic:claude-3:opus']).toBeDefined()
+      expect(saved.byProvider['openrouter'].byModel['anthropic:claude-3:opus'].callCount).toBe(1)
+      expect(saved.byProvider['openrouter'].byModel['anthropic:claude-3:opus'].inputTokens).toBe(200)
+    })
+
+    it('should compute correct percentiles for model names containing colons', async () => {
+      const provider = createMockProvider({
+        id: 'openrouter',
+        complete: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          return {
+            content: 'response',
+            model: 'anthropic:claude-3:opus',
+            usage: { inputTokens: 10, outputTokens: 5 },
+            rawResponse: { status: 200, body: '{}' },
+          }
+        },
+      })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateService,
+        sessionDir: tempDir,
+        logger,
+        persistDebounceMs: 10,
+      })
+
+      // Make multiple calls to populate percentile data
+      for (let i = 0; i < 5; i++) {
+        await instrumented.complete({ messages: [{ role: 'user', content: `test${i}` }] })
+      }
+
+      await instrumented.shutdown()
+
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      const saved = stateService.store.get(statePath) as LLMMetricsState
+
+      // Percentiles must be computed for the colon-containing model
+      const modelMetrics = saved.byProvider['openrouter'].byModel['anthropic:claude-3:opus']
+      expect(modelMetrics).toBeDefined()
+      expect(modelMetrics.latency.p50).toBeGreaterThan(0)
+      expect(modelMetrics.latency.p90).toBeGreaterThan(0)
+      expect(modelMetrics.latency.p95).toBeGreaterThan(0)
+
+      // Provider-level percentiles must also be correct
+      expect(saved.byProvider['openrouter'].latency.p50).toBeGreaterThan(0)
+      expect(saved.byProvider['openrouter'].latency.p90).toBeGreaterThan(0)
+      expect(saved.byProvider['openrouter'].latency.p95).toBeGreaterThan(0)
+    })
+
+    it('should handle normal model names alongside colon-containing names', async () => {
+      let callIdx = 0
+      const models = ['gpt-4', 'anthropic:claude-3:opus']
+
+      const provider = createMockProvider({
+        id: 'multi-provider',
+        complete: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          const model = models[callIdx % models.length]
+          callIdx++
+          return {
+            content: 'response',
+            model,
+            usage: { inputTokens: 10, outputTokens: 5 },
+            rawResponse: { status: 200, body: '{}' },
+          }
+        },
+      })
+
+      const instrumented = new InstrumentedLLMProvider(provider, {
+        sessionId: 'test-session',
+        stateService,
+        sessionDir: tempDir,
+        logger,
+        persistDebounceMs: 10,
+      })
+
+      // Alternate between normal and colon-containing model names
+      for (let i = 0; i < 4; i++) {
+        await instrumented.complete({ messages: [{ role: 'user', content: `test${i}` }] })
+      }
+
+      await instrumented.shutdown()
+
+      const statePath = stateService.sessionStatePath('test-session', 'llm-metrics.json')
+      const saved = stateService.store.get(statePath) as LLMMetricsState
+
+      // Both models must be tracked separately and correctly
+      const providerMetrics = saved.byProvider['multi-provider']
+      expect(providerMetrics.byModel['gpt-4']).toBeDefined()
+      expect(providerMetrics.byModel['gpt-4'].callCount).toBe(2)
+      expect(providerMetrics.byModel['anthropic:claude-3:opus']).toBeDefined()
+      expect(providerMetrics.byModel['anthropic:claude-3:opus'].callCount).toBe(2)
+
+      // Both models should have percentiles computed
+      expect(providerMetrics.byModel['gpt-4'].latency.p50).toBeGreaterThan(0)
+      expect(providerMetrics.byModel['anthropic:claude-3:opus'].latency.p50).toBeGreaterThan(0)
+
+      // Provider-level should aggregate both
+      expect(providerMetrics.callCount).toBe(4)
+      expect(providerMetrics.latency.p50).toBeGreaterThan(0)
+    })
+  })
+
   describe('debug dump', () => {
     it('writes request and response YAML files when debugDumpEnabled', async () => {
       const { readdirSync } = await import('node:fs')
