@@ -146,9 +146,9 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
     case 'snarky-message:finish':
       return { label: 'Snarky Message Finish', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
     case 'resume-message:start':
-      return { label: 'Resume Message…' }
+      return { label: 'Resume Message Start' }
     case 'resume-message:finish':
-      return { label: 'Resume Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+      return { label: 'Resume Message Finish', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
     case 'persona:selected':
       return { label: `Persona chosen: ${line.personaTo ?? 'unknown'}` }
     case 'persona:changed':

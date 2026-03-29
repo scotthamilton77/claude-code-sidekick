@@ -323,12 +323,14 @@ export async function handleStatuslineCommand(
     // Emit structured StatuslineRendered event
     // Build a compact hookInput summary for the log (full input is too large)
     const hookInputSummary = options.hookInput
-      ? {
-          session_id: options.hookInput.session_id,
-          model: options.hookInput.model?.display_name,
-          cwd: options.hookInput.cwd,
-          version: options.hookInput.version,
-        }
+      ? Object.fromEntries(
+          Object.entries({
+            session_id: options.hookInput.session_id,
+            model: options.hookInput.model?.display_name,
+            cwd: options.hookInput.cwd,
+            version: options.hookInput.version,
+          }).filter(([, value]) => value !== undefined)
+        )
       : undefined
     const event = LogEvents.statuslineRendered(
       eventContext,

@@ -406,7 +406,9 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
     line.content = payload.renderedText as string
   }
   // For reminder:staged events, capture the reminder text at staging time
-  if (payload.reminderText) line.reminderText = payload.reminderText as string
+  if (entry.type === 'reminder:staged' && payload.reminderText) {
+    line.reminderText = payload.reminderText as string
+  }
   line.decisionTitle = payload.title as string | undefined
   line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string
@@ -426,7 +428,7 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
       const parts: string[] = []
       if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
       if (payload.staleData === true) parts.push('(stale)')
-      if (payload.tokens) parts.push(`${payload.tokens} chat tokens`)
+      if (payload.tokens != null) parts.push(`${payload.tokens} chat tokens`)
       if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
       if (parts.length > 0) line.statuslineContent = parts.join(' · ')
     }
