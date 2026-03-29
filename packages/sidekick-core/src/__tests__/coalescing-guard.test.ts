@@ -13,7 +13,9 @@ describe('CoalescingGuard', () => {
   it('coalesces concurrent calls with same key — fn runs exactly twice', async () => {
     const guard = new CoalescingGuard<string>()
     let resolveFirst!: () => void
-    const barrier = new Promise<void>((r) => { resolveFirst = r })
+    const barrier = new Promise<void>((r) => {
+      resolveFirst = r
+    })
     let callCount = 0
     const fn = vi.fn(async () => {
       callCount++
@@ -36,10 +38,7 @@ describe('CoalescingGuard', () => {
     const fn1 = vi.fn().mockResolvedValue(undefined)
     const fn2 = vi.fn().mockResolvedValue(undefined)
 
-    const [r1, r2] = await Promise.all([
-      guard.run('key1', fn1),
-      guard.run('key2', fn2),
-    ])
+    const [r1, r2] = await Promise.all([guard.run('key1', fn1), guard.run('key2', fn2)])
     expect(r1).toBe(true)
     expect(r2).toBe(true)
     expect(fn1).toHaveBeenCalledOnce()
@@ -49,7 +48,9 @@ describe('CoalescingGuard', () => {
   it('three rapid calls — fn runs exactly twice (third coalesces into pending)', async () => {
     const guard = new CoalescingGuard<string>()
     let resolveFirst!: () => void
-    const barrier = new Promise<void>((r) => { resolveFirst = r })
+    const barrier = new Promise<void>((r) => {
+      resolveFirst = r
+    })
     let callCount = 0
     const fn = vi.fn(async () => {
       callCount++
@@ -71,8 +72,12 @@ describe('CoalescingGuard', () => {
   it('clear() resets inflight state', async () => {
     const guard = new CoalescingGuard<string>()
     let resolveFirst!: () => void
-    const barrier = new Promise<void>((r) => { resolveFirst = r })
-    const fn = vi.fn(async () => { await barrier })
+    const barrier = new Promise<void>((r) => {
+      resolveFirst = r
+    })
+    const fn = vi.fn(async () => {
+      await barrier
+    })
 
     const p1 = guard.run('key1', fn)
     // While in-flight, clear should wipe state
@@ -93,9 +98,10 @@ describe('CoalescingGuard', () => {
     const guard = new CoalescingGuard<string>()
     const error = new Error('boom')
     let callCount = 0
-    const failingFn = vi.fn(async () => {
+    const failingFn = vi.fn((): Promise<void> => {
       callCount++
-      if (callCount === 1) throw error
+      if (callCount === 1) return Promise.reject(error)
+      return Promise.resolve()
     })
 
     // First call throws, second is coalesced
