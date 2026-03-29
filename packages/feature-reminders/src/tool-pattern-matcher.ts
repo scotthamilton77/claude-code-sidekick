@@ -24,7 +24,7 @@ const SHELL_OPERATOR_RE = /\s*(?:&&|\|\||[;|])\s*/
  * Returns the number of prefix tokens matched, or 0 if no runner matches.
  * When multiple runners match, the longest (most tokens) wins.
  */
-export function detectRunnerPrefix(segmentTokens: string[], runners: CommandRunner[]): number {
+function detectRunnerPrefix(segmentTokens: string[], runners: CommandRunner[]): number {
   let longestMatch = 0
 
   for (const runner of runners) {
