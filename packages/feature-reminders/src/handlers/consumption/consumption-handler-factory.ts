@@ -178,7 +178,7 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
       if (response.additionalContext) renderedParts.push(response.additionalContext)
       const renderedText = renderedParts.length > 0 ? renderedParts.join('\n\n') : undefined
 
-      // Log ReminderConsumed event
+      // Log ReminderConsumed event for the primary reminder
       logEvent(
         cliCtx.logger,
         ReminderEvents.reminderConsumed(
@@ -197,6 +197,23 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
           }
         )
       )
+
+      // Log ReminderConsumed for secondary reminders so they appear in the timeline
+      for (const secondary of reminders.slice(1)) {
+        logEvent(
+          cliCtx.logger,
+          ReminderEvents.reminderConsumed(
+            { sessionId, hook },
+            {
+              reminderName: secondary.name,
+              reminderReturned: true,
+              blocking: false,
+              priority: secondary.priority,
+              persistent: secondary.persistent,
+            }
+          )
+        )
+      }
 
       return { response }
     },

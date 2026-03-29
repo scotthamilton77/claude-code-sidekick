@@ -1175,9 +1175,7 @@ describe('TranscriptServiceImpl', () => {
       await service.start()
 
       // Write data after start
-      const transcript = [
-        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
-      ].join('\n')
+      const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
       writeFileSync(transcriptPath, transcript)
 
       const internals = getTestHelpers(service)

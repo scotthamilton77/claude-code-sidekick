@@ -659,5 +659,52 @@ describe('createConsumptionHandler', () => {
       // Payload is flat (no state/metadata nesting)
       expect(logRecord?.meta?.reminderName).toBe('test')
     })
+
+    it('logs ReminderConsumed event for ALL reminders, not just the primary', async () => {
+      const stagingDir = join(testStateDir, 'sessions', sessionId, 'stage', 'PreToolUse')
+
+      // Stage two reminders with different priorities
+      writeFileSync(
+        join(stagingDir, 'high-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'high-priority',
+            priority: 90,
+            persistent: true,
+            additionalContext: 'High context',
+          })
+        )
+      )
+      writeFileSync(
+        join(stagingDir, 'low-priority.json'),
+        JSON.stringify(
+          createReminder({
+            name: 'low-priority',
+            priority: 10,
+            persistent: true,
+            additionalContext: 'Low context',
+          })
+        )
+      )
+
+      createConsumptionHandler(ctx, {
+        id: 'test:consume',
+        hook: 'PreToolUse',
+      })
+
+      const handler = handlers.getHandler('test:consume')
+      await handler?.handler(createPreToolUseEvent(), ctx as unknown as import('@sidekick/types').HandlerContext)
+
+      // Should log reminder:consumed for BOTH reminders
+      const consumedLogs = logger.recordedLogs.filter(
+        (log) => log.msg === 'reminder:consumed' && log.meta?.type === 'reminder:consumed'
+      )
+      expect(consumedLogs).toHaveLength(2)
+
+      // Verify both reminder names are logged
+      const consumedNames = consumedLogs.map((log) => log.meta?.reminderName)
+      expect(consumedNames).toContain('high-priority')
+      expect(consumedNames).toContain('low-priority')
+    })
   })
 })
