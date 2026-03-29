@@ -17,12 +17,12 @@ import {
   ReminderIds,
   TOOL_REMINDER_MAP,
   ALL_VC_REMINDER_IDS,
-  DEFAULT_REMINDERS_SETTINGS,
+  getRemindersConfig,
   type RemindersSettings,
   type VerificationToolConfig,
 } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
-import { createRemindersState } from '../../state.js'
+import { createRemindersState, type RemindersStateAccessors } from '../../state.js'
 
 /** Check whether a single verification tool needs (re-)verification */
 function toolNeedsVerification(
@@ -36,6 +36,137 @@ function toolNeedsVerification(
     return state.editsSinceVerified >= toolConfig.clearing_threshold
   }
   return false
+}
+
+/**
+ * Re-stage per-tool VC reminders for tools that still need verification.
+ * Returns true if the wrapper reminder was successfully re-staged (caller should return early).
+ */
+async function restageUnverifiedTools(
+  daemonCtx: DaemonContext,
+  sessionId: string,
+  config: RemindersSettings,
+  unverifiedState: VCUnverifiedState,
+  remindersState: RemindersStateAccessors
+): Promise<boolean> {
+  const verificationToolsResult = await remindersState.verificationTools.read(sessionId)
+  const toolsState = verificationToolsResult.data
+  const verificationTools = config.verification_tools ?? {}
+
+  // Collect tools needing verification in a single pass (avoids double iteration)
+  const toolsToRestage = Object.entries(verificationTools)
+    .filter(([toolName, toolConfig]) => toolNeedsVerification(toolConfig, toolsState[toolName]))
+    .map(([toolName]) => ({ toolName, reminderId: TOOL_REMINDER_MAP[toolName] }))
+    .filter((entry): entry is { toolName: string; reminderId: string } => entry.reminderId !== undefined)
+
+  if (toolsToRestage.length === 0) {
+    daemonCtx.logger.info('VC unstage: all tools verified, skipping wrapper re-stage', {
+      sessionId,
+      cycleCount: unverifiedState.cycleCount,
+    })
+    await remindersState.vcUnverified.delete(sessionId)
+    return false // Fall through to cleanup
+  }
+
+  // Re-stage per-tool reminders for tools that still need verification
+  const stagedAt = {
+    timestamp: Date.now(),
+    turnCount: unverifiedState.setAt.turnCount,
+    toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
+    toolCount: unverifiedState.setAt.toolCount,
+  }
+
+  for (const { reminderId } of toolsToRestage) {
+    const toolReminder = resolveReminder(reminderId, {
+      context: {},
+      assets: daemonCtx.assets,
+    })
+    if (toolReminder) {
+      await stageReminder(daemonCtx, 'Stop', { ...toolReminder, stagedAt })
+    }
+  }
+
+  // Re-stage verify-completion wrapper for next Stop
+  const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
+    context: {},
+    assets: daemonCtx.assets,
+  })
+
+  if (reminder) {
+    await stageReminder(daemonCtx, 'Stop', { ...reminder, stagedAt })
+    daemonCtx.logger.info('VC unstage: re-staged for next Stop', {
+      sessionId,
+      cycleCount: unverifiedState.cycleCount,
+      lastCategory: unverifiedState.lastClassification.category,
+    })
+    return true // Caller should return early — reminders were re-staged
+  }
+
+  daemonCtx.logger.warn('VC unstage: failed to resolve reminder for re-staging')
+  return false
+}
+
+/**
+ * Handle cycle limit exceeded: clear unverified state and log decision.
+ */
+async function handleCycleLimitReached(
+  daemonCtx: DaemonContext,
+  sessionId: string,
+  unverifiedState: VCUnverifiedState,
+  maxCycles: number,
+  remindersState: RemindersStateAccessors
+): Promise<void> {
+  daemonCtx.logger.info('VC unstage: cycle limit reached, clearing', {
+    sessionId,
+    cycleCount: unverifiedState.cycleCount,
+    maxCycles,
+  })
+  await remindersState.vcUnverified.delete(sessionId)
+  logEvent(
+    daemonCtx.logger,
+    DecisionEvents.decisionRecorded(
+      { sessionId },
+      {
+        decision: 'unstaged-all',
+        reason: `verification cycle limit reached (${unverifiedState.cycleCount}/${maxCycles})`,
+        subsystem: 'vc-reminders',
+        title: 'Unstage all VC reminders (cycle limit)',
+      }
+    )
+  )
+}
+
+/**
+ * Delete all VC reminders from staging with event logging.
+ */
+async function deleteAllVCReminders(
+  daemonCtx: DaemonContext,
+  sessionId: string,
+  reason: string,
+  triggeredBy: string
+): Promise<void> {
+  const eventContext: EventLogContext = { sessionId }
+  let deletedCount = 0
+  for (const vcId of ALL_VC_REMINDER_IDS) {
+    const deleted = await daemonCtx.staging.deleteReminder('Stop', vcId)
+    if (deleted) {
+      deletedCount++
+      logEvent(
+        daemonCtx.logger,
+        ReminderEvents.reminderUnstaged(eventContext, {
+          reminderName: vcId,
+          hookName: 'Stop',
+          reason,
+          triggeredBy,
+        })
+      )
+    }
+  }
+  daemonCtx.logger.debug('VC unstage: cleanup complete', {
+    reason,
+    deletedCount,
+    totalChecked: ALL_VC_REMINDER_IDS.length,
+  })
 }
 
 export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
@@ -54,18 +185,7 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
 
       if (!sessionId) {
         daemonCtx.logger.warn('No sessionId in UserPromptSubmit event')
-        for (const vcId of ALL_VC_REMINDER_IDS) {
-          const deleted = await daemonCtx.staging.deleteReminder('Stop', vcId)
-          if (deleted) {
-            logEvent(
-              daemonCtx.logger,
-              ReminderEvents.reminderUnstaged(
-                { sessionId: '' },
-                { reminderName: vcId, hookName: 'Stop', reason: 'no_session_id' }
-              )
-            )
-          }
-        }
+        await deleteAllVCReminders(daemonCtx, '', 'no_session_id', 'no_session_id')
         return
       }
 
@@ -75,9 +195,7 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       const unverifiedState: VCUnverifiedState | null = vcResult.source !== 'default' ? vcResult.data : null
 
       if (unverifiedState?.hasUnverifiedChanges) {
-        // Check cycle limit
-        const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
-        const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+        const config = getRemindersConfig(context.config)
         const maxCycles = config.max_verification_cycles ?? -1
 
         daemonCtx.logger.info('VC unstage: unverified changes detected on UserPromptSubmit', {
@@ -91,93 +209,10 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
         })
 
         if (maxCycles < 0 || unverifiedState.cycleCount < maxCycles) {
-          // Check if any tools actually need verification before re-staging wrapper
-          const verificationToolsResult = await remindersState.verificationTools.read(sessionId)
-          const toolsState = verificationToolsResult.data
-          const verificationTools = config.verification_tools ?? {}
-
-          const hasToolsNeedingVerification = Object.entries(verificationTools).some(([toolName, toolConfig]) =>
-            toolNeedsVerification(toolConfig, toolsState[toolName])
-          )
-
-          if (!hasToolsNeedingVerification) {
-            daemonCtx.logger.info('VC unstage: all tools verified, skipping wrapper re-stage', {
-              sessionId,
-              cycleCount: unverifiedState.cycleCount,
-            })
-            await remindersState.vcUnverified.delete(sessionId)
-            // Fall through to delete all VC reminders
-          } else {
-            // Re-stage per-tool reminders for tools that still need verification
-            for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
-              if (!toolNeedsVerification(toolConfig, toolsState[toolName])) continue
-              const reminderId = TOOL_REMINDER_MAP[toolName]
-              if (!reminderId) continue
-              const toolReminder = resolveReminder(reminderId, {
-                context: {},
-                assets: daemonCtx.assets,
-              })
-              if (toolReminder) {
-                await stageReminder(daemonCtx, 'Stop', {
-                  ...toolReminder,
-                  stagedAt: {
-                    timestamp: Date.now(),
-                    turnCount: unverifiedState.setAt.turnCount,
-                    toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
-                    toolCount: unverifiedState.setAt.toolCount,
-                  },
-                })
-              }
-            }
-
-            // Re-stage verify-completion wrapper for next Stop
-            const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
-              context: {},
-              assets: daemonCtx.assets,
-            })
-
-            if (reminder) {
-              // Stage with fresh metrics from current state
-              await stageReminder(daemonCtx, 'Stop', {
-                ...reminder,
-                stagedAt: {
-                  timestamp: Date.now(),
-                  turnCount: unverifiedState.setAt.turnCount,
-                  toolsThisTurn: unverifiedState.setAt.toolsThisTurn,
-                  toolCount: unverifiedState.setAt.toolCount,
-                },
-              })
-              daemonCtx.logger.info('VC unstage: re-staged for next Stop', {
-                sessionId,
-                cycleCount: unverifiedState.cycleCount,
-                lastCategory: unverifiedState.lastClassification.category,
-              })
-              // Don't delete - we just re-staged it
-              return
-            } else {
-              daemonCtx.logger.warn('VC unstage: failed to resolve reminder for re-staging')
-            }
-          }
+          const restaged = await restageUnverifiedTools(daemonCtx, sessionId, config, unverifiedState, remindersState)
+          if (restaged) return // Reminders were re-staged, don't delete them
         } else {
-          // Cycle limit reached - delete vc-unverified state
-          daemonCtx.logger.info('VC unstage: cycle limit reached, clearing', {
-            sessionId,
-            cycleCount: unverifiedState.cycleCount,
-            maxCycles,
-          })
-          await remindersState.vcUnverified.delete(sessionId)
-          logEvent(
-            daemonCtx.logger,
-            DecisionEvents.decisionRecorded(
-              { sessionId },
-              {
-                decision: 'unstaged-all',
-                reason: `verification cycle limit reached (${unverifiedState.cycleCount}/${maxCycles})`,
-                subsystem: 'vc-reminders',
-                title: 'Unstage all VC reminders (cycle limit)',
-              }
-            )
-          )
+          await handleCycleLimitReached(daemonCtx, sessionId, unverifiedState, maxCycles, remindersState)
         }
       } else {
         logEvent(
@@ -198,29 +233,9 @@ export function registerUnstageVerifyCompletion(context: RuntimeContext): void {
       }
 
       // Delete the existing staged reminders (no unverified state or limit reached)
-      const eventContext: EventLogContext = { sessionId }
       const reason = unverifiedState?.hasUnverifiedChanges ? 'cycle_limit_reached' : 'no_unverified_changes'
-      let deletedCount = 0
-      for (const vcId of ALL_VC_REMINDER_IDS) {
-        const deleted = await daemonCtx.staging.deleteReminder('Stop', vcId)
-        if (deleted) {
-          deletedCount++
-          logEvent(
-            daemonCtx.logger,
-            ReminderEvents.reminderUnstaged(eventContext, {
-              reminderName: vcId,
-              hookName: 'Stop',
-              reason,
-              triggeredBy: unverifiedState?.hasUnverifiedChanges ? 'cycle_limit' : 'no_unverified_changes',
-            })
-          )
-        }
-      }
-      daemonCtx.logger.debug('VC unstage: cleanup complete', {
-        reason,
-        deletedCount,
-        totalChecked: ALL_VC_REMINDER_IDS.length,
-      })
+      const triggeredBy = unverifiedState?.hasUnverifiedChanges ? 'cycle_limit' : 'no_unverified_changes'
+      await deleteAllVCReminders(daemonCtx, sessionId, reason, triggeredBy)
     },
   })
 }

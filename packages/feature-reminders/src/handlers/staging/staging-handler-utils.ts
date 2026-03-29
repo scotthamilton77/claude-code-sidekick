@@ -109,3 +109,34 @@ export function createStagingHandler(context: RuntimeContext, config: StagingHan
 
   context.handlers.register({ id, priority, filter, handler })
 }
+
+// ============================================================================
+// Reactivation Check
+// ============================================================================
+
+/** Metrics needed for turn-based reactivation decisions */
+export interface ReactivationMetrics {
+  turnCount: number
+  toolsThisTurn: number
+}
+
+/**
+ * Check whether a previously-consumed reminder should be re-staged.
+ *
+ * Reactivation occurs when:
+ * 1. The current turn is newer than the turn where the reminder was last consumed, OR
+ * 2. (Optional) toolsThisTurn has reached a threshold beyond the effective baseline
+ *
+ * Used by both pause-and-reflect and bash-changes staging handlers.
+ */
+export function checkShouldReactivate(
+  metrics: ReactivationMetrics,
+  lastConsumedTurnCount: number,
+  thresholdCheck?: { effectiveBaseline: number; threshold: number }
+): boolean {
+  if (metrics.turnCount > lastConsumedTurnCount) return true
+  if (thresholdCheck) {
+    return metrics.toolsThisTurn >= thresholdCheck.effectiveBaseline + thresholdCheck.threshold
+  }
+  return false
+}

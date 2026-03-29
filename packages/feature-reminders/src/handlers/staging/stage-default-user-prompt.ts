@@ -19,7 +19,7 @@ import { logEvent } from '@sidekick/core'
 import type { DaemonContext, StagedReminder, StagingMetrics } from '@sidekick/types'
 import { DecisionEvents, isDaemonContext, isHookEvent, isSessionStartEvent, isTranscriptEvent } from '@sidekick/types'
 import { createStagingHandler } from './staging-handler-utils.js'
-import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import { ReminderIds, getRemindersConfig } from '../../types.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import { createRemindersState } from '../../state.js'
 import { registerThrottledReminder, resetThrottleCounters } from './throttle-utils.js'
@@ -149,8 +149,7 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
       if (Object.keys(state).length === 0) return
 
       // Read thresholds from config
-      const featureConfig = handlerCtx.config.getFeature<RemindersSettings>('reminders')
-      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+      const config = getRemindersConfig(handlerCtx.config)
       const thresholds = config.reminder_thresholds ?? {}
 
       let changed = false

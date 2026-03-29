@@ -27,10 +27,9 @@ import { resolveReminder, stageReminder } from '../../reminder-utils.js'
 import {
   ReminderIds,
   TOOL_REMINDER_MAP,
-  DEFAULT_REMINDERS_SETTINGS,
   VC_TOOL_REMINDER_IDS,
+  getRemindersConfig,
   type CommandRunner,
-  type RemindersSettings,
   type VerificationToolsMap,
 } from '../../types.js'
 import { createRemindersState, type RemindersStateAccessors } from '../../state.js'
@@ -63,8 +62,7 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
       const toolName = event.payload.toolName
       if (!toolName) return
 
-      const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
-      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+      const config = getRemindersConfig(context.config)
       const verificationTools = config.verification_tools ?? {}
       const runners = config.command_runners ?? []
 
