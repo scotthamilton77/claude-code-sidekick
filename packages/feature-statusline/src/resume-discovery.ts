@@ -4,8 +4,8 @@
  * Extracted from state-reader.ts to isolate cross-session artifact discovery
  * from single-session state reading.
  *
- * Uses dependency injection for StateService to enable testing without
- * file system side effects.
+ * Uses dependency injection for StateService to allow injectable session
+ * state access (real fs reads for directory scanning are still performed).
  *
  * @see docs/design/FEATURE-RESUME.md section 3.1 Artifact Discovery
  */

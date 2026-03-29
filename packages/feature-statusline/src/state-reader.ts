@@ -359,7 +359,7 @@ import {
   projectRootFromSessionsDir,
   type DiscoveryResult,
 } from './resume-discovery.js'
-export type { DiscoveryResult } from './resume-discovery.js'
+export type { DiscoveryResult }
 
 /**
  * Backward-compatible wrapper for discoverPreviousResumeMessage.
