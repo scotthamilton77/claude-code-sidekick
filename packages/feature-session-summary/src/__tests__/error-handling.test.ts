@@ -22,7 +22,7 @@ import {
   MockStateService,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext, LLMRequest, LLMResponse } from '@sidekick/types'
-import { updateSessionSummary } from '../handlers/update-summary'
+import { updateSessionSummary, resetAnalysisGuard } from '../handlers/update-summary'
 import type { TranscriptEvent } from '@sidekick/core'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -99,6 +99,8 @@ describe('Session Summary Error Handling', () => {
   let tempDir: string
 
   beforeEach(async () => {
+    resetAnalysisGuard()
+
     logger = new MockLogger()
     handlers = new MockHandlerRegistry()
     llm = new MockLLMServiceWithErrors()

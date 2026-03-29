@@ -32,11 +32,15 @@ const DECISION_TITLE_SKIP = 'Skip session analysis'
 const DECISION_TITLE_RUN = 'Run session analysis'
 
 /**
- * Per-session concurrency guard for analysis.
- * Prevents overlapping start/finish events when BulkProcessingComplete
- * and UserPrompt arrive in quick succession (fire-and-forget race).
+ * Per-session concurrency guard for analysis with coalescing.
+ * When analysis is requested while one is already in-flight,
+ * the pending flag is set so a single rerun occurs after completion.
+ * This prevents dropped analyses while bounding concurrency to at most
+ * two sequential runs (current + one coalesced rerun).
+ *
+ * Map key: sessionId, value: true if a rerun is pending.
  */
-const analysisInFlight = new Set<string>()
+const analysisInFlight = new Map<string, boolean>()
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
 const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
@@ -149,7 +153,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       ctx.logger,
       DecisionEvents.decisionRecorded(event.context, {
         decision: 'calling',
-        reason: 'First prompt in new session — running initial analysis',
+        reason: 'Bulk transcript replay complete — running catch-up analysis',
         subsystem: 'session-summary',
         title: DECISION_TITLE_RUN,
       })
@@ -266,22 +270,23 @@ async function performAnalysis(
 ): Promise<void> {
   const { sessionId } = event.context
 
-  // Concurrency guard: skip if analysis already in-flight for this session.
-  // Prevents interleaved start/finish events when BulkProcessingComplete
-  // and UserPrompt fire in quick succession.
+  // Concurrency guard with coalescing: if analysis is already in-flight,
+  // set the pending flag so a rerun occurs after the current one finishes.
+  // This prevents dropped analyses while bounding concurrency.
   if (analysisInFlight.has(sessionId)) {
+    analysisInFlight.set(sessionId, true)
     logEvent(
       ctx.logger,
       DecisionEvents.decisionRecorded(event.context, {
-        decision: 'skipped',
-        reason: 'Analysis already in-flight for this session',
+        decision: 'deferred',
+        reason: 'Analysis deferred — will rerun after current analysis completes',
         subsystem: 'session-summary',
         title: DECISION_TITLE_SKIP,
       })
     )
     return
   }
-  analysisInFlight.add(sessionId)
+  analysisInFlight.set(sessionId, false)
 
   try {
     const startTime = Date.now()
@@ -501,7 +506,15 @@ async function performAnalysis(
       error: err instanceof Error ? err.message : String(err),
     })
   } finally {
+    const rerunPending = analysisInFlight.get(sessionId) ?? false
     analysisInFlight.delete(sessionId)
+
+    // If a rerun was requested while we were running, perform one coalesced rerun.
+    // Re-load countdown state to get the latest bookmark/countdown values.
+    if (rerunPending) {
+      const freshCountdown = await loadCountdownState(summaryState, sessionId)
+      void performAnalysis(event, ctx, summaryState, freshCountdown, reason)
+    }
   }
 }
 

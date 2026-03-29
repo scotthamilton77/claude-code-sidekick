@@ -22,7 +22,7 @@ import {
   MockStateService,
 } from '@sidekick/testing-fixtures'
 import type { DaemonContext } from '@sidekick/types'
-import { updateSessionSummary } from '../handlers/update-summary'
+import { updateSessionSummary, resetAnalysisGuard } from '../handlers/update-summary'
 import type { TranscriptEvent } from '@sidekick/core'
 import type { SummaryCountdownState } from '../types'
 import { DEFAULT_SESSION_SUMMARY_CONFIG } from '../types'
@@ -41,6 +41,8 @@ describe('Session Summary Countdown Logic', () => {
   const projectRoot = '/mock/project'
 
   beforeEach(() => {
+    resetAnalysisGuard()
+
     logger = new MockLogger()
     handlers = new MockHandlerRegistry()
     llm = new MockLLMService()
