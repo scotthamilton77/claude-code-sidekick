@@ -185,11 +185,11 @@ describe('hasScriptingFlags', () => {
 
 describe('runScripted', () => {
   let logger: MockedLogger
-  let originalEnv: NodeJS.ProcessEnv
+  let savedOpenRouterKey: string | undefined
 
   beforeEach(() => {
     logger = createFakeLogger()
-    originalEnv = { ...process.env }
+    savedOpenRouterKey = process.env.OPENROUTER_API_KEY
 
     // Clear all hoisted mocks
     mockEnsurePluginInstalled.mockClear()
@@ -221,7 +221,11 @@ describe('runScripted', () => {
   })
 
   afterEach(() => {
-    process.env = originalEnv
+    if (savedOpenRouterKey === undefined) {
+      delete process.env.OPENROUTER_API_KEY
+    } else {
+      process.env.OPENROUTER_API_KEY = savedOpenRouterKey
+    }
   })
 
   // --------------------------------------------------------------------------
