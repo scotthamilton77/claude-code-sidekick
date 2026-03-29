@@ -14,11 +14,34 @@
 // Types and schemas
 export * from './types.js'
 
+// Hook types (extracted from statusline-service.ts)
+export type {
+  ClaudeCodeStatusInput,
+  ClaudeCodeModel,
+  ClaudeCodeWorkspace,
+  ClaudeCodeOutputStyle,
+  ClaudeCodeCost,
+  ClaudeCodeCurrentUsage,
+  ClaudeCodeContextWindow,
+  ClaudeCodeWorktree,
+} from './hook-types.js'
+
 // ANSI utilities
 export { stripAnsi, visibleLength } from './ansi-utils.js'
 
 // Truncation strategies
 export { truncateSuffix, truncatePrefix, truncatePath } from './truncation.js'
+
+// Token resolution (extracted from StatuslineService.buildViewModel)
+export { resolveEffectiveTokens, type TokenResolutionResult } from './token-resolution.js'
+
+// Resume discovery (extracted from state-reader.ts)
+export {
+  discoverPreviousResumeMessage as discoverPreviousResumeMessageDI,
+  projectRootFromSessionsDir,
+  type DiscoveryResult,
+  type ResumeDiscoveryConfig,
+} from './resume-discovery.js'
 
 // Core components
 export { StateReader, createStateReader, type StateReaderConfig } from './state-reader.js'
@@ -33,19 +56,7 @@ export {
   getThresholdStatus,
   type FormatterConfig,
 } from './formatter.js'
-export {
-  StatuslineService,
-  createStatuslineService,
-  type StatuslineServiceConfig,
-  type ClaudeCodeStatusInput,
-  type ClaudeCodeModel,
-  type ClaudeCodeWorkspace,
-  type ClaudeCodeOutputStyle,
-  type ClaudeCodeCost,
-  type ClaudeCodeCurrentUsage,
-  type ClaudeCodeContextWindow,
-  type ClaudeCodeWorktree,
-} from './statusline-service.js'
+export { StatuslineService, createStatuslineService, type StatuslineServiceConfig } from './statusline-service.js'
 export {
   readContextOverhead,
   getDefaultOverhead,

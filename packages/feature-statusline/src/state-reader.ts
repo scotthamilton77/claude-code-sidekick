@@ -6,19 +6,16 @@
  * - Staleness detection based on content timestamps
  * - Zod validation via typed accessors
  *
- * Also provides `discoverPreviousResumeMessage()` for artifact discovery:
- * - Scans sessions directory for resume messages from previous sessions
- * - Used by statusline to show context when starting a new session
- *
  * Uses typed state accessors to encapsulate path construction and schema validation.
  * Storage implementation details are hidden from this module.
+ *
+ * Resume message discovery is handled by resume-discovery.ts.
+ * A backward-compatible wrapper is re-exported here for existing callers.
  *
  * @see docs/design/FEATURE-STATUSLINE.md §5.2 StateReader
  * @see docs/design/FEATURE-RESUME.md §3.1 Artifact Discovery
  */
 
-import * as fs from 'node:fs/promises'
-import * as path from 'node:path'
 import {
   StateService,
   SessionStateAccessor,
@@ -356,85 +353,26 @@ export function createStateReader(
   })
 }
 
-/**
- * Discovery result for finding resume messages from previous sessions.
- */
-export interface DiscoveryResult {
-  /** Resume message data if found */
-  data: ResumeMessageState | null
-  /** Session ID that the resume message belongs to */
-  sessionId: string | null
-  /** Source of the data */
-  source: 'discovered' | 'not_found'
-}
+// Re-export from dedicated resume-discovery module for backward compatibility
+import {
+  discoverPreviousResumeMessage as _discoverPreviousResumeMessage,
+  projectRootFromSessionsDir,
+  type DiscoveryResult,
+} from './resume-discovery.js'
+export type { DiscoveryResult } from './resume-discovery.js'
 
 /**
- * Discover the most recent resume message from a PREVIOUS session.
- * Scans the sessions directory for other sessions with valid resume-message.json.
+ * Backward-compatible wrapper for discoverPreviousResumeMessage.
+ * Constructs a StateService internally to preserve the original call signature.
+ * New callers should use the version from resume-discovery.ts directly with DI.
  *
- * Per docs/design/FEATURE-RESUME.md §3.1:
- * - Used when current session is new (no session-summary.json yet)
- * - Returns the most recent OTHER session's resume-message.json
- *
- * Note: This function uses direct StateService calls because it needs to
- * iterate across multiple sessions, which is different from single-session
- * state access where accessors are appropriate.
- *
- * @param sessionsDir - Path to .sidekick/sessions/ directory
- * @param currentSessionId - Current session ID to exclude from results
- * @returns Discovery result with most recent previous session's resume message
+ * @deprecated Use discoverPreviousResumeMessage from './resume-discovery.js' with injected StateService
  */
 export async function discoverPreviousResumeMessage(
   sessionsDir: string,
   currentSessionId: string
 ): Promise<DiscoveryResult> {
-  try {
-    // List all session directories
-    const entries = await fs.readdir(sessionsDir, { withFileTypes: true })
-    const sessionDirs = entries.filter((e) => e.isDirectory() && e.name !== currentSessionId)
-
-    if (sessionDirs.length === 0) {
-      return { data: null, sessionId: null, source: 'not_found' }
-    }
-
-    // Create StateService rooted at the project (parent of sessions dir's parent)
-    // sessionsDir is .sidekick/sessions/, parent is .sidekick/, parent of that is project root
-    const projectRoot = path.dirname(path.dirname(sessionsDir))
-    const stateService = new StateService(projectRoot)
-
-    // Create accessor for reading resume messages
-    const resumeAccessor = new SessionStateAccessor(stateService, ResumeMessageDescriptor)
-
-    // Collect resume messages with their modification times
-    const resumeCandidates: { sessionId: string; data: ResumeMessageState; mtime: number }[] = []
-
-    for (const dir of sessionDirs) {
-      const result = await resumeAccessor.read(dir.name)
-
-      if (result.source !== 'default' && result.data !== null && result.mtime) {
-        resumeCandidates.push({
-          sessionId: dir.name,
-          data: result.data,
-          mtime: result.mtime,
-        })
-      }
-    }
-
-    if (resumeCandidates.length === 0) {
-      return { data: null, sessionId: null, source: 'not_found' }
-    }
-
-    // Sort by mtime descending (most recent first)
-    resumeCandidates.sort((a, b) => b.mtime - a.mtime)
-
-    const mostRecent = resumeCandidates[0]
-    return {
-      data: mostRecent.data,
-      sessionId: mostRecent.sessionId,
-      source: 'discovered',
-    }
-  } catch {
-    // Sessions directory doesn't exist or other error
-    return { data: null, sessionId: null, source: 'not_found' }
-  }
+  const projectRoot = projectRootFromSessionsDir(sessionsDir)
+  const stateService = new StateService(projectRoot)
+  return _discoverPreviousResumeMessage({ sessionsDir, currentSessionId }, stateService)
 }
