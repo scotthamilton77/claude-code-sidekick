@@ -14,7 +14,7 @@ The UI backend runs as a Vite middleware plugin during development. No standalon
 
 **Rationale:**
 - Single-user local tool — no production deployment scenario
-- Archived `.archive/server/api-plugin.ts` already demonstrates this pattern (itty-router over Vite middleware)
+- The pre-prototype implementation previously lived under `packages/sidekick-ui/.archive/` and was removed during cleanup; refer to git history if you need to inspect it. That code demonstrated this pattern (itty-router over Vite middleware)
 - Fewer processes to manage; handlers are portable if a standalone server is needed later
 - YAGNI — standalone server adds complexity with no current use case
 

@@ -89,7 +89,7 @@ Each decision follows this structure:
 
 **Decision:** TB1 adds routes directly in a `configureServer` callback, not a full middleware plugin architecture.
 
-**Context:** The archived `.archive/server/` has a full `itty-router` + plugin architecture, but it predates the unified event contract.
+**Context:** The pre-prototype implementation previously lived under `packages/sidekick-ui/.archive/` and was removed during cleanup; refer to git history if you need to inspect it. That code had a full `itty-router` + plugin architecture, but it predates the unified event contract.
 
 **Alternatives considered:**
 1. Resurrect and update archived middleware — fastest but inherits stale design
@@ -136,7 +136,7 @@ Each decision follows this structure:
 
 ### D8: Fresh minimal NDJSON parser, not archived parser (2026-03-14)
 
-**Decision:** Write a fresh ~50-line NDJSON parser for TB2 instead of resurrecting the archived `NdjsonStreamParser` from `.archive/src/lib/log-parser.ts`.
+**Decision:** Write a fresh ~50-line NDJSON parser for TB2 instead of resurrecting the archived `NdjsonStreamParser`. The pre-prototype implementation previously lived under `packages/sidekick-ui/.archive/` and was removed during cleanup; refer to git history if you need to inspect it.
 
 **Context:** TB2 needs to parse `.sidekick/logs/cli.log` and `sidekickd.log` to extract timeline events.
 
