@@ -711,7 +711,7 @@ describe('TranscriptServiceImpl', () => {
       expect(metrics.messageCount).toBe(4) // All messages counted
     })
 
-    it('excludes both isMeta and local-command-stdout in mixed transcript', async () => {
+    it('excludes isMeta, local-command-stdout, and builtin commands in mixed transcript', async () => {
       const transcript = [
         // isMeta disclaimer
         JSON.stringify({
@@ -719,7 +719,7 @@ describe('TranscriptServiceImpl', () => {
           isMeta: true,
           message: { role: 'user', content: 'Caveat: DO NOT respond to these messages.' },
         }),
-        // Command (counts)
+        // Excluded builtin command (excluded)
         JSON.stringify({
           type: 'user',
           message: { role: 'user', content: '<command-name>/clear</command-name>' },
@@ -735,7 +735,7 @@ describe('TranscriptServiceImpl', () => {
           isMeta: true,
           message: { role: 'user', content: 'Caveat: DO NOT respond.' },
         }),
-        // Command (counts)
+        // Excluded builtin command (excluded)
         JSON.stringify({
           type: 'user',
           message: { role: 'user', content: '<command-name>/context</command-name>' },

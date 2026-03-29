@@ -1392,6 +1392,8 @@ export class TranscriptServiceImpl implements TranscriptService {
    * - tool_result wrappers (arrays containing only tool_result blocks)
    * - isMeta messages (disclaimer/caveat messages injected by Claude Code)
    * - local-command-stdout messages (output from slash commands like /context)
+   * - builtin command invocations (e.g. /clear, /compact — see EXCLUDED_BUILTIN_COMMANDS)
+   *   Note: unlike local-command-stdout, these do NOT emit UserPrompt events
    */
   private async processEntry(entry: TranscriptEntry, lineNumber: number): Promise<void> {
     const entryType = entry.type as string | undefined
