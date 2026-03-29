@@ -12,8 +12,8 @@ import type { RuntimeContext } from '@sidekick/core'
 import { logEvent } from '@sidekick/core'
 import { DecisionEvents, isTranscriptEvent, type PRBaselineState } from '@sidekick/types'
 import { ReminderEvents } from '../../events.js'
-import { createStagingHandler } from './staging-handler-utils.js'
-import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import { createStagingHandler, checkShouldReactivate } from './staging-handler-utils.js'
+import { ReminderIds, getRemindersConfig } from '../../types.js'
 import { createRemindersState } from '../../state.js'
 
 export function registerStagePauseAndReflect(context: RuntimeContext): void {
@@ -30,8 +30,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
         ctx.logger.warn('[stage-pause-and-reflect] No sessionId available, skipping')
         return undefined
       }
-      const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
-      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+      const config = getRemindersConfig(context.config)
 
       // Read P&R baseline set by VC consumption (if any)
       // Note: Baseline tracking vs countdown has similar complexity. Cross-reminder coordination
@@ -59,9 +58,10 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
         }
 
         // Reactivate only on new turn OR after threshold more tools since baseline
-        const shouldReactivate =
-          metrics.turnCount > lastConsumed.stagedAt.turnCount ||
-          metrics.toolsThisTurn >= effectiveBaseline + config.pause_and_reflect_threshold
+        const shouldReactivate = checkShouldReactivate(metrics, lastConsumed.stagedAt.turnCount, {
+          effectiveBaseline,
+          threshold: config.pause_and_reflect_threshold,
+        })
 
         if (!shouldReactivate) {
           logEvent(

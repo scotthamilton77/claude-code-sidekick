@@ -384,3 +384,23 @@ export const VC_TOOL_REMINDER_IDS = [
 export const ALL_VC_REMINDER_IDS = [ReminderIds.VERIFY_COMPLETION, ...VC_TOOL_REMINDER_IDS] as const
 
 export type ReminderId = (typeof ReminderIds)[keyof typeof ReminderIds]
+
+// ============================================================================
+// Config Helper
+// ============================================================================
+
+/** Minimal config access — matches DaemonContext.config and RuntimeContext.config */
+interface RemindersConfigSource {
+  getFeature<T = Record<string, unknown>>(name: string): { enabled: boolean; settings: T }
+}
+
+/**
+ * Read and merge reminders config with defaults.
+ * Extracts the repeated 2-line pattern:
+ *   const featureConfig = ctx.config.getFeature<RemindersSettings>('reminders')
+ *   const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+ */
+export function getRemindersConfig(configSource: RemindersConfigSource): RemindersSettings {
+  const featureConfig = configSource.getFeature<RemindersSettings>('reminders')
+  return { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+}

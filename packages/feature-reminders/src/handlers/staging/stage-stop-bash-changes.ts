@@ -14,7 +14,8 @@ import { isDaemonContext, isHookEvent, isTranscriptEvent } from '@sidekick/types
 import type { DaemonContext, VerificationToolsState } from '@sidekick/types'
 import picomatch from 'picomatch'
 import { stageToolsForFiles } from './track-verification-tools.js'
-import { ReminderIds, DEFAULT_REMINDERS_SETTINGS, type RemindersSettings } from '../../types.js'
+import { checkShouldReactivate } from './staging-handler-utils.js'
+import { ReminderIds, getRemindersConfig } from '../../types.js'
 import { createRemindersState } from '../../state.js'
 
 const GIT_STATUS_TIMEOUT_MS = 200
@@ -86,8 +87,7 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       const metrics = event.metadata.metrics
       const lastConsumed = await daemonCtx.staging.getLastConsumed('Stop', ReminderIds.VERIFY_COMPLETION)
       if (lastConsumed?.stagedAt) {
-        const shouldReactivate = metrics.turnCount > lastConsumed.stagedAt.turnCount
-        if (!shouldReactivate) {
+        if (!checkShouldReactivate(metrics, lastConsumed.stagedAt.turnCount)) {
           logEvent(
             daemonCtx.logger,
             ReminderEvents.reminderNotStaged(
@@ -136,8 +136,7 @@ export function registerStageBashChanges(context: RuntimeContext): void {
       }
 
       // Filter through source code patterns
-      const featureConfig = context.config.getFeature<RemindersSettings>('reminders')
-      const config = { ...DEFAULT_REMINDERS_SETTINGS, ...featureConfig.settings }
+      const config = getRemindersConfig(context.config)
       const sourceMatches = newFiles.filter((f) => picomatch.isMatch(f, config.source_code_patterns))
 
       if (sourceMatches.length === 0) {

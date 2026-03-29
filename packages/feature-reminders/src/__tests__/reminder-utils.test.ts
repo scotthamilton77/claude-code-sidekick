@@ -69,7 +69,7 @@ describe('reminder-utils', () => {
     })
 
     it('returns null for non-existent reminder', () => {
-      const result = resolveReminder('nonexistent', {}, testAssetsDir)
+      const result = resolveReminder('nonexistent', { assetsDir: testAssetsDir })
       expect(result).toBeNull()
     })
 
@@ -82,7 +82,7 @@ additionalContext: "Test context"
 `
       writeFileSync(join(testAssetsDir, 'reminders', 'test-reminder.yaml'), yamlContent)
 
-      const result = resolveReminder('test-reminder', {}, testAssetsDir)
+      const result = resolveReminder('test-reminder', { assetsDir: testAssetsDir })
       expect(result).toEqual({
         name: 'test-reminder',
         blocking: true,
@@ -104,7 +104,7 @@ reason: "Checkpoint at {{toolsThisTurn}} tools"
 `
       writeFileSync(join(testAssetsDir, 'reminders', 'pause-and-reflect.yaml'), yamlContent)
 
-      const result = resolveReminder('pause-and-reflect', { toolsThisTurn: 25 }, testAssetsDir)
+      const result = resolveReminder('pause-and-reflect', { context: { toolsThisTurn: 25 }, assetsDir: testAssetsDir })
       expect(result?.additionalContext).toBe('Used 25 tools')
       expect(result?.reason).toBe('Checkpoint at 25 tools')
     })
@@ -120,7 +120,7 @@ reason: "Stop reason with {{count}}"
 `
       writeFileSync(join(testAssetsDir, 'reminders', 'full-reminder.yaml'), yamlContent)
 
-      const result = resolveReminder('full-reminder', { count: 10 }, testAssetsDir)
+      const result = resolveReminder('full-reminder', { context: { count: 10 }, assetsDir: testAssetsDir })
       expect(result).toEqual({
         name: 'full-reminder',
         blocking: false,
@@ -140,7 +140,7 @@ persistent: false
 `
       writeFileSync(join(testAssetsDir, 'reminders', 'minimal.yaml'), yamlContent)
 
-      const result = resolveReminder('minimal', {}, testAssetsDir)
+      const result = resolveReminder('minimal', { assetsDir: testAssetsDir })
       expect(result).toEqual({
         name: 'minimal',
         blocking: true,
@@ -157,7 +157,7 @@ persistent: false
       writeFileSync(join(testAssetsDir, 'reminders', 'malformed.yaml'), yamlContent)
 
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      const result = resolveReminder('malformed', {}, testAssetsDir)
+      const result = resolveReminder('malformed', { assetsDir: testAssetsDir })
 
       expect(result).toBeNull()
       expect(consoleSpy).toHaveBeenCalledWith(

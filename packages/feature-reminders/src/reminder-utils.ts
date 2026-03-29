@@ -13,8 +13,14 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import * as yaml from 'js-yaml'
 import { z } from 'zod'
-import type { StagedReminder, StagingEnrichment, DaemonContext, HookName } from '@sidekick/types'
-import type { AssetResolver } from '@sidekick/core'
+import type {
+  StagedReminder,
+  StagingEnrichment,
+  DaemonContext,
+  HookName,
+  Logger,
+  MinimalAssetResolver,
+} from '@sidekick/types'
 import type { TemplateContext } from './types'
 
 /**
@@ -55,9 +61,11 @@ export interface ResolveReminderOptions {
   /** Template variables for interpolation */
   context?: TemplateContext
   /** Asset resolver (uses file system if not provided) */
-  assets?: AssetResolver
+  assets?: MinimalAssetResolver
   /** Base assets directory (fallback for testing) */
   assetsDir?: string
+  /** Logger for structured error reporting (falls back to console.error) */
+  logger?: Logger
 }
 
 /**
@@ -65,29 +73,11 @@ export interface ResolveReminderOptions {
  * Uses asset cascade: project → user → bundled defaults.
  *
  * @param reminderId - Reminder ID (matches filename without .yaml)
- * @param contextOrOptions - Template variables or full options object
- * @param assetsDir - Base assets directory (for testing, deprecated - use options.assetsDir)
+ * @param options - Resolution options (template context, asset resolver, logger)
  * @returns Resolved StagedReminder ready for staging, or null if not found
  */
-export function resolveReminder(
-  reminderId: string,
-  contextOrOptions: TemplateContext | ResolveReminderOptions = {},
-  assetsDir?: string
-): StagedReminder | null {
-  // Handle overloaded arguments
-  let context: TemplateContext
-  let assets: AssetResolver | undefined
-  let baseAssetsDir: string | undefined
-
-  if ('assets' in contextOrOptions || 'assetsDir' in contextOrOptions || 'context' in contextOrOptions) {
-    const opts = contextOrOptions as ResolveReminderOptions
-    context = opts.context ?? {}
-    assets = opts.assets
-    baseAssetsDir = opts.assetsDir ?? assetsDir
-  } else {
-    context = contextOrOptions as TemplateContext
-    baseAssetsDir = assetsDir
-  }
+export function resolveReminder(reminderId: string, options: ResolveReminderOptions = {}): StagedReminder | null {
+  const { context = {}, assets, assetsDir, logger } = options
 
   // Try asset resolver first if available
   const relativePath = `${REMINDER_ASSET_DIR}/${reminderId}.yaml`
@@ -99,7 +89,7 @@ export function resolveReminder(
 
   // Fall back to file system if no content from resolver
   if (!content) {
-    const baseDir = baseAssetsDir ?? join(process.cwd(), 'assets', 'sidekick')
+    const baseDir = assetsDir ?? join(process.cwd(), 'assets', 'sidekick')
     const yamlPath = join(baseDir, REMINDER_ASSET_DIR, `${reminderId}.yaml`)
 
     if (!existsSync(yamlPath)) {
@@ -123,7 +113,15 @@ export function resolveReminder(
       reason: def.reason ? interpolateTemplate(def.reason, context) : undefined,
     }
   } catch (err) {
-    console.error(`Failed to load reminder ${reminderId}:`, err)
+    if (logger) {
+      logger.error('Failed to load reminder', {
+        reminderId,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    } else {
+      // Fallback for test/CLI callers without a logger
+      console.error(`Failed to load reminder ${reminderId}:`, err)
+    }
     return null
   }
 }

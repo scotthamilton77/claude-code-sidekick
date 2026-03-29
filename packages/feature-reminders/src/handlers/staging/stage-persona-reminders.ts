@@ -160,6 +160,58 @@ function isPersonaInjectionEnabled(ctx: DaemonContext): boolean {
 }
 
 /**
+ * Detect persona change and stage a one-shot "persona-changed" reminder if needed.
+ * Compares the current persona against the last-staged state to determine
+ * whether a genuine mid-session change occurred (vs. initial staging).
+ */
+async function stagePersonaChangedIfNeeded(
+  ctx: DaemonContext,
+  sessionId: string,
+  persona: PersonaDefinition,
+  templateContext: Record<string, string>
+): Promise<void> {
+  const lastStaged = await readLastStagedPersona(ctx, sessionId)
+  const isGenuineChange =
+    lastStaged !== null && // null = never staged (initialization) → skip
+    lastStaged.personaId !== persona.id // different persona (including null→X for cleared→persona)
+
+  if (!isGenuineChange) {
+    ctx.logger.debug('Skipping persona-changed one-shot', {
+      sessionId,
+      reason: lastStaged === null ? 'first staging (initialization)' : 'same persona',
+      personaId: persona.id,
+    })
+    return
+  }
+
+  logEvent(
+    ctx.logger,
+    LogEvents.personaChanged(
+      { sessionId },
+      {
+        personaFrom: lastStaged.personaId ?? 'none',
+        personaTo: persona.id,
+        reason: 'mid_session_change',
+      }
+    )
+  )
+
+  const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
+    context: templateContext,
+    assets: ctx.assets,
+    logger: ctx.logger,
+  })
+  if (changedReminder) {
+    await stageReminder(ctx, 'UserPromptSubmit', changedReminder)
+  } else {
+    ctx.logger.warn('Failed to resolve persona-changed reminder', {
+      reminderId: ReminderIds.PERSONA_CHANGED,
+      sessionId,
+    })
+  }
+}
+
+/**
  * Stage persona reminders for a session.
  * Exported for use by daemon when persona changes mid-session.
  *
@@ -215,6 +267,7 @@ export async function stagePersonaRemindersForSession(
   const reminder = resolveReminder(ReminderIds.REMEMBER_YOUR_PERSONA, {
     context: templateContext,
     assets: ctx.assets,
+    logger: ctx.logger,
   })
   if (reminder) {
     for (const targetHook of PERSONA_REMINDER_HOOKS) {
@@ -232,45 +285,9 @@ export async function stagePersonaRemindersForSession(
     return
   }
 
-  // Determine if persona actually changed for one-shot decision
+  // Stage one-shot persona-changed reminder if persona actually changed
   if (options?.includeChangedReminder) {
-    const lastStaged = await readLastStagedPersona(ctx, sessionId)
-    const isGenuineChange =
-      lastStaged !== null && // null = never staged (initialization) → skip
-      lastStaged.personaId !== persona.id // different persona (including null→X for cleared→persona)
-
-    if (isGenuineChange) {
-      logEvent(
-        ctx.logger,
-        LogEvents.personaChanged(
-          { sessionId },
-          {
-            personaFrom: lastStaged.personaId ?? 'none',
-            personaTo: persona.id,
-            reason: 'mid_session_change',
-          }
-        )
-      )
-
-      const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
-        context: templateContext,
-        assets: ctx.assets,
-      })
-      if (changedReminder) {
-        await stageReminder(ctx, 'UserPromptSubmit', changedReminder)
-      } else {
-        ctx.logger.warn('Failed to resolve persona-changed reminder', {
-          reminderId: ReminderIds.PERSONA_CHANGED,
-          sessionId,
-        })
-      }
-    } else {
-      ctx.logger.debug('Skipping persona-changed one-shot', {
-        sessionId,
-        reason: lastStaged === null ? 'first staging (initialization)' : 'same persona',
-        personaId: persona.id,
-      })
-    }
+    await stagePersonaChangedIfNeeded(ctx, sessionId, persona, templateContext)
   }
 
   // Record what we just staged for future change detection
