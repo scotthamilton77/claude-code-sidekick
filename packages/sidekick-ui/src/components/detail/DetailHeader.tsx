@@ -101,7 +101,11 @@ function getLineLabel(line: TranscriptLine): string {
     case 'intent:changed': return line.newValue ? `Intent → ${line.newValue}` : 'Intent changed'
     case 'persona:selected': return `Persona: ${line.personaTo ?? ''}`
     case 'persona:changed': return `${line.personaFrom ?? ''} → ${line.personaTo ?? ''}`
-    case 'statusline:rendered': return 'Statusline rendered'
+    case 'snarky-message:start': return 'Snarky Message Start'
+    case 'snarky-message:finish': return line.generatedMessage ? `Snarky Message Finish: ${line.generatedMessage.slice(0, 50)}` : 'Snarky Message Finish'
+    case 'resume-message:start': return 'Resume Message Start'
+    case 'resume-message:finish': return line.generatedMessage ? `Resume Message Finish: ${line.generatedMessage.slice(0, 50)}` : 'Resume Message Finish'
+    case 'statusline:rendered': return 'Statusline called'
     case 'error:occurred': return line.errorMessage?.slice(0, 60) ?? 'Error'
     default: return line.type
   }

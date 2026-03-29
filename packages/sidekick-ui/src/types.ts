@@ -80,6 +80,7 @@ export interface TranscriptLine {
   // reminder:staged / reminder:unstaged / reminder:consumed
   reminderId?: string
   reminderBlocking?: boolean
+  reminderText?: string
 
   // decision:recorded
   decisionTitle?: string

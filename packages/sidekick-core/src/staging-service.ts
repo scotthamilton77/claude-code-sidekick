@@ -152,6 +152,8 @@ export class StagingServiceCore {
     // Only emit reminder:staged event for new staging, not overwrites.
     // Re-staging (e.g. throttle) updates the file but doesn't need a timeline event.
     if (!isRestage) {
+      // Capture reminder text at staging time for timeline detail panel
+      const reminderText = [data.userMessage, data.additionalContext].filter(Boolean).join('\n\n') || undefined
       const event = LogEvents.reminderStaged(
         {
           sessionId,
@@ -164,6 +166,7 @@ export class StagingServiceCore {
           priority: data.priority,
           persistent: data.persistent,
           ...enrichment,
+          ...(reminderText !== undefined && { reminderText }),
         },
         { stagingPath: reminderPath }
       )

@@ -142,23 +142,22 @@ function buildSidekickSingleLine(line: TLine): { label: string; detail?: string 
         detail: line.confidence != null ? `${Math.round(line.confidence * 100)}%` : undefined,
       }
     case 'snarky-message:start':
-      return { label: 'Snarky Message…' }
+      return { label: 'Snarky Message Start' }
     case 'snarky-message:finish':
-      return { label: 'Snarky Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+      return { label: 'Snarky Message Finish', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
     case 'resume-message:start':
-      return { label: 'Resume Message…' }
+      return { label: 'Resume Message Start' }
     case 'resume-message:finish':
-      return { label: 'Resume Message', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
+      return { label: 'Resume Message Finish', detail: line.generatedMessage ? truncate(line.generatedMessage, 60) : undefined }
     case 'persona:selected':
       return { label: `Persona chosen: ${line.personaTo ?? 'unknown'}` }
     case 'persona:changed':
       return { label: `Persona: ${line.personaFrom ?? '?'} → ${line.personaTo ?? '?'}` }
     case 'statusline:rendered': {
-      // Split "resume message · 26 tokens · 38ms" into mode + stats
-      const parts = (line.statuslineContent ?? '').split(' · ')
-      const mode = parts[0] || 'unknown'
-      const stats = parts.slice(1).join(' · ')
-      return { label: `Statusline: ${mode}`, detail: stats || undefined }
+      const content = line.statuslineContent
+      // Show truncated rendered text as detail if available, otherwise fall back to mode summary
+      const detail = content ? truncate(content, 80) : undefined
+      return { label: 'Statusline called', detail }
     }
     case 'error:occurred':
       return { label: `Error: ${line.errorMessage ?? 'unknown'}` }

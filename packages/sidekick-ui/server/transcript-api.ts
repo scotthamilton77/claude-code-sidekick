@@ -70,6 +70,7 @@ export interface ApiTranscriptLine {
   // Sidekick event fields
   reminderId?: string
   reminderBlocking?: boolean
+  reminderText?: string
   decisionTitle?: string
   decisionCategory?: string
   decisionReasoning?: string
@@ -404,6 +405,10 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   if (entry.type === 'reminder:consumed' && payload.renderedText) {
     line.content = payload.renderedText as string
   }
+  // For reminder:staged events, capture the reminder text at staging time
+  if (entry.type === 'reminder:staged' && payload.reminderText) {
+    line.reminderText = payload.reminderText as string
+  }
   line.decisionTitle = payload.title as string | undefined
   line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string
@@ -413,14 +418,22 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   if (payload.confidence != null) line.confidence = payload.confidence as number
   if (payload.personaFrom) line.personaFrom = payload.personaFrom as string
   line.personaTo = (payload.personaTo ?? payload.personaId) as string | undefined
-  // Statusline: build rich content from available fields
+  // Statusline: capture rendered output and hook input; fall back to mode summary
   if (entry.type === 'statusline:rendered') {
-    const parts: string[] = []
-    if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
-    if (payload.staleData === true) parts.push('(stale)')
-    if (payload.tokens) parts.push(`${payload.tokens} chat tokens`)
-    if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
-    if (parts.length > 0) line.statuslineContent = parts.join(' · ')
+    // Prefer the actual rendered text (ANSI-stripped) if available
+    if (payload.renderedText) {
+      line.statuslineContent = payload.renderedText as string
+    } else {
+      // Legacy fallback: build summary from individual fields
+      const parts: string[] = []
+      if (payload.displayMode) parts.push((payload.displayMode as string).replace(/_/g, ' '))
+      if (payload.staleData === true) parts.push('(stale)')
+      if (payload.tokens != null) parts.push(`${payload.tokens} chat tokens`)
+      if (payload.durationMs != null) parts.push(`${payload.durationMs}ms`)
+      if (parts.length > 0) line.statuslineContent = parts.join(' · ')
+    }
+    // Surface hook input summary for detail panel
+    if (payload.hookInput) line.hookInput = payload.hookInput as Record<string, unknown>
   }
   // Hook events
   if (payload.hook) line.hookName = payload.hook as string

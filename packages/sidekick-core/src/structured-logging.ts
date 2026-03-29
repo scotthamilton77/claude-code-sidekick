@@ -925,6 +925,7 @@ export const LogEvents = {
       reason?: string
       triggeredBy?: string
       thresholdState?: { current: number; threshold: number }
+      reminderText?: string
     },
     _metadata?: { stagingPath?: string }
   ): ReminderStagedEvent {
@@ -948,6 +949,7 @@ export const LogEvents = {
         ...(state.reason !== undefined && { reason: state.reason }),
         ...(state.triggeredBy !== undefined && { triggeredBy: state.triggeredBy }),
         ...(state.thresholdState !== undefined && { thresholdState: state.thresholdState }),
+        ...(state.reminderText !== undefined && { reminderText: state.reminderText }),
       },
     }
   },
@@ -1057,6 +1059,8 @@ export const LogEvents = {
       model?: string
       tokens?: number
       durationMs: number
+      renderedText?: string
+      hookInput?: Record<string, unknown>
     }
   ): StatuslineRenderedEvent {
     return {
@@ -1076,6 +1080,8 @@ export const LogEvents = {
         model: metadata.model,
         tokens: metadata.tokens,
         durationMs: metadata.durationMs,
+        ...(metadata.renderedText !== undefined && { renderedText: metadata.renderedText }),
+        ...(metadata.hookInput !== undefined && { hookInput: metadata.hookInput }),
       },
     }
   },
