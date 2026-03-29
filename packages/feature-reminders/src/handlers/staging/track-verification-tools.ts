@@ -147,80 +147,89 @@ export async function stageToolsForFiles(
         continue
       }
 
-      const current = toolsState[toolName]
+      try {
+        const current = toolsState[toolName]
 
-      if (!current || current.status === 'staged') {
-        const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
-          reason: current ? 're-staged' : 'initial',
-          triggeredBy: 'file_edit',
-        })
-        if (staged) {
-          if (!current) {
-            toolsState[toolName] = {
-              status: 'staged',
-              editsSinceVerified: 0,
-              lastVerifiedAt: null,
-              lastStagedAt: Date.now(),
-            }
-          }
-          stagedNames.add(reminderId)
-          anyStaged = true
-        }
-      } else {
-        // verified or cooldown — count edits toward re-staging threshold
-        const newEdits = current.editsSinceVerified + 1
-        if (newEdits >= toolConfig.clearing_threshold) {
-          const wasAlreadyStaged = stagedNames.has(reminderId)
+        if (!current || current.status === 'staged') {
           const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
-            reason: 'threshold_reached',
-            triggeredBy: 'file_edit',
-            thresholdState: { current: newEdits, threshold: toolConfig.clearing_threshold },
+            reason: current ? 're-staged' : 'initial',
+            triggeredBy,
           })
           if (staged) {
-            if (!wasAlreadyStaged) {
-              logEvent(
-                daemonCtx.logger,
-                DecisionEvents.decisionRecorded(
-                  { sessionId },
-                  {
-                    decision: 'staged',
-                    reason: `edits reached clearing threshold (${newEdits}/${toolConfig.clearing_threshold})`,
-                    subsystem: 'vc-reminders',
-                    title: 'Re-stage VC reminder (threshold reached)',
-                  }
-                )
-              )
-            }
-            toolsState[toolName] = {
-              ...current,
-              status: 'staged',
-              editsSinceVerified: 0,
-              lastStagedAt: Date.now(),
+            if (!current) {
+              toolsState[toolName] = {
+                status: 'staged',
+                editsSinceVerified: 0,
+                lastVerifiedAt: null,
+                lastStagedAt: Date.now(),
+              }
             }
             stagedNames.add(reminderId)
             anyStaged = true
           }
         } else {
-          toolsState[toolName] = {
-            ...current,
-            status: 'cooldown',
-            editsSinceVerified: newEdits,
-          }
-          logEvent(
-            daemonCtx.logger,
-            ReminderEvents.reminderNotStaged(
-              { sessionId },
-              {
-                reminderName: reminderId,
-                hookName: 'Stop',
-                reason: 'below_threshold',
-                threshold: toolConfig.clearing_threshold,
-                currentValue: newEdits,
-                triggeredBy,
+          // verified or cooldown — count edits toward re-staging threshold
+          const newEdits = current.editsSinceVerified + 1
+          if (newEdits >= toolConfig.clearing_threshold) {
+            const wasAlreadyStaged = stagedNames.has(reminderId)
+            const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
+              reason: 'threshold_reached',
+              triggeredBy,
+              thresholdState: { current: newEdits, threshold: toolConfig.clearing_threshold },
+            })
+            if (staged) {
+              if (!wasAlreadyStaged) {
+                logEvent(
+                  daemonCtx.logger,
+                  DecisionEvents.decisionRecorded(
+                    { sessionId },
+                    {
+                      decision: 'staged',
+                      reason: `edits reached clearing threshold (${newEdits}/${toolConfig.clearing_threshold})`,
+                      subsystem: 'vc-reminders',
+                      title: 'Re-stage VC reminder (threshold reached)',
+                    }
+                  )
+                )
               }
+              toolsState[toolName] = {
+                ...current,
+                status: 'staged',
+                editsSinceVerified: 0,
+                lastStagedAt: Date.now(),
+              }
+              stagedNames.add(reminderId)
+              anyStaged = true
+            }
+          } else {
+            toolsState[toolName] = {
+              ...current,
+              status: 'cooldown',
+              editsSinceVerified: newEdits,
+            }
+            logEvent(
+              daemonCtx.logger,
+              ReminderEvents.reminderNotStaged(
+                { sessionId },
+                {
+                  reminderName: reminderId,
+                  hookName: 'Stop',
+                  reason: 'below_threshold',
+                  threshold: toolConfig.clearing_threshold,
+                  currentValue: newEdits,
+                  triggeredBy,
+                }
+              )
             )
-          )
+          }
         }
+      } catch (error) {
+        daemonCtx.logger.warn('Failed to stage tool reminder, skipping', {
+          toolName,
+          reminderId,
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
   }

@@ -762,3 +762,166 @@ additionalContext: "Build needed"
     expect(result).toBe(false)
   })
 })
+
+// --------------------------------------------------------------------------
+// Per-tool error handling in stageToolsForFiles inner loop
+// --------------------------------------------------------------------------
+
+describe('stageToolsForFiles inner loop error handling', () => {
+  let staging: MockStagingService
+  let logger: MockLogger
+  let handlers: MockHandlerRegistry
+  let assets: MockAssetResolver
+  let stateService: MockStateService
+  let ctx: DaemonContext
+
+  let cwdSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    staging = new MockStagingService()
+    logger = new MockLogger()
+    handlers = new MockHandlerRegistry()
+    assets = new MockAssetResolver()
+    stateService = new MockStateService()
+    cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue('/nonexistent')
+
+    // Register all reminder YAMLs so resolution succeeds
+    assets.registerAll({
+      'reminders/verify-completion.yaml': `id: verify-completion
+blocking: true
+priority: 51
+persistent: false
+additionalContext: "Wrapper"
+`,
+      'reminders/vc-build.yaml': `id: vc-build
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Build needed"
+`,
+      'reminders/vc-typecheck.yaml': `id: vc-typecheck
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Typecheck needed"
+`,
+      'reminders/vc-test.yaml': `id: vc-test
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Test needed"
+`,
+      'reminders/vc-lint.yaml': `id: vc-lint
+blocking: true
+priority: 50
+persistent: false
+additionalContext: "Lint needed"
+`,
+    })
+
+    ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
+  })
+
+  afterEach(() => {
+    cwdSpy.mockRestore()
+  })
+
+  it('continues staging other tools when one tool throws during staging', async () => {
+    // Make stageReminder throw only for vc-build
+    const originalStageReminder = staging.stageReminder.bind(staging)
+    staging.stageReminder = async (hookName: string, reminderName: string, data: any) => {
+      if (reminderName === 'vc-build') {
+        throw new Error('Simulated staging failure for vc-build')
+      }
+      return originalStageReminder(hookName, reminderName, data)
+    }
+
+    const { createRemindersState } = await import('../../../state.js')
+    const remindersState = createRemindersState(stateService as any)
+
+    const verificationTools = {
+      build: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 3 },
+      typecheck: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 3 },
+      test: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 3 },
+      lint: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 5 },
+    }
+
+    const result = await stageToolsForFiles(
+      ['/mock/project/src/index.ts'],
+      ctx,
+      'test-session',
+      verificationTools,
+      {},
+      remindersState
+    )
+
+    // Should still succeed — other tools were staged
+    expect(result).toBe(true)
+
+    // vc-build failed, but typecheck/test/lint should be staged
+    const names = getStagedNames(staging)
+    expect(names).not.toContain(ReminderIds.VC_BUILD)
+    expect(names).toContain(ReminderIds.VC_TYPECHECK)
+    expect(names).toContain(ReminderIds.VC_TEST)
+    expect(names).toContain(ReminderIds.VC_LINT)
+    // Wrapper should still be staged since some tools succeeded
+    expect(names).toContain(ReminderIds.VERIFY_COMPLETION)
+  })
+
+  it('logs a warning when a tool throws during staging', async () => {
+    const originalStageReminder = staging.stageReminder.bind(staging)
+    staging.stageReminder = async (hookName: string, reminderName: string, data: any) => {
+      if (reminderName === 'vc-test') {
+        throw new Error('Test staging kaboom')
+      }
+      return originalStageReminder(hookName, reminderName, data)
+    }
+
+    const { createRemindersState } = await import('../../../state.js')
+    const remindersState = createRemindersState(stateService as any)
+
+    const verificationTools = {
+      test: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 3 },
+      lint: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 5 },
+    }
+
+    await stageToolsForFiles(['/mock/project/src/index.ts'], ctx, 'test-session', verificationTools, {}, remindersState)
+
+    // Should have logged a warning about the failed tool
+    const warnLogs = logger.recordedLogs.filter(
+      (log) => log.level === 'warn' && log.msg?.includes('stage tool reminder')
+    )
+    expect(warnLogs.length).toBeGreaterThanOrEqual(1)
+    expect(warnLogs[0].meta?.toolName).toBe('test')
+    expect(warnLogs[0].meta?.error).toBe('Test staging kaboom')
+  })
+
+  it('does not throw when a tool fails — partial staging succeeds', async () => {
+    const originalStageReminder = staging.stageReminder.bind(staging)
+    staging.stageReminder = async (hookName: string, reminderName: string, data: any) => {
+      if (reminderName === 'vc-lint') {
+        throw new Error('Lint staging explosion')
+      }
+      return originalStageReminder(hookName, reminderName, data)
+    }
+
+    const { createRemindersState } = await import('../../../state.js')
+    const remindersState = createRemindersState(stateService as any)
+
+    const verificationTools = {
+      build: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 3 },
+      lint: { enabled: true, patterns: [], clearing_patterns: ['**/*.ts'], clearing_threshold: 5 },
+    }
+
+    // Must NOT throw
+    await expect(
+      stageToolsForFiles(['/mock/project/src/index.ts'], ctx, 'test-session', verificationTools, {}, remindersState)
+    ).resolves.toBe(true)
+
+    // State should still be written (build succeeded)
+    const statePath = stateService.sessionStatePath('test-session', 'verification-tools.json')
+    const state = stateService.getStored(statePath) as Record<string, unknown>
+    expect(state).toBeDefined()
+    expect(state.build).toBeDefined()
+  })
+})
