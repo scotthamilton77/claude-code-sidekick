@@ -293,14 +293,12 @@ export async function handleStatuslineCommand(
 
     // Build compact hookInput summary for the detail panel (full input is too large)
     const hookInputSummary = options.hookInput
-      ? Object.fromEntries(
-          Object.entries({
-            session_id: options.hookInput.session_id,
-            model: options.hookInput.model?.display_name,
-            cwd: options.hookInput.cwd,
-            version: options.hookInput.version,
-          }).filter(([, value]) => value !== undefined)
-        )
+      ? {
+          session_id: options.hookInput.session_id,
+          ...(options.hookInput.model?.display_name !== undefined && { model: options.hookInput.model.display_name }),
+          cwd: options.hookInput.cwd,
+          version: options.hookInput.version,
+        }
       : undefined
 
     // Emit structured StatuslineRendered event

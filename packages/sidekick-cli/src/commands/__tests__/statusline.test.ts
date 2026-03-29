@@ -42,13 +42,14 @@ const mockCreateStatuslineService = vi.fn(() => ({
   render: mockRender,
 }))
 
-// Mock the feature-statusline package
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = /\x1b\[[0-9;]*m/g
-vi.mock('@sidekick/feature-statusline', () => ({
-  createStatuslineService: mockCreateStatuslineService,
-  stripAnsi: (s: string) => s.replace(ANSI_RE, ''),
-}))
+// Mock the feature-statusline package — use real stripAnsi to avoid mock drift
+vi.mock('@sidekick/feature-statusline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/feature-statusline')>()
+  return {
+    ...actual,
+    createStatuslineService: mockCreateStatuslineService,
+  }
+})
 
 // Mock @sidekick/core to avoid SetupStatusService spawning subprocesses
 vi.mock('@sidekick/core', async (importOriginal) => {
