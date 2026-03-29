@@ -616,10 +616,10 @@ describe('CachedReminderSchema', () => {
     }
   })
 
-  it('rejects if stagedAt is provided (omitted field)', () => {
+  it('strips stagedAt from input', () => {
     // CachedReminderSchema is StagedReminderSchema.omit({ stagedAt: true })
-    // Extra keys may or may not be stripped by Zod; the key behavior is that
-    // stagedAt does NOT appear in the output
+    // Zod strips unknown keys by default, so parsing succeeds but stagedAt
+    // is not present in the output
     const result = CachedReminderSchema.safeParse({
       name: 'test',
       blocking: false,
@@ -627,7 +627,7 @@ describe('CachedReminderSchema', () => {
       persistent: false,
       stagedAt: { timestamp: 123, turnCount: 1, toolsThisTurn: 0, toolCount: 0 },
     })
-    // Zod strips unknown keys by default; stagedAt should not be in output
+    expect(result.success).toBe(true)
     if (result.success) {
       expect('stagedAt' in result.data).toBe(false)
     }

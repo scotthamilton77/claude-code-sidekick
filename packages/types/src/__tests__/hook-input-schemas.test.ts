@@ -474,8 +474,11 @@ describe('HookInputSchema', () => {
     expect(result.success).toBe(true)
   })
 
-  it('accepts a base payload (fallback)', () => {
-    const result = HookInputSchema.safeParse(basePayload)
+  it('accepts an unknown hook event via the fallback arm', () => {
+    const result = HookInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'UnknownHookEvent',
+    })
     expect(result.success).toBe(true)
   })
 

@@ -1,8 +1,8 @@
 /**
  * Runtime validation tests for feature-session-summary state descriptors.
  *
- * Validates that the state descriptors use correct schemas and defaults,
- * and that the factory function creates all expected accessors.
+ * Validates that the state descriptors use correct schemas and defaults
+ * via their associated Zod schemas.
  *
  * @see packages/feature-session-summary/src/state.ts
  */
