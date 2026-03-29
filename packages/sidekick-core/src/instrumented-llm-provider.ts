@@ -367,7 +367,6 @@ export class InstrumentedLLMProvider implements LLMProvider {
 
   /**
    * Ensure provider and model entries exist in metrics, returning both.
-   * DRYs the duplicated guard blocks from recordSuccess/recordFailure.
    */
   private getOrCreateModelMetrics(
     provider: string,
@@ -435,7 +434,6 @@ export class InstrumentedLLMProvider implements LLMProvider {
     this.metrics.totals.averageLatencyMs =
       this.metrics.totals.successCount > 0 ? this.metrics.totals.totalLatencyMs / this.metrics.totals.successCount : 0
 
-    // Store latency for percentile calculation (nested map avoids delimiter collision)
     this.getOrCreateLatencyBuffer(provider, model).push(latencyMs)
 
     this.metrics.lastUpdatedAt = Date.now()
@@ -523,8 +521,8 @@ export class InstrumentedLLMProvider implements LLMProvider {
 
   /**
    * Compute percentiles from latency buffers.
-   * Iterates nested maps (provider -> model -> latencies[]) to avoid
-   * delimiter-based key parsing that corrupts model names containing colons.
+   * Uses nested maps to avoid delimiter-based key parsing that would
+   * corrupt model names containing colons (e.g. "anthropic:claude-3:opus").
    */
   private computePercentiles(): void {
     for (const [provider, modelBuffers] of this.latencyBuffers.entries()) {
@@ -553,7 +551,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
 
       // Compute provider-level percentiles from all model latencies
       if (allProviderLatencies.length > 0) {
-        const sorted = allProviderLatencies.sort((a, b) => a - b)
+        const sorted = [...allProviderLatencies].sort((a, b) => a - b)
         providerMetrics.latency.p50 = this.percentile(sorted, 50)
         providerMetrics.latency.p90 = this.percentile(sorted, 90)
         providerMetrics.latency.p95 = this.percentile(sorted, 95)
