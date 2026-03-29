@@ -321,6 +321,62 @@ additionalContext: "Lint needed"
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_BUILD)
   })
 
+  // --------------------------------------------------------------------------
+  // Runner-wrapped command detection
+  // --------------------------------------------------------------------------
+
+  it('unstages vc-typecheck when mypy is invoked through uv run', async () => {
+    const handler = getRegisteredHandler()
+
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py'),
+      ctx as any
+    )
+    expect(getStagedNames(staging)).toContain(ReminderIds.VC_TYPECHECK)
+
+    await handler(
+      createBashEvent(
+        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+        'uv run mypy tests/test_feedback_server.py --ignore-missing-imports'
+      ),
+      ctx as any
+    )
+
+    expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TYPECHECK)
+  })
+
+  it('unstages vc-test when pytest is invoked through uv run', async () => {
+    const handler = getRegisteredHandler()
+
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py'),
+      ctx as any
+    )
+
+    await handler(
+      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'uv run pytest tests/'),
+      ctx as any
+    )
+
+    expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TEST)
+  })
+
+  it('unstages vc-lint when ruff is invoked through poetry run', async () => {
+    const handler = getRegisteredHandler()
+
+    await handler(
+      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py'),
+      ctx as any
+    )
+
+    await handler(
+      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'poetry run ruff check src/'),
+      ctx as any
+    )
+
+    expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_LINT)
+  })
+
   it('stores lastMatchedToolId and lastMatchedScope on verification', async () => {
     const handler = getRegisteredHandler()
 
