@@ -31,7 +31,7 @@ type SnarkyResult =
 type ResumeResult =
   | { status: 'success'; state: ResumeMessageState }
   | { status: 'deterministic'; state: ResumeMessageState }
-  | { status: 'skipped'; reason: 'low_confidence' | 'no_summary' | 'prompt_not_found' }
+  | { status: 'skipped'; reason: 'low_confidence' | 'prompt_not_found' }
   | { status: 'error'; error: Error }
 ```
 
