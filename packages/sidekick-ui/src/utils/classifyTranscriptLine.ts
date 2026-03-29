@@ -6,6 +6,17 @@ export const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set<Transc
   'compaction', 'turn-duration', 'api-error', 'pr-link',
 ])
 
+/**
+ * Returns true if the line matches the active transcript filters.
+ * Assistant messages with both content+thinking match either 'conversation' or 'thinking'.
+ */
+export function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
+  if (line.type === 'assistant-message' && line.thinking && line.content) {
+    return filters.has('conversation') || filters.has('thinking')
+  }
+  return filters.has(classifyLineCategory(line))
+}
+
 export function classifyLineCategory(line: TranscriptLine): TranscriptFilter {
   const type = line.type
   if (type === 'assistant-message' && line.thinking && !line.content) return 'thinking'

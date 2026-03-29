@@ -1,8 +1,8 @@
 import { useRef, useEffect, useCallback, useMemo, memo, Fragment } from 'react'
-import type { TranscriptLine, LEDState, TranscriptFilter, SidekickEvent } from '../../types'
+import type { TranscriptLine, LEDState, SidekickEvent } from '../../types'
 import { SIDEKICK_EVENT_TO_FILTER } from '../../types'
 import { findNearestTimelineEvent } from '../../utils/findNearestTimelineEvent'
-import { classifyLineCategory } from '../../utils/classifyTranscriptLine'
+import { matchesTranscriptFilter } from '../../utils/classifyTranscriptLine'
 import { useNavigation } from '../../hooks/useNavigation'
 import { SearchFilterBar } from './SearchFilterBar'
 import { TranscriptFilterBar } from './TranscriptFilterBar'
@@ -19,14 +19,6 @@ interface TranscriptProps {
   scrollToLineId: string | null
   defaultModel?: string
   timelineEvents?: SidekickEvent[]
-}
-
-function matchesTranscriptFilter(line: TranscriptLine, filters: Set<TranscriptFilter>): boolean {
-  // Assistant with both content+thinking: show if either filter active
-  if (line.type === 'assistant-message' && line.thinking && line.content) {
-    return filters.has('conversation') || filters.has('thinking')
-  }
-  return filters.has(classifyLineCategory(line))
 }
 
 const DEFAULT_LED: LEDState = {
