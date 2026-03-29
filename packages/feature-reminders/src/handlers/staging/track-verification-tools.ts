@@ -153,7 +153,7 @@ export async function stageToolsForFiles(
         if (!current || current.status === 'staged') {
           const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
             reason: current ? 're-staged' : 'initial',
-            triggeredBy: 'file_edit',
+            triggeredBy,
           })
           if (staged) {
             if (!current) {
@@ -174,7 +174,7 @@ export async function stageToolsForFiles(
             const wasAlreadyStaged = stagedNames.has(reminderId)
             const staged = await ensureToolReminderStaged(daemonCtx, reminderId, stagedNames, {
               reason: 'threshold_reached',
-              triggeredBy: 'file_edit',
+              triggeredBy,
               thresholdState: { current: newEdits, threshold: toolConfig.clearing_threshold },
             })
             if (staged) {
