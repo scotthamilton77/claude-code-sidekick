@@ -230,4 +230,4 @@ App
 
 The v1 prototype is the current code on this branch. It validates the core accordion mechanics, dark mode, focus filters, and component rendering. The v2 redesign reuses the session selector, summary strip, and much of the styling — but restructures the dashboard into separate timeline and transcript panels with the LED gutter concept.
 
-The archived pre-prototype implementation is at `packages/sidekick-ui/.archive/` for reference.
+The pre-prototype implementation was removed in the `.archive/` cleanup (git history preserves it).
