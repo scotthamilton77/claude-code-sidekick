@@ -100,7 +100,7 @@ No canonical definition exists for how logging events map to UI timeline events.
 
 ### 2.1 Current State: No Live API
 
-The current UI is a client-side React app with mock data only. There are NO live API handlers. The archived server implementation (.archive/server/) shows previously planned HTTP APIs.
+The current UI is a client-side React app with mock data only. There are NO live API handlers. The pre-prototype implementation previously lived under `packages/sidekick-ui/.archive/` and was removed during cleanup; refer to git history if you need to inspect previously planned HTTP APIs.
 
 ### 2.2 Archived API Endpoints
 

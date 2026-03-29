@@ -698,7 +698,7 @@ The UI backend runs as a Vite middleware plugin — API routes are registered as
 
 **Why Vite-only:**
 - Single-user local tool with no production deployment scenario
-- The archived `.archive/server/api-plugin.ts` demonstrates this pattern (itty-router over Vite middleware)
+- The pre-prototype implementation previously lived under `packages/sidekick-ui/.archive/` and was removed during cleanup; refer to git history if you need to inspect it. That code demonstrated this pattern (itty-router over Vite middleware)
 - One process to manage; handlers are portable if a standalone server is ever needed
 - Hot module reload for the React frontend works seamlessly alongside the API
 
