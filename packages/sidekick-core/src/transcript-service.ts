@@ -251,6 +251,11 @@ export class TranscriptServiceImpl implements TranscriptService {
   /** One-shot guard — prevents BulkProcessingComplete from firing more than once per instance */
   private hasFiredBulkComplete = false
 
+  /** Whether the transcript file had existing data at prepare() time with no recovered state.
+   *  Only true when we need to replay an existing backlog (e.g., daemon restart mid-session).
+   *  False for fresh sessions (e.g., after /clear) where data arrives incrementally. */
+  private hasBacklogAtPrepareTime = false
+
   /** Timestamp when bulk processing started (for duration calculation in finish event) */
   private bulkStartTime = 0
 
@@ -304,6 +309,19 @@ export class TranscriptServiceImpl implements TranscriptService {
       })
     } else {
       this.metrics = createDefaultMetrics()
+
+      // Detect backlog: file exists with data and no recovered state.
+      // This means the daemon is seeing this transcript for the first time
+      // (e.g., daemon restart mid-session). A fresh session after /clear
+      // will have an empty or nonexistent file here.
+      if (existsSync(transcriptPath)) {
+        try {
+          const stats = statSync(transcriptPath)
+          this.hasBacklogAtPrepareTime = stats.size > 0
+        } catch {
+          this.hasBacklogAtPrepareTime = false
+        }
+      }
     }
 
     // Load compaction history
@@ -1200,7 +1218,7 @@ export class TranscriptServiceImpl implements TranscriptService {
     }
 
     const startLine = this.metrics.lastProcessedLine
-    const isBulkStart = startLine === 0 && this.lastProcessedByteOffset === 0
+    const isBulkStart = startLine === 0 && this.lastProcessedByteOffset === 0 && this.hasBacklogAtPrepareTime
 
     if (isBulkStart && !this.hasFiredBulkComplete) {
       this.isBulkProcessing = true
