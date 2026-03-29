@@ -1947,6 +1947,139 @@ describe('Structured Logging', () => {
     })
   })
 
+  describe('flush() pre-upgrade buffer replay', () => {
+    it('should replay buffered entries to stderr fallback when flush() is called before upgrade', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream: stderrStream, lines: stderrLines } = createTestStream()
+
+      const facade = createLoggerFacade({
+        bootstrapSink: stderrStream,
+        bufferPreUpgrade: true,
+      })
+
+      // Log before upgrade (buffered, not written anywhere yet)
+      facade.info('Buffered entry one')
+      facade.warn('Buffered entry two')
+
+      // flush() before upgrade should replay to bootstrap sink (stderr fallback)
+      await facade.flush()
+
+      expect(stderrLines.length).toBe(2)
+      expect(stderrLines[0]).toContain('Buffered entry one')
+      expect(stderrLines[1]).toContain('Buffered entry two')
+    })
+
+    it('should clear buffer after pre-upgrade flush replay', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream: stderrStream, lines: stderrLines } = createTestStream()
+
+      const facade = createLoggerFacade({
+        bootstrapSink: stderrStream,
+        bufferPreUpgrade: true,
+      })
+
+      facade.info('Buffered entry')
+      await facade.flush()
+
+      // Buffer should be cleared — second flush should not replay
+      stderrLines.length = 0
+      await facade.flush()
+
+      expect(stderrLines.length).toBe(0)
+    })
+
+    it('should be a no-op when flush() is called post-upgrade with empty buffer', async () => {
+      const { createLoggerFacade } = await import('../structured-logging')
+      const { stream: pinoStream, lines: pinoLines } = createTestStream()
+
+      const facade = createLoggerFacade({
+        bufferPreUpgrade: true,
+      })
+
+      // Upgrade first, then log
+      facade.upgrade({
+        name: 'sidekick:test',
+        level: 'info',
+        testStream: pinoStream,
+      })
+
+      facade.info('Post-upgrade entry')
+      await facade.flush()
+
+      // Only the post-upgrade entry should appear
+      expect(pinoLines.length).toBe(1)
+      expect(parseLogLine(pinoLines[0]).msg).toBe('Post-upgrade entry')
+    })
+  })
+
+  describe('LogEvents field-dropping regression', () => {
+    it('reminderStaged should include reminderText when provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-1', hook: 'UserPromptSubmit' },
+        {
+          reminderName: 'build-check',
+          hookName: 'UserPromptSubmit',
+          blocking: true,
+          priority: 1,
+          persistent: false,
+          reminderText: 'You MUST run pnpm build before completion',
+        }
+      )
+
+      expect(event.payload.reminderText).toBe('You MUST run pnpm build before completion')
+    })
+
+    it('reminderStaged should omit reminderText when not provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.reminderStaged(
+        { sessionId: 'sess-1', hook: 'UserPromptSubmit' },
+        {
+          reminderName: 'build-check',
+          hookName: 'UserPromptSubmit',
+          blocking: true,
+          priority: 1,
+          persistent: false,
+        }
+      )
+
+      expect(event.payload).not.toHaveProperty('reminderText')
+    })
+
+    it('statuslineRendered should include renderedText and hookInput when provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.statuslineRendered(
+        { sessionId: 'sess-1' },
+        { displayMode: 'session_summary', staleData: false },
+        {
+          durationMs: 25,
+          model: 'claude-sonnet-4-20250514',
+          renderedText: 'Session: coding | Model: Sonnet',
+          hookInput: { session_id: 'sess-1', model: 'Sonnet' },
+        }
+      )
+
+      expect(event.payload.renderedText).toBe('Session: coding | Model: Sonnet')
+      expect(event.payload.hookInput).toEqual({ session_id: 'sess-1', model: 'Sonnet' })
+    })
+
+    it('statuslineRendered should omit renderedText and hookInput when not provided', async () => {
+      const { LogEvents } = await import('../structured-logging')
+
+      const event = LogEvents.statuslineRendered(
+        { sessionId: 'sess-1' },
+        { displayMode: 'session_summary', staleData: false },
+        { durationMs: 25 }
+      )
+
+      expect(event.payload).not.toHaveProperty('renderedText')
+      expect(event.payload).not.toHaveProperty('hookInput')
+    })
+  })
+
   describe('getComponentLogLevel', () => {
     it('should return override level when component has an override', async () => {
       const { getComponentLogLevel } = await import('../structured-logging')
