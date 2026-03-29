@@ -1136,6 +1136,80 @@ describe('TranscriptServiceImpl', () => {
         durationMs: expect.any(Number),
       })
     })
+
+    it('does NOT enter bulk processing for fresh transcript (file absent at prepare time)', async () => {
+      // Scenario: after /clear, the transcript file doesn't exist yet at prepare time.
+      // Data arrives later (e.g., when first user prompt writes to transcript).
+      // This should NOT be treated as a bulk replay.
+
+      // Do NOT create the file before prepare
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // Now write data (simulates first user prompt after /clear)
+      const transcript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'First prompt after clear' } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      // Process the new data
+      const internals = getTestHelpers(service)
+      await internals.processTranscriptFile()
+
+      // Should NOT emit BulkProcessingComplete — this is a fresh session, not a replay
+      const bulkEvents = handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')
+      expect(bulkEvents).toHaveLength(0)
+
+      // Should NOT emit bulk-processing:start or bulk-processing:finish log events
+      const startEvents = findLogEventCalls(logger, 'bulk-processing:start')
+      expect(startEvents).toHaveLength(0)
+      const finishEvents = findLogEventCalls(logger, 'bulk-processing:finish')
+      expect(finishEvents).toHaveLength(0)
+    })
+
+    it('does NOT enter bulk processing for fresh transcript (file empty at prepare time)', async () => {
+      // Scenario: transcript file exists but is empty at prepare time
+      writeFileSync(transcriptPath, '')
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // Write data after start
+      const transcript = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } })].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      const internals = getTestHelpers(service)
+      await internals.processTranscriptFile()
+
+      // Should NOT emit BulkProcessingComplete
+      const bulkEvents = handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')
+      expect(bulkEvents).toHaveLength(0)
+
+      // Should NOT emit bulk-processing log events
+      expect(findLogEventCalls(logger, 'bulk-processing:start')).toHaveLength(0)
+      expect(findLogEventCalls(logger, 'bulk-processing:finish')).toHaveLength(0)
+    })
+
+    it('DOES enter bulk processing when transcript has existing data at prepare time', async () => {
+      // Scenario: daemon starts/restarts with existing transcript data
+      // This IS a genuine replay scenario
+      const transcript = [
+        JSON.stringify({ type: 'user', message: { role: 'user', content: 'Hello' } }),
+        JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ text: 'Hi' }] } }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await service.prepare('test-session', transcriptPath)
+      await service.start()
+
+      // Should emit BulkProcessingComplete — this is a genuine replay
+      const bulkEvents = handlers.emittedEvents.filter((e) => e.eventType === 'BulkProcessingComplete')
+      expect(bulkEvents).toHaveLength(1)
+
+      // Should emit both lifecycle log events
+      expect(findLogEventCalls(logger, 'bulk-processing:start')).toHaveLength(1)
+      expect(findLogEventCalls(logger, 'bulk-processing:finish')).toHaveLength(1)
+    })
   })
 
   // --------------------------------------------------------------------------

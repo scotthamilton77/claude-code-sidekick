@@ -196,7 +196,12 @@ describe('parseTimelineEvents', () => {
 })
 
 describe('generateLabel', () => {
-  it('generates label for reminder:staged', () => {
+  it('generates label for reminder:staged with hookName', () => {
+    const result = generateLabel('reminder:staged', { reminderName: 'vc-build', hookName: 'UserPromptSubmit', reason: 'tool_threshold' })
+    expect(result).toEqual({ label: 'Staged: vc-build (UserPromptSubmit)', detail: 'reason: tool_threshold' })
+  })
+
+  it('generates label for reminder:staged without hookName', () => {
     const result = generateLabel('reminder:staged', { reminderName: 'vc-build', reason: 'tool_threshold' })
     expect(result).toEqual({ label: 'Staged: vc-build', detail: 'reason: tool_threshold' })
   })

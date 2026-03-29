@@ -71,8 +71,10 @@ export function generateLabel(
   switch (type) {
     case 'reminder:staged': {
       const name = (payload.reminderName as string) || 'unknown'
+      const hookName = payload.hookName as string | undefined
       const reason = payload.reason as string | undefined
-      return { label: `Staged: ${name}`, ...(reason ? { detail: `reason: ${reason}` } : {}) }
+      const hookSuffix = hookName ? ` (${hookName})` : ''
+      return { label: `Staged: ${name}${hookSuffix}`, ...(reason ? { detail: `reason: ${reason}` } : {}) }
     }
     case 'reminder:unstaged': {
       const name = (payload.reminderName as string) || 'unknown'
