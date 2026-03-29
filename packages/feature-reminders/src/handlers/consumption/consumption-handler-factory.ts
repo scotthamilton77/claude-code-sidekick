@@ -172,6 +172,12 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
         await onConsume({ reminder: primary, reader, cliCtx, sessionId })
       }
 
+      // Build rendered text from the response fields that were injected
+      const renderedParts: string[] = []
+      if (response.userMessage) renderedParts.push(response.userMessage)
+      if (response.additionalContext) renderedParts.push(response.additionalContext)
+      const renderedText = renderedParts.length > 0 ? renderedParts.join('\n\n') : undefined
+
       // Log ReminderConsumed event
       logEvent(
         cliCtx.logger,
@@ -186,6 +192,7 @@ export function createConsumptionHandler(context: RuntimeContext, config: Consum
             blocking: response.blocking ?? false,
             priority: primary.priority,
             persistent: primary.persistent,
+            renderedText,
             ...enrichment,
           }
         )

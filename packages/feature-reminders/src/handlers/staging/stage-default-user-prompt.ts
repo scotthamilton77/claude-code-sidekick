@@ -163,6 +163,24 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
         const newCount = typedEntry.messagesSinceLastStaging + 1
 
         if (newCount >= threshold) {
+          // Log decision BEFORE staging (correct ordering: decide, then act)
+          logEvent(
+            handlerCtx.logger,
+            DecisionEvents.decisionRecorded(
+              { sessionId },
+              {
+                decision: 'staged',
+                reason: [
+                  `message count reached threshold (${newCount}/${threshold})`,
+                  `target hook: ${typedEntry.targetHook}`,
+                  `messages since last staging: ${typedEntry.messagesSinceLastStaging}`,
+                ].join('; '),
+                subsystem: 'reminder-throttle',
+                title: `Re-stage ${reminderId} reminder`,
+              }
+            )
+          )
+
           // Build stagedAt metrics from the triggering transcript event (consistent with createStagingHandler)
           const metrics = event.metadata.metrics
           const stagedAt: StagingMetrics = {
@@ -175,18 +193,6 @@ export function registerStageDefaultUserPrompt(context: RuntimeContext): void {
             ...(typedEntry.cachedReminder as StagedReminder),
             stagedAt,
           })
-          logEvent(
-            handlerCtx.logger,
-            DecisionEvents.decisionRecorded(
-              { sessionId },
-              {
-                decision: 'staged',
-                reason: `message count reached threshold (${newCount}/${threshold})`,
-                subsystem: 'user-prompt-reminders',
-                title: 'Stage user-prompt reminder',
-              }
-            )
-          )
           state[reminderId] = { ...typedEntry, messagesSinceLastStaging: 0 }
           handlerCtx.logger.debug('Throttle: re-staged reminder', {
             sessionId,

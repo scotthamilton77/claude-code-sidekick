@@ -400,6 +400,10 @@ function sidekickEventToTranscriptLine(entry: RawLogEntry): ApiTranscriptLine {
   // Copy event-specific payload fields (use ?? for fallback semantics)
   line.reminderId = (payload.reminderName ?? payload.reminderType) as string | undefined
   if (payload.blocking === true) line.reminderBlocking = true
+  // For reminder:consumed events, include rendered text as content for detail pane
+  if (entry.type === 'reminder:consumed' && payload.renderedText) {
+    line.content = payload.renderedText as string
+  }
   line.decisionTitle = payload.title as string | undefined
   line.decisionCategory = (payload.decision ?? payload.category) as string | undefined
   if (payload.reason) line.decisionReasoning = payload.reason as string

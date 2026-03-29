@@ -964,8 +964,8 @@ additionalContext: "Standard user prompt reminder"
         const decisionEvents = getDecisionRecordedEvents()
         expect(decisionEvents).toHaveLength(1)
         expect(decisionEvents[0].meta?.decision).toBe('staged')
-        expect(decisionEvents[0].meta?.subsystem).toBe('user-prompt-reminders')
-        expect(decisionEvents[0].meta?.title).toBe('Stage user-prompt reminder')
+        expect(decisionEvents[0].meta?.subsystem).toBe('reminder-throttle')
+        expect(decisionEvents[0].meta?.title).toBe('Re-stage user-prompt-submit reminder')
       })
 
       it('includes stagedAt metrics from triggering event when re-staging', async () => {

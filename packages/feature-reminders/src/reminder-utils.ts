@@ -131,6 +131,10 @@ export function resolveReminder(
 /**
  * Stage a reminder for a specific hook.
  * Delegates to StagingService for atomic file operations.
+ *
+ * Deduplication: If a reminder with the same name is already staged for the
+ * target hook, the staging is skipped. This prevents duplicate staging when
+ * SessionStart and UserPromptSubmit hooks overlap (e.g., on /clear).
  */
 export async function stageReminder(
   ctx: DaemonContext,
@@ -138,6 +142,16 @@ export async function stageReminder(
   reminder: StagedReminder,
   enrichment?: StagingEnrichment
 ): Promise<void> {
+  // Check if already staged to prevent duplicates
+  const existing = await ctx.staging.readReminder(hookName, reminder.name)
+  if (existing) {
+    ctx.logger.debug('Skipped duplicate staging (already staged)', {
+      hookName,
+      reminderName: reminder.name,
+    })
+    return
+  }
+
   await ctx.staging.stageReminder(hookName, reminder.name, reminder, enrichment)
   ctx.logger.debug('Staged reminder', { hookName, reminderName: reminder.name, priority: reminder.priority })
 }
