@@ -62,7 +62,8 @@ const SessionSummaryResponseSchema = z.object({
   pivot_detected: z.boolean(),
 })
 
-type SessionSummaryResponse = z.infer<typeof SessionSummaryResponseSchema>
+/** @internal Exported for test assertions on step function return types */
+export type SessionSummaryResponse = z.infer<typeof SessionSummaryResponseSchema>
 
 // Re-export for backward compatibility with tests
 export { buildPersonaContext, type PersonaTemplateContext } from './persona-utils.js'
@@ -260,6 +261,315 @@ function parseResponse(content: string): SessionSummaryResponse | null {
   }
 }
 
+// ============================================================================
+// Analysis Step Functions
+// ============================================================================
+// Extracted from performAnalysis for testability and clarity.
+// Each step is a pure-ish function with explicit inputs/outputs.
+// ============================================================================
+
+/** Return type for loadAnalysisInputs */
+export interface AnalysisInputs {
+  config: SessionSummaryConfig
+  currentSummary: SessionSummaryState | null
+  excerpt: string
+  previousContext: string
+  previousConfidence: number
+  prompt: string | null
+  schema:
+    | {
+        name: string
+        schema: Record<string, unknown>
+      }
+    | undefined
+}
+
+/**
+ * Step 1: Load all inputs needed for LLM analysis.
+ * Loads config, current summary, transcript excerpt, prompt template, and schema.
+ * Returns null prompt when asset not found (caller should bail).
+ * @internal Exported for testing.
+ */
+export async function loadAnalysisInputs(
+  ctx: DaemonContext,
+  summaryState: SessionSummaryStateAccessors,
+  transcript: DaemonContext['transcript'],
+  countdown: SummaryCountdownState,
+  sessionId: string
+): Promise<AnalysisInputs> {
+  // Merge feature config with defaults
+  const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
+  const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
+
+  // Load current summary (null when file is missing)
+  const summaryResult = await summaryState.sessionSummary.read(sessionId)
+  const currentSummary = summaryResult.data
+
+  // Extract transcript excerpt via TranscriptService
+  const excerptResult = transcript.getExcerpt({
+    maxLines: config.excerptLines,
+    bookmarkLine: countdown.bookmark_line,
+    includeToolMessages: config.includeToolMessages,
+    includeToolOutputs: config.includeToolOutputs,
+    includeAssistantThinking: config.includeAssistantThinking,
+  })
+  const excerpt = excerptResult.content
+
+  // Build previous analysis context
+  const previousContext = currentSummary
+    ? JSON.stringify(
+        {
+          session_title: currentSummary.session_title,
+          latest_intent: currentSummary.latest_intent,
+        },
+        null,
+        2
+      )
+    : 'No previous analysis'
+  const previousConfidence = currentSummary?.session_title_confidence ?? 0
+
+  // Load prompt template
+  const promptTemplate = ctx.assets.resolve(PROMPT_FILE)
+  let prompt: string | null = null
+  if (promptTemplate) {
+    prompt = interpolatePrompt(promptTemplate, {
+      transcript: excerpt,
+      previousConfidence,
+      previousAnalysis: previousContext,
+      maxTitleWords: config.maxTitleWords,
+      maxIntentWords: config.maxIntentWords,
+    })
+  } else {
+    ctx.logger.error('Failed to load session summary prompt template', { path: PROMPT_FILE })
+  }
+
+  // Load JSON schema for structured output
+  const schemaContent = ctx.assets.resolve(SESSION_SUMMARY_SCHEMA_FILE)
+  const schema = schemaContent
+    ? {
+        name: 'session-summary',
+        schema: JSON.parse(schemaContent) as Record<string, unknown>,
+      }
+    : undefined
+
+  return { config, currentSummary, excerpt, previousContext, previousConfidence, prompt, schema }
+}
+
+/** Return type for callSummaryLLM */
+export interface LLMResult {
+  parsedResponse: SessionSummaryResponse | null
+  tokenCount: number
+}
+
+/**
+ * Step 2: Call the LLM provider and parse the response.
+ * Returns parsed response (null on failure) and token count.
+ * @internal Exported for testing.
+ */
+export async function callSummaryLLM(
+  ctx: DaemonContext,
+  prompt: string,
+  schema: AnalysisInputs['schema'],
+  config: SessionSummaryConfig,
+  sessionId: string
+): Promise<LLMResult> {
+  const llmConfig = config.llm?.sessionSummary ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.sessionSummary!
+  const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
+
+  let parsedResponse: SessionSummaryResponse | null = null
+  let tokenCount = 0
+
+  try {
+    const response = await provider.complete({
+      messages: [{ role: 'user', content: prompt }],
+      jsonSchema: schema,
+    })
+
+    tokenCount = (response.usage?.inputTokens ?? 0) + (response.usage?.outputTokens ?? 0)
+    parsedResponse = parseResponse(response.content)
+
+    if (!parsedResponse) {
+      ctx.logger.warn('Failed to parse LLM response', { sessionId, content: response.content.slice(0, 200) })
+    }
+  } catch (err) {
+    ctx.logger.error('LLM call failed', { sessionId, error: String(err) })
+  }
+
+  return { parsedResponse, tokenCount }
+}
+
+/**
+ * Step 3: Merge LLM response into existing summary and persist.
+ * Returns the updated summary state.
+ * @internal Exported for testing.
+ */
+export async function updateSummaryState(
+  summaryState: SessionSummaryStateAccessors,
+  parsedResponse: SessionSummaryResponse | null,
+  currentSummary: SessionSummaryState | null,
+  sessionId: string,
+  tokenCount: number,
+  startTime: number
+): Promise<SessionSummaryState> {
+  const updatedSummary: SessionSummaryState = {
+    ...currentSummary,
+    session_id: sessionId,
+    timestamp: new Date().toISOString(),
+    session_title: parsedResponse?.session_title ?? currentSummary?.session_title ?? 'Analysis pending...',
+    session_title_confidence: parsedResponse?.session_title_confidence ?? currentSummary?.session_title_confidence ?? 0,
+    session_title_key_phrases: parsedResponse?.session_title_key_phrases ?? currentSummary?.session_title_key_phrases,
+    latest_intent: parsedResponse?.latest_intent ?? currentSummary?.latest_intent ?? 'Processing...',
+    latest_intent_confidence: parsedResponse?.latest_intent_confidence ?? currentSummary?.latest_intent_confidence ?? 0,
+    latest_intent_key_phrases: parsedResponse?.latest_intent_key_phrases ?? currentSummary?.latest_intent_key_phrases,
+    pivot_detected: parsedResponse?.pivot_detected ?? false,
+    previous_title: currentSummary?.session_title,
+    previous_intent: currentSummary?.latest_intent,
+    stats: {
+      total_tokens: tokenCount,
+      processing_time_ms: Date.now() - startTime,
+    },
+  }
+
+  await summaryState.sessionSummary.write(sessionId, updatedSummary)
+  return updatedSummary
+}
+
+/**
+ * Step 4: Reset countdown and bookmark based on confidence thresholds.
+ * High confidence → bookmark at current line, long countdown.
+ * Low confidence → reset bookmark to 0, short countdown.
+ * Medium → preserve existing bookmark, medium countdown.
+ * @internal Exported for testing.
+ */
+export async function resetCountdown(
+  summaryState: SessionSummaryStateAccessors,
+  config: SessionSummaryConfig,
+  updatedSummary: SessionSummaryState,
+  lineNumber: number,
+  countdown: SummaryCountdownState,
+  sessionId: string
+): Promise<void> {
+  const avgConfidence = (updatedSummary.session_title_confidence + updatedSummary.latest_intent_confidence) / 2
+  let newCountdown: number
+  if (avgConfidence > 0.8) {
+    newCountdown = config.countdown.highConfidence
+  } else if (avgConfidence > 0.6) {
+    newCountdown = config.countdown.mediumConfidence
+  } else {
+    newCountdown = config.countdown.lowConfidence
+  }
+
+  // Update bookmark line based on confidence thresholds
+  // - High confidence (> confidenceThreshold): set bookmark to current line
+  // - Low confidence (< resetThreshold): reset bookmark (possible topic pivot)
+  // - Medium confidence: preserve existing bookmark
+  let bookmarkLine: number
+  if (avgConfidence > config.bookmark.confidenceThreshold) {
+    bookmarkLine = lineNumber
+  } else if (avgConfidence < config.bookmark.resetThreshold) {
+    bookmarkLine = 0
+  } else {
+    bookmarkLine = countdown.bookmark_line
+  }
+
+  await saveCountdownState(summaryState, sessionId, {
+    countdown: newCountdown,
+    bookmark_line: bookmarkLine,
+  })
+}
+
+/**
+ * Step 5: Orchestrate side-effect generation (snarky + resume messages).
+ * Spawns snarky and resume generation in parallel when conditions are met.
+ * @internal Exported for testing.
+ */
+export async function orchestrateSideEffects(
+  ctx: DaemonContext,
+  eventContext: EventContext,
+  sessionId: string,
+  summaryState: SessionSummaryStateAccessors,
+  config: SessionSummaryConfig,
+  transcript: string,
+  currentSummary: SessionSummaryState | null,
+  updatedSummary: SessionSummaryState
+): Promise<void> {
+  const sideEffects: Promise<void>[] = []
+
+  // Snarky message: generate when title or intent changed significantly
+  // OR when this is the first summary (no previous state exists)
+  const changes = hasSignificantChange(updatedSummary, currentSummary)
+  const isInitialAnalysis = !currentSummary
+  if (config.snarkyMessages && (isInitialAnalysis || changes.titleChanged || changes.intentChanged)) {
+    // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
+    sideEffects.push(generateSnarkyMessage(ctx, summaryState, sessionId, updatedSummary, config))
+  }
+
+  // Resume message: generate when pivot detected OR when no resume exists yet
+  // @see docs/design/FEATURE-RESUME.md §3.2
+  const hasResume = await resumeMessageExists(summaryState, sessionId)
+  if (updatedSummary.pivot_detected || !hasResume) {
+    sideEffects.push(generateResumeMessage(ctx, summaryState, eventContext, updatedSummary, transcript, config))
+  }
+
+  // Await all side-effects (errors are logged internally, won't fail main flow)
+  if (sideEffects.length > 0) {
+    await Promise.all(sideEffects)
+  }
+}
+
+/**
+ * Step 6: Emit analysis completion events.
+ * Emits title-changed, intent-changed (when applicable), and summary-finish (always).
+ * @internal Exported for testing.
+ */
+export function emitAnalysisEvents(
+  logger: DaemonContext['logger'],
+  eventContext: EventContext,
+  currentSummary: SessionSummaryState | null,
+  updatedSummary: SessionSummaryState
+): void {
+  // Emit title-changed if title differs
+  if (currentSummary && updatedSummary.session_title !== currentSummary.session_title) {
+    logEvent(
+      logger,
+      SessionSummaryEvents.titleChanged(eventContext, {
+        previousValue: currentSummary.session_title,
+        newValue: updatedSummary.session_title,
+        confidence: updatedSummary.session_title_confidence,
+      })
+    )
+  }
+
+  // Emit intent-changed if intent differs
+  if (currentSummary && updatedSummary.latest_intent !== currentSummary.latest_intent) {
+    logEvent(
+      logger,
+      SessionSummaryEvents.intentChanged(eventContext, {
+        previousValue: currentSummary.latest_intent,
+        newValue: updatedSummary.latest_intent,
+        confidence: updatedSummary.latest_intent_confidence,
+      })
+    )
+  }
+
+  // Always emit summary-finish
+  logEvent(
+    logger,
+    SessionSummaryEvents.summaryFinish(eventContext, {
+      session_title: updatedSummary.session_title,
+      session_title_confidence: updatedSummary.session_title_confidence,
+      latest_intent: updatedSummary.latest_intent,
+      latest_intent_confidence: updatedSummary.latest_intent_confidence,
+      processing_time_ms: updatedSummary.stats?.processing_time_ms ?? 0,
+      pivot_detected: updatedSummary.pivot_detected ?? false,
+    })
+  )
+}
+
+// ============================================================================
+// Orchestrator
+// ============================================================================
+
 async function performAnalysis(
   event: TranscriptEvent,
   ctx: DaemonContext,
@@ -268,7 +578,8 @@ async function performAnalysis(
   // Note: compaction_reset reserved for future compaction-triggered re-analysis
   reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset' | 'bulk_replay_complete'
 ): Promise<void> {
-  const { sessionId } = event.context
+  const { context: eventContext, payload } = event
+  const { sessionId } = eventContext
 
   // Concurrency guard with coalescing: if analysis is already in-flight,
   // set the pending flag so a rerun occurs after the current one finishes.
@@ -277,7 +588,7 @@ async function performAnalysis(
     analysisInFlight.set(sessionId, true)
     logEvent(
       ctx.logger,
-      DecisionEvents.decisionRecorded(event.context, {
+      DecisionEvents.decisionRecorded(eventContext, {
         decision: 'deferred',
         reason: 'Analysis deferred — will rerun after current analysis completes',
         subsystem: 'session-summary',
@@ -291,213 +602,44 @@ async function performAnalysis(
   try {
     const startTime = Date.now()
 
-    // Emit session-summary:start event
-    logEvent(
-      ctx.logger,
-      SessionSummaryEvents.summaryStart(event.context, {
-        reason,
-        countdown: countdown.countdown,
-      })
-    )
+    // Emit start event
+    logEvent(ctx.logger, SessionSummaryEvents.summaryStart(eventContext, { reason, countdown: countdown.countdown }))
 
-    // Use getFeature() to get merged config from cascade
-    const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
-    const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
-
-    // Load current summary
-    const currentSummary = await loadCurrentSummary(summaryState, sessionId)
-
-    // Extract transcript excerpt via TranscriptService
-    const excerpt = ctx.transcript.getExcerpt({
-      maxLines: config.excerptLines,
-      bookmarkLine: countdown.bookmark_line,
-      includeToolMessages: config.includeToolMessages,
-      includeToolOutputs: config.includeToolOutputs,
-      includeAssistantThinking: config.includeAssistantThinking,
-    })
-    const transcript = excerpt.content
-
-    // Build previous analysis context
-    const previousAnalysis = currentSummary
-      ? JSON.stringify(
-          {
-            session_title: currentSummary.session_title,
-            latest_intent: currentSummary.latest_intent,
-          },
-          null,
-          2
-        )
-      : 'No previous analysis'
-    const previousConfidence = currentSummary?.session_title_confidence ?? 0
-
-    // Load prompt template
-    const promptTemplate = ctx.assets.resolve(PROMPT_FILE)
-    if (!promptTemplate) {
-      ctx.logger.error('Failed to load session summary prompt template', { path: PROMPT_FILE })
+    const inputs = await loadAnalysisInputs(ctx, summaryState, ctx.transcript, countdown, sessionId)
+    if (!inputs.prompt) {
       return
     }
 
-    // Interpolate prompt
-    const prompt = interpolatePrompt(promptTemplate, {
-      transcript,
-      previousConfidence,
-      previousAnalysis,
-      maxTitleWords: config.maxTitleWords,
-      maxIntentWords: config.maxIntentWords,
-    })
-
-    // Load JSON schema for structured output
-    const schemaContent = ctx.assets.resolve(SESSION_SUMMARY_SCHEMA_FILE)
-    const jsonSchema = schemaContent
-      ? {
-          name: 'session-summary',
-          schema: JSON.parse(schemaContent) as Record<string, unknown>,
-        }
-      : undefined
-
-    // Get profile configuration for session summary
-    const llmConfig = config.llm?.sessionSummary ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.sessionSummary!
-    const provider = ctx.profileFactory.createForProfile(llmConfig.profile, llmConfig.fallbackProfile)
-
-    // Call LLM
-    let llmResponse: SessionSummaryResponse | null = null
-    let tokensUsed = 0
-
-    try {
-      const response = await provider.complete({
-        messages: [{ role: 'user', content: prompt }],
-        jsonSchema,
-      })
-
-      tokensUsed = (response.usage?.inputTokens ?? 0) + (response.usage?.outputTokens ?? 0)
-      llmResponse = parseResponse(response.content)
-
-      if (!llmResponse) {
-        ctx.logger.warn('Failed to parse LLM response', { sessionId, content: response.content.slice(0, 200) })
-      }
-    } catch (err) {
-      ctx.logger.error('LLM call failed', { sessionId, error: String(err) })
-    }
-
-    // Build updated summary (fallback to current if LLM failed)
-    const updatedSummary: SessionSummaryState = {
-      ...currentSummary,
-      session_id: sessionId,
-      timestamp: new Date().toISOString(),
-      session_title: llmResponse?.session_title ?? currentSummary?.session_title ?? 'Analysis pending...',
-      session_title_confidence: llmResponse?.session_title_confidence ?? currentSummary?.session_title_confidence ?? 0,
-      session_title_key_phrases: llmResponse?.session_title_key_phrases ?? currentSummary?.session_title_key_phrases,
-      latest_intent: llmResponse?.latest_intent ?? currentSummary?.latest_intent ?? 'Processing...',
-      latest_intent_confidence: llmResponse?.latest_intent_confidence ?? currentSummary?.latest_intent_confidence ?? 0,
-      latest_intent_key_phrases: llmResponse?.latest_intent_key_phrases ?? currentSummary?.latest_intent_key_phrases,
-      pivot_detected: llmResponse?.pivot_detected ?? false,
-      previous_title: currentSummary?.session_title,
-      previous_intent: currentSummary?.latest_intent,
-      stats: {
-        total_tokens: tokensUsed,
-        processing_time_ms: Date.now() - startTime,
-      },
-    }
-
-    await saveSummary(summaryState, sessionId, updatedSummary)
-
-    // Reset countdown based on confidence
-    const avgConfidence = (updatedSummary.session_title_confidence + updatedSummary.latest_intent_confidence) / 2
-    let newCountdown: number
-    if (avgConfidence > 0.8) {
-      newCountdown = config.countdown.highConfidence
-    } else if (avgConfidence > 0.6) {
-      newCountdown = config.countdown.mediumConfidence
-    } else {
-      newCountdown = config.countdown.lowConfidence
-    }
-
-    // Update bookmark line based on confidence thresholds
-    // - High confidence (> confidenceThreshold): set bookmark to current line
-    // - Low confidence (< resetThreshold): reset bookmark (possible topic pivot)
-    // - Medium confidence: preserve existing bookmark
-    let bookmarkLine: number
-    if (avgConfidence > config.bookmark.confidenceThreshold) {
-      bookmarkLine = event.payload.lineNumber
-    } else if (avgConfidence < config.bookmark.resetThreshold) {
-      bookmarkLine = 0
-    } else {
-      bookmarkLine = countdown.bookmark_line
-    }
-
-    await saveCountdownState(summaryState, sessionId, {
-      countdown: newCountdown,
-      bookmark_line: bookmarkLine,
-    })
-
-    // Generate side-effects in parallel (if conditions met)
-    // Side-effects are independent LLM calls that don't affect the main summary flow
-    const sideEffects: Promise<void>[] = []
-
-    // Snarky message: generate when title or intent changed significantly
-    // OR when this is the first summary (no previous state exists)
-    const changes = hasSignificantChange(updatedSummary, currentSummary)
-    const isInitialAnalysis = !currentSummary
-    if (config.snarkyMessages && (isInitialAnalysis || changes.titleChanged || changes.intentChanged)) {
-      // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
-      sideEffects.push(generateSnarkyMessage(ctx, summaryState, sessionId, updatedSummary, config))
-    }
-
-    // Resume message: generate when pivot detected OR when no resume exists yet
-    // @see docs/design/FEATURE-RESUME.md §3.2: "a pivot was detected OR there is no resume-message.json already generated"
-    const hasResume = await resumeMessageExists(summaryState, sessionId)
-    if (updatedSummary.pivot_detected || !hasResume) {
-      sideEffects.push(generateResumeMessage(ctx, summaryState, event.context, updatedSummary, transcript, config))
-    }
-
-    // Await all side-effects (errors are logged internally, won't fail main flow)
-    if (sideEffects.length > 0) {
-      await Promise.all(sideEffects)
-    }
-
-    // Emit title-changed if title differs
-    if (currentSummary && updatedSummary.session_title !== currentSummary.session_title) {
-      logEvent(
-        ctx.logger,
-        SessionSummaryEvents.titleChanged(event.context, {
-          previousValue: currentSummary.session_title,
-          newValue: updatedSummary.session_title,
-          confidence: updatedSummary.session_title_confidence,
-        })
-      )
-    }
-
-    // Emit intent-changed if intent differs
-    if (currentSummary && updatedSummary.latest_intent !== currentSummary.latest_intent) {
-      logEvent(
-        ctx.logger,
-        SessionSummaryEvents.intentChanged(event.context, {
-          previousValue: currentSummary.latest_intent,
-          newValue: updatedSummary.latest_intent,
-          confidence: updatedSummary.latest_intent_confidence,
-        })
-      )
-    }
-
-    // Log summary completion
-    logEvent(
-      ctx.logger,
-      SessionSummaryEvents.summaryFinish(event.context, {
-        session_title: updatedSummary.session_title,
-        session_title_confidence: updatedSummary.session_title_confidence,
-        latest_intent: updatedSummary.latest_intent,
-        latest_intent_confidence: updatedSummary.latest_intent_confidence,
-        processing_time_ms: updatedSummary.stats?.processing_time_ms ?? 0,
-        pivot_detected: updatedSummary.pivot_detected ?? false,
-      })
+    const llmResult = await callSummaryLLM(ctx, inputs.prompt, inputs.schema, inputs.config, sessionId)
+    const updated = await updateSummaryState(
+      summaryState,
+      llmResult.parsedResponse,
+      inputs.currentSummary,
+      sessionId,
+      llmResult.tokenCount,
+      startTime
     )
+    await resetCountdown(summaryState, inputs.config, updated, payload.lineNumber, countdown, sessionId)
+    await orchestrateSideEffects(
+      ctx,
+      eventContext,
+      sessionId,
+      summaryState,
+      inputs.config,
+      inputs.excerpt,
+      inputs.currentSummary,
+      updated
+    )
+    emitAnalysisEvents(ctx.logger, eventContext, inputs.currentSummary, updated)
 
+    // Log completion
+    const avgConfidence = (updated.session_title_confidence + updated.latest_intent_confidence) / 2
     ctx.logger.info('Updated session summary', {
       sessionId,
       reason,
-      title: updatedSummary.session_title,
+      title: updated.session_title,
       confidence: avgConfidence,
-      tokensUsed,
+      tokensUsed: llmResult.tokenCount,
     })
   } catch (err) {
     ctx.logger.error('performAnalysis failed', {
@@ -516,23 +658,6 @@ async function performAnalysis(
       void performAnalysis(event, ctx, summaryState, freshCountdown, reason)
     }
   }
-}
-
-async function loadCurrentSummary(
-  summaryState: SessionSummaryStateAccessors,
-  sessionId: string
-): Promise<SessionSummaryState | null> {
-  // read() returns null when file is missing (default value)
-  const result = await summaryState.sessionSummary.read(sessionId)
-  return result.data
-}
-
-async function saveSummary(
-  summaryState: SessionSummaryStateAccessors,
-  sessionId: string,
-  summary: SessionSummaryState
-): Promise<void> {
-  await summaryState.sessionSummary.write(sessionId, summary)
 }
 
 /**
