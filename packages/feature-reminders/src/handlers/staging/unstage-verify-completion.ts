@@ -54,10 +54,20 @@ async function restageUnverifiedTools(
   const verificationTools = config.verification_tools ?? {}
 
   // Collect tools needing verification in a single pass (avoids double iteration)
-  const toolsToRestage = Object.entries(verificationTools)
-    .filter(([toolName, toolConfig]) => toolNeedsVerification(toolConfig, toolsState[toolName]))
-    .map(([toolName]) => ({ toolName, reminderId: TOOL_REMINDER_MAP[toolName] }))
-    .filter((entry): entry is { toolName: string; reminderId: string } => entry.reminderId !== undefined)
+  const toolsToRestage: { toolName: string; reminderId: string }[] = []
+  for (const [toolName, toolConfig] of Object.entries(verificationTools)) {
+    if (!toolNeedsVerification(toolConfig, toolsState[toolName])) continue
+    const reminderId = TOOL_REMINDER_MAP[toolName]
+    if (reminderId === undefined) {
+      daemonCtx.logger.warn('VC unstage: unknown verification tool has no reminder mapping, skipping', {
+        toolName,
+        sessionId,
+        knownTools: Object.keys(TOOL_REMINDER_MAP),
+      })
+      continue
+    }
+    toolsToRestage.push({ toolName, reminderId })
+  }
 
   if (toolsToRestage.length === 0) {
     daemonCtx.logger.info('VC unstage: all tools verified, skipping wrapper re-stage', {
@@ -80,6 +90,7 @@ async function restageUnverifiedTools(
     const toolReminder = resolveReminder(reminderId, {
       context: {},
       assets: daemonCtx.assets,
+      logger: daemonCtx.logger,
     })
     if (toolReminder) {
       await stageReminder(daemonCtx, 'Stop', { ...toolReminder, stagedAt })
@@ -90,6 +101,7 @@ async function restageUnverifiedTools(
   const reminder = resolveReminder(ReminderIds.VERIFY_COMPLETION, {
     context: {},
     assets: daemonCtx.assets,
+    logger: daemonCtx.logger,
   })
 
   if (reminder) {

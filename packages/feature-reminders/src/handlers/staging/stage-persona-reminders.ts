@@ -199,6 +199,7 @@ async function stagePersonaChangedIfNeeded(
   const changedReminder = resolveReminder(ReminderIds.PERSONA_CHANGED, {
     context: templateContext,
     assets: ctx.assets,
+    logger: ctx.logger,
   })
   if (changedReminder) {
     await stageReminder(ctx, 'UserPromptSubmit', changedReminder)
@@ -266,6 +267,7 @@ export async function stagePersonaRemindersForSession(
   const reminder = resolveReminder(ReminderIds.REMEMBER_YOUR_PERSONA, {
     context: templateContext,
     assets: ctx.assets,
+    logger: ctx.logger,
   })
   if (reminder) {
     for (const targetHook of PERSONA_REMINDER_HOOKS) {
