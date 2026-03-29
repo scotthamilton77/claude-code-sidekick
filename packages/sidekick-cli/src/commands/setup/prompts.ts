@@ -109,19 +109,32 @@ export async function promptConfirm(ctx: PromptContext, question: string, defaul
   const prompt = `${question} ${hint} `
 
   return new Promise((resolve) => {
+    let resolved = false
+    const safeResolve = (value: boolean): void => {
+      if (!resolved) {
+        resolved = true
+        resolve(value)
+      }
+    }
+
+    // Handle stdin close/EOF — resolve with default before 'line' fires
+    rl.once('close', () => {
+      safeResolve(defaultYes)
+    })
+
     const ask = (): void => {
       ctx.stdout.write(prompt)
       rl.once('line', (answer) => {
         const normalized = answer.trim().toLowerCase()
         if (normalized === '') {
+          safeResolve(defaultYes)
           rl.close()
-          resolve(defaultYes)
         } else if (normalized === 'y' || normalized === 'yes') {
+          safeResolve(true)
           rl.close()
-          resolve(true)
         } else if (normalized === 'n' || normalized === 'no') {
+          safeResolve(false)
           rl.close()
-          resolve(false)
         } else {
           ctx.stdout.write(`${colors.yellow}Please enter y or n.${colors.reset}\n`)
           ask()

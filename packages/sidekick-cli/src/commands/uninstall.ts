@@ -14,6 +14,7 @@ import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/types'
 import { DaemonClient, killAllDaemons, removeGitignoreSection, SetupStatusService } from '@sidekick/core'
 import type { KillResult } from '@sidekick/core'
+import { promptConfirm } from './setup/prompts.js'
 
 export interface UninstallCommandOptions {
   /** Skip confirmation prompts */
@@ -86,7 +87,7 @@ export async function handleUninstallCommand(
       logger
     )
     printDetectionSummary(stdout, summary)
-    const proceed = await promptYesNo('Proceed with uninstall?', stdout, stdin)
+    const proceed = await promptConfirm({ stdin, stdout }, 'Proceed with uninstall?', false)
     if (!proceed) {
       stdout.write('Uninstall cancelled.\n')
       return { exitCode: 0, output: '' }
@@ -791,7 +792,7 @@ async function handleEnvFile(
   if (keyNames.length > 0 && !options.force) {
     stdout.write(`\n${scope} scope .env contains API keys:\n`)
     stdout.write(keyNames.join('\n') + '\n')
-    const answer = await promptYesNo(`Remove ${scope} .env file?`, stdout, options.stdin)
+    const answer = await promptConfirm({ stdin: options.stdin, stdout }, `Remove ${scope} .env file?`, false)
     if (!answer) {
       actions.push({ scope, artifact: '.env', path: envPath, action: 'kept' })
       return
@@ -800,22 +801,6 @@ async function handleEnvFile(
 
   await fs.unlink(envPath)
   actions.push({ scope, artifact: '.env', path: envPath, action: 'removed' })
-}
-
-function promptYesNo(question: string, stdout: Writable, stdin: Readable): Promise<boolean> {
-  return new Promise((resolve) => {
-    stdout.write(`${question} [y/N] `)
-    let data = ''
-    const onData = (chunk: Buffer): void => {
-      data += chunk.toString()
-      if (data.includes('\n')) {
-        stdin.removeListener('data', onData)
-        const answer = data.trim().toLowerCase()
-        resolve(answer === 'y' || answer === 'yes')
-      }
-    }
-    stdin.on('data', onData)
-  })
 }
 
 // --- Report ---
