@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod'
-import { HOOK_NAMES } from '../events.js'
+import { HOOK_NAMES } from '../hook-events.js'
 import type { CompactionEntry } from './transcript.js'
 import { StagedReminderSchema } from './staging.js'
 

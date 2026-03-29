@@ -7,7 +7,7 @@
  * @see packages/sidekick-ui/docs/MONITORING-UI.md §3.2.C State Inspector
  */
 
-import { z } from 'zod'
+import type { ZodType } from 'zod'
 import type { SessionSummaryState, ResumeMessageState } from './session-state.js'
 import type {
   TranscriptMetricsState,
@@ -53,7 +53,7 @@ export interface MinimalStateService {
    * @throws StateNotFoundError if file missing and no default
    * @throws StateCorruptError if validation fails and no default
    */
-  read<T>(path: string, schema: z.ZodType<T>, defaultValue?: T | null | (() => T | null)): Promise<StateReadResult<T>>
+  read<T>(path: string, schema: ZodType<T>, defaultValue?: T | null | (() => T | null)): Promise<StateReadResult<T>>
 
   /**
    * Atomic write with Zod validation.
@@ -63,7 +63,7 @@ export interface MinimalStateService {
    * @param schema - Zod schema for validation
    * @param options - Optional write options (trackHistory for dev mode backups)
    */
-  write<T>(path: string, data: T, schema: z.ZodType<T>, options?: { trackHistory?: boolean }): Promise<void>
+  write<T>(path: string, data: T, schema: ZodType<T>, options?: { trackHistory?: boolean }): Promise<void>
 
   /**
    * Delete state file if it exists.
