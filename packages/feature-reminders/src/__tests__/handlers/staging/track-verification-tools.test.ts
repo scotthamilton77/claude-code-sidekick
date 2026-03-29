@@ -353,10 +353,7 @@ additionalContext: "Lint needed"
       ctx as any
     )
 
-    await handler(
-      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'uv run pytest tests/'),
-      ctx as any
-    )
+    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'uv run pytest tests/'), ctx as any)
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TEST)
   })
