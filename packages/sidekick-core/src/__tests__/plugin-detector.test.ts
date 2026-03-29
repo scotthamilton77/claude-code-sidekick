@@ -358,5 +358,57 @@ describe('plugin-detector', () => {
       const result = await spawnWithTimeout('nonexistent', [], {})
       expect(result.exitCode).toBe(-1)
     })
+
+    it('sends SIGKILL and force-resolves when child ignores SIGTERM', async () => {
+      vi.useFakeTimers()
+      mockSpawn.mockImplementation(() => {
+        const proc = createMockChildProcess()
+        // Child ignores SIGTERM — never emits 'close'
+        proc.kill.mockReturnValue(true)
+        return proc as unknown as childProcess.ChildProcess
+      })
+
+      const resultPromise = spawnWithTimeout('stubborn-cmd', [], { timeoutMs: 100 })
+
+      // Advance past the timeout to trigger SIGTERM
+      await vi.advanceTimersByTimeAsync(200)
+      // Advance past the SIGKILL grace period (5000ms)
+      await vi.advanceTimersByTimeAsync(5100)
+
+      const result = await resultPromise
+      expect(result.timedOut).toBe(true)
+      expect(result.exitCode).toBeNull()
+      vi.useRealTimers()
+    })
+
+    it('clears SIGKILL timer when child responds to SIGTERM', async () => {
+      vi.useFakeTimers()
+      let capturedProc: ReturnType<typeof createMockChildProcess> | undefined
+      mockSpawn.mockImplementation(() => {
+        capturedProc = createMockChildProcess()
+        capturedProc.kill.mockImplementation((signal: string) => {
+          if (signal === 'SIGTERM') {
+            // Child responds to SIGTERM after a brief delay
+            setTimeout(() => capturedProc!.emit('close', null, 'SIGTERM'), 100)
+          }
+          return true
+        })
+        return capturedProc as unknown as childProcess.ChildProcess
+      })
+
+      const resultPromise = spawnWithTimeout('graceful-cmd', [], { timeoutMs: 100 })
+
+      // Advance past timeout (SIGTERM fires)
+      await vi.advanceTimersByTimeAsync(200)
+      // Advance past the child's delayed close response
+      await vi.advanceTimersByTimeAsync(200)
+
+      const result = await resultPromise
+      expect(result.timedOut).toBe(true)
+      // SIGKILL should NOT have been sent — child only received SIGTERM
+      expect(capturedProc!.kill).toHaveBeenCalledWith('SIGTERM')
+      expect(capturedProc!.kill).not.toHaveBeenCalledWith('SIGKILL')
+      vi.useRealTimers()
+    })
   })
 })

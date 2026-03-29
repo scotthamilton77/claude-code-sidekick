@@ -68,6 +68,9 @@ export function spawnWithTimeout(
   return new Promise((resolve) => {
     let resolved = false
     let timedOut = false
+    let killTimer: ReturnType<typeof setTimeout> | undefined
+
+    const SIGKILL_GRACE_MS = 5000
 
     const safeResolve = (value: {
       stdout: string
@@ -78,6 +81,7 @@ export function spawnWithTimeout(
       if (!resolved) {
         resolved = true
         clearTimeout(timeout)
+        clearTimeout(killTimer)
         resolve(value)
       }
     }
@@ -105,6 +109,16 @@ export function spawnWithTimeout(
             timedOut = true
             options.logger?.warn(`Command timed out after ${options.timeoutMs! / 1000}s`, { command, args })
             child.kill('SIGTERM')
+
+            // If child ignores SIGTERM, escalate to SIGKILL then force-resolve
+            killTimer = setTimeout(() => {
+              options.logger?.warn('Child ignored SIGTERM, sending SIGKILL', { command, args })
+              child.kill('SIGKILL')
+
+              // Force-resolve even if SIGKILL doesn't trigger 'close'
+              safeResolve({ stdout, stderr, timedOut: true, exitCode: null })
+            }, SIGKILL_GRACE_MS)
+            killTimer.unref()
           }, options.timeoutMs)
         : undefined
 
