@@ -13,7 +13,7 @@ function ValueRenderer({ value }: { value: unknown }) {
   if (typeof value === 'string') {
     if (value.length > LONG_VALUE_THRESHOLD) {
       return (
-        <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-all bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-y-auto">
+        <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-all bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-x-auto overflow-y-auto">
           {value}
         </pre>
       )
@@ -27,7 +27,7 @@ function ValueRenderer({ value }: { value: unknown }) {
 
   if (typeof value === 'object' && value !== null) {
     return (
-      <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-all bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-y-auto">
+      <pre className="text-[10px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap break-all bg-slate-50 dark:bg-slate-800 rounded px-2 py-1.5 max-h-[200px] overflow-x-auto overflow-y-auto">
         {JSON.stringify(value, null, 2)}
       </pre>
     )
