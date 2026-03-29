@@ -7,24 +7,17 @@
  * @see docs/design/PERSONA-PROFILES-DESIGN.md
  */
 
-import type { DaemonContext, SessionPersonaState, SnarkyMessageState } from '@sidekick/types'
-import type { ResumeMessageState, SessionSummaryConfig } from '../types.js'
+import type { DaemonContext, SessionPersonaState } from '@sidekick/types'
+import type { SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState } from '../state.js'
 import { createPersonaLoader, getDefaultPersonasDir } from '@sidekick/core'
-import { logEvent } from '@sidekick/core'
-import { SessionSummaryEvents } from '../events.js'
-import { interpolateTemplate } from './update-summary.js'
 import {
-  buildPersonaContext,
-  getEffectiveProfile,
-  loadSessionPersona,
-  loadUserProfileContext,
-  stripSurroundingQuotes,
-} from './persona-utils.js'
-
-const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
-const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
+  generateSnarkyCore,
+  generateResumeCore,
+  SNARKY_PROMPT_FILE,
+  RESUME_PROMPT_FILE,
+} from './message-generation-core.js'
 
 /**
  * Result of on-demand generation operations.
@@ -97,7 +90,7 @@ export async function setSessionPersona(
 export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionId: string): Promise<GenerationResult> {
   const summaryState = createSessionSummaryState(ctx.stateService)
 
-  // Load session summary
+  // Load session summary (wrapper-level null check)
   const summaryResult = await summaryState.sessionSummary.read(sessionId)
   if (!summaryResult.data) {
     return {
@@ -107,87 +100,32 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
   }
   const summary = summaryResult.data
 
-  // Load session persona (pass summaryState to avoid redundant creation)
-  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
-
-  // Disabled persona: skip generation
-  if (persona?.id === 'disabled') {
-    return {
-      success: false,
-      error: 'Persona is "disabled" - snarky messages are skipped.',
-    }
-  }
-
-  const promptTemplate = ctx.assets.resolve(SNARKY_PROMPT_FILE)
-  if (!promptTemplate) {
-    return {
-      success: false,
-      error: `Snarky prompt template not found: ${SNARKY_PROMPT_FILE}`,
-    }
-  }
-
-  // Build persona and user profile context for template interpolation
-  const personaContext = buildPersonaContext(persona)
-  const userProfileContext = loadUserProfileContext(ctx.logger)
-
-  // Get profile configuration for snarky comment
+  // Load config
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
   const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
 
-  // Interpolate prompt with session summary data and persona
-  const prompt = interpolateTemplate(promptTemplate, {
-    ...personaContext,
-    ...userProfileContext,
-    session_title: summary.session_title,
-    latest_intent: summary.latest_intent,
-    turn_count: ctx.transcript.getMetrics().turnCount,
-    tool_count: ctx.transcript.getMetrics().toolCount,
-    sessionSummary: JSON.stringify(summary, null, 2),
-    maxSnarkyWords: config.maxSnarkyWords,
-  })
-  const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
+  // Delegate to shared core pipeline
+  const result = await generateSnarkyCore({ ctx, sessionId, summaryState, summary, config, logger: ctx.logger })
 
-  // Resolve persona-specific LLM profile override
-  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
-  if ('errorMessage' in profileResult) {
-    return { success: false, error: profileResult.errorMessage }
-  }
-
-  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
-
-  // Emit snarky-message:start event before LLM call
-  logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
-
-  try {
-    const response = await provider.complete({
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const snarkyMessage = stripSurroundingQuotes(response.content.trim())
-
-    const snarkyState: SnarkyMessageState = {
-      message: snarkyMessage,
-      timestamp: new Date().toISOString(),
-    }
-
-    await summaryState.snarkyMessage.write(sessionId, snarkyState)
-
-    // Emit snarky-message:finish event after writing
-    logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
-
-    ctx.logger.info('Generated snarky message on-demand', {
-      sessionId,
-      personaId: persona?.id ?? 'none',
-    })
-
-    return { success: true }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
-    ctx.logger.error('Failed to generate snarky message on-demand', { sessionId, error: errorMsg })
-    return {
-      success: false,
-      error: `LLM call failed: ${errorMsg}`,
-    }
+  // Map core result to GenerationResult
+  switch (result.status) {
+    case 'success':
+      ctx.logger.info('Generated snarky message on-demand', { sessionId })
+      return { success: true }
+    case 'skipped':
+      return {
+        success: false,
+        error:
+          result.reason === 'persona_disabled'
+            ? 'Persona is "disabled" - snarky messages are skipped.'
+            : `Snarky prompt template not found: ${SNARKY_PROMPT_FILE}`,
+      }
+    case 'error':
+      ctx.logger.error('Failed to generate snarky message on-demand', {
+        sessionId,
+        error: result.error.message,
+      })
+      return { success: false, error: `LLM call failed: ${result.error.message}` }
   }
 }
 
@@ -198,7 +136,7 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
 export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionId: string): Promise<GenerationResult> {
   const summaryState = createSessionSummaryState(ctx.stateService)
 
-  // Load session summary
+  // Load session summary (wrapper-level null check)
   const summaryResult = await summaryState.sessionSummary.read(sessionId)
   if (!summaryResult.data) {
     return {
@@ -208,115 +146,51 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
   }
   const summary = summaryResult.data
 
-  // Check confidence thresholds
-  if (
-    summary.session_title_confidence < RESUME_MIN_CONFIDENCE ||
-    summary.latest_intent_confidence < RESUME_MIN_CONFIDENCE
-  ) {
-    return {
-      success: false,
-      error: `Confidence too low for resume generation. Title: ${summary.session_title_confidence}, Intent: ${summary.latest_intent_confidence}, Min: ${RESUME_MIN_CONFIDENCE}`,
-    }
-  }
-
-  // Load session persona (pass summaryState to avoid redundant creation)
-  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
-
-  // Disabled persona: use deterministic output
-  if (persona?.id === 'disabled') {
-    const resumeState: ResumeMessageState = {
-      last_task_id: null,
-      session_title: summary.session_title,
-      snarky_comment: summary.latest_intent,
-      timestamp: new Date().toISOString(),
-      persona_id: null,
-      persona_display_name: null,
-    }
-
-    await summaryState.resumeMessage.write(sessionId, resumeState)
-
-    ctx.logger.info('Generated deterministic resume message (disabled persona)', { sessionId })
-    return { success: true }
-  }
-
-  const promptTemplate = ctx.assets.resolve(RESUME_PROMPT_FILE)
-  if (!promptTemplate) {
-    return {
-      success: false,
-      error: `Resume prompt template not found: ${RESUME_PROMPT_FILE}`,
-    }
-  }
-
-  // Build persona and user profile context for template interpolation
-  const personaContext = buildPersonaContext(persona)
-  const userProfileContext = loadUserProfileContext(ctx.logger)
-
-  // Get profile configuration for resume message
+  // Load config
   const featureConfig = ctx.config.getFeature<SessionSummaryConfig>('session-summary')
   const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
 
-  // Get transcript excerpt
-  const excerpt = ctx.transcript.getExcerpt({
+  // Hard-coded excerpt options for on-demand generation
+  const excerptOptions = {
     maxLines: 50,
     includeToolMessages: true,
     includeToolOutputs: false,
     includeAssistantThinking: false,
-  })
-
-  // Interpolate prompt with session data and persona
-  const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
-  const prompt = interpolateTemplate(promptTemplate, {
-    ...personaContext,
-    ...userProfileContext,
-    sessionTitle: summary.session_title,
-    confidence: summary.session_title_confidence,
-    latestIntent: summary.latest_intent,
-    keyPhrases,
-    transcript: excerpt.content,
-    maxResumeWords: config.maxResumeWords,
-  })
-  const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
-
-  // Resolve persona-specific LLM profile override
-  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
-  if ('errorMessage' in profileResult) {
-    return { success: false, error: profileResult.errorMessage }
   }
 
-  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
+  // Delegate to shared core pipeline
+  const result = await generateResumeCore({
+    ctx,
+    sessionId,
+    summaryState,
+    summary,
+    config,
+    logger: ctx.logger,
+    excerptOptions,
+    transcript: ctx.transcript,
+  })
 
-  try {
-    // Resume message now outputs plain text (snarky_welcome only)
-    const response = await provider.complete({
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    // Strip surrounding quotes if present
-    const snarkyWelcome = stripSurroundingQuotes(response.content.trim())
-
-    const resumeState: ResumeMessageState = {
-      last_task_id: null,
-      session_title: summary.session_title,
-      snarky_comment: snarkyWelcome,
-      timestamp: new Date().toISOString(),
-      persona_id: persona?.id ?? null,
-      persona_display_name: persona?.display_name ?? null,
-    }
-
-    await summaryState.resumeMessage.write(sessionId, resumeState)
-
-    ctx.logger.info('Generated resume message on-demand', {
-      sessionId,
-      personaId: persona?.id ?? 'none',
-    })
-
-    return { success: true }
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
-    ctx.logger.error('Failed to generate resume message on-demand', { sessionId, error: errorMsg })
-    return {
-      success: false,
-      error: `LLM call failed: ${errorMsg}`,
-    }
+  // Map core result to GenerationResult
+  switch (result.status) {
+    case 'success':
+      ctx.logger.info('Generated resume message on-demand', { sessionId })
+      return { success: true }
+    case 'deterministic':
+      ctx.logger.info('Generated deterministic resume message (disabled persona)', { sessionId })
+      return { success: true }
+    case 'skipped':
+      return {
+        success: false,
+        error:
+          result.reason === 'low_confidence'
+            ? `Confidence too low for resume generation. Title: ${summary.session_title_confidence}, Intent: ${summary.latest_intent_confidence}, Min: ${RESUME_MIN_CONFIDENCE}`
+            : `Resume prompt template not found: ${RESUME_PROMPT_FILE}`,
+      }
+    case 'error':
+      ctx.logger.error('Failed to generate resume message on-demand', {
+        sessionId,
+        error: result.error.message,
+      })
+      return { success: false, error: `LLM call failed: ${result.error.message}` }
   }
 }
