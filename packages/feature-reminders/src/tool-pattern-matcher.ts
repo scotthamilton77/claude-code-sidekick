@@ -28,6 +28,7 @@ function detectRunnerPrefix(segmentTokens: string[], runners: CommandRunner[]): 
   let longestMatch = 0
 
   for (const runner of runners) {
+    if (typeof runner.prefix !== 'string') continue
     const prefixTokens = runner.prefix.trim().split(/\s+/)
     if (prefixTokens.length === 0) continue
     if (prefixTokens.length > segmentTokens.length) continue

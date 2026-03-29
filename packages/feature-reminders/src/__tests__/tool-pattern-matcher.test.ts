@@ -113,6 +113,7 @@ describe('matchesToolPattern', () => {
     { prefix: 'uv run' },
     { prefix: 'npx' },
     { prefix: 'poetry run' },
+    { prefix: 'pnpm' },
     { prefix: 'pnpm dlx' },
     { prefix: 'pnpm exec' },
     { prefix: 'bundle exec' },

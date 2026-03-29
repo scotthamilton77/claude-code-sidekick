@@ -21,4 +21,9 @@ describe('CommandRunnerSchema', () => {
     const result = CommandRunnerSchema.safeParse({})
     expect(result.success).toBe(false)
   })
+
+  it('rejects whitespace-only prefix', () => {
+    const result = CommandRunnerSchema.safeParse({ prefix: '   ' })
+    expect(result.success).toBe(false)
+  })
 })

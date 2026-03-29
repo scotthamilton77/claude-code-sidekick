@@ -39,7 +39,7 @@ export type VerificationToolsMap = z.infer<typeof VerificationToolsMapSchema>
 
 /** Zod schema for a command runner prefix */
 export const CommandRunnerSchema = z.object({
-  prefix: z.string().min(1),
+  prefix: z.string().trim().min(1),
 })
 
 export type CommandRunner = z.infer<typeof CommandRunnerSchema>
