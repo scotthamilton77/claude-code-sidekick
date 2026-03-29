@@ -120,6 +120,11 @@ Generic utility replacing the hand-rolled `analysisInFlight` Map and `resetAnaly
 class CoalescingGuard<K = string> {
   private inflight = new Map<K, boolean>()  // value = rerunPending
 
+  /** Reset all in-flight state. For use in test teardown. */
+  clear(): void {
+    this.inflight.clear()
+  }
+
   async run(key: K, fn: () => Promise<void>): Promise<boolean> {
     if (this.inflight.has(key)) {
       this.inflight.set(key, true)

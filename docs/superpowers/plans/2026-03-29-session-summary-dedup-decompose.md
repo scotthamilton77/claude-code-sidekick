@@ -251,7 +251,7 @@ Create `packages/feature-session-summary/src/handlers/message-generation-core.ts
   12. Return `{ status: 'success', state }`
   13. Catch errors → return `{ status: 'error', error }`
 
-**Event emission in core vs callers:** The `SessionSummaryEvents.snarkyMessageStart()` and `snarkyMessageFinish()` events are identical in both callers — move these INTO `generateSnarkyCore` to avoid re-duplicating them. Only caller-specific events stay with callers: periodic does `ctx.logger.debug()` after success, on-demand has no additional events.
+**Event emission in core vs callers:** The `SessionSummaryEvents.snarkyMessageStart()` and `snarkyMessageFinish()` events are identical in both callers — move these INTO `generateSnarkyCore` to avoid re-duplicating them. Only caller-specific events stay with callers: periodic emits `LogEvents.snarkyUpdated()` (structured logging), on-demand has no additional events.
 
 **Profile error handling:** When `getEffectiveProfile()` returns `{ errorMessage }`, the core should return `{ status: 'error', error: new Error(errorMessage) }`. The periodic wrapper can then write the error as snarky state if desired; the on-demand wrapper returns `{ success: false }`.
 
@@ -321,7 +321,7 @@ Expected: New tests FAIL
 
 Add to `message-generation-core.ts`. Extract shared logic from `update-summary.ts:674-828` and `on-demand-generation.ts:198-322`.
 
-**Event emission:** The resume path has NO `SessionSummaryEvents` — only `LogEvents.resumeGenerating()`/`resumeUpdated()`/`resumeSkipped()`, which are periodic-only (on-demand doesn't emit them). All resume `LogEvents` stay in the periodic wrapper.
+**Event emission in core:** Move `SessionSummaryEvents.resumeStart()` and `resumeFinish()` into `generateResumeCore` (identical in both callers). The periodic wrapper additionally emits `LogEvents.resumeGenerating()` and `LogEvents.resumeUpdated()`.
 
 **Transcript excerpt note:** The core calls `transcript.getExcerpt(excerptOptions)` directly. This is a behavior change from the periodic path, which previously reused the excerpt already extracted for the main analysis. The periodic wrapper now passes config-driven options that produce an equivalent excerpt.
 
@@ -442,7 +442,7 @@ Replace `generateSnarkyMessage()` (lines 573-659) with ~15 LOC wrapper:
 1. Import `generateSnarkyCore` from `./message-generation-core.js`
 2. Call `generateSnarkyCore({ ctx, sessionId, summaryState, summary, config, logger })`
 3. Switch on `result.status`:
-   - `'success'` → `ctx.logger.debug('Snarky message generated', { sessionId, message: state.message.slice(0, 50) })`
+   - `'success'` → emit `LogEvents.snarkyUpdated()` with state details
    - `'skipped'` → log debug skip reason
    - `'error'` → write error message as snarky state (preserves existing behavior where profile errors show as snarky messages), log warning
 
@@ -453,9 +453,8 @@ Replace `generateResumeMessage()` (lines 674-828) with ~20 LOC wrapper:
 2. Build `excerptOptions` from config (excerptLines, includeToolMessages, etc.)
 3. Call `generateResumeCore({ ctx, sessionId, summaryState, summary, config, logger, excerptOptions, transcript: ctx.transcript })`
 4. Switch on `result.status`:
-Before calling `generateResumeCore()`, emit `LogEvents.resumeGenerating()` (this fires BEFORE the LLM call, so it must be emitted before entering core).
-   - `'success'` → emit `LogEvents.resumeUpdated()` with persona/message details
-   - `'deterministic'` → emit `LogEvents.resumeUpdated()` with deterministic output
+   - `'success'` → emit `LogEvents.resumeUpdated()`, `LogEvents.resumeGenerating()` (before LLM call — note: this event is emitted by the wrapper, not core, since core doesn't know about LogEvents)
+   - `'deterministic'` → log info deterministic output
    - `'skipped'` → emit `LogEvents.resumeSkipped()`
    - `'error'` → log warning
 
