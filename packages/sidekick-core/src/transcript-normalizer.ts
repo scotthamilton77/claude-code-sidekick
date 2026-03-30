@@ -130,6 +130,37 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
 }
 
 // ============================================================================
+// Raw Line Parsing
+// ============================================================================
+
+/**
+ * Parse a raw JSON line into a validated TranscriptEntry.
+ * Returns null for unparseable or invalid lines.
+ *
+ * This is the single source of truth for "JSON string -> TranscriptEntry"
+ * parsing, used by both streaming processing and full-file reads.
+ */
+export function parseRawLine(line: string, lineNumber: number, logger: Logger): TranscriptEntry | null {
+  try {
+    const parsed = TranscriptEntrySchema.safeParse(JSON.parse(line))
+    if (!parsed.success) {
+      logger.warn('Skipping invalid transcript line', {
+        line: lineNumber,
+        error: parsed.error.message,
+      })
+      return null
+    }
+    return parsed.data as TranscriptEntry
+  } catch {
+    logger.warn('Skipping malformed transcript line', {
+      line: lineNumber,
+      rawLine: line,
+    })
+    return null
+  }
+}
+
+// ============================================================================
 // Buffered Entry Parsing
 // ============================================================================
 
@@ -138,24 +169,9 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
  * Returns null for unparseable or non-message entries.
  */
 export function parseBufferedEntry(entry: BufferedEntry, logger: Logger): CanonicalTranscriptEntry[] | null {
-  try {
-    const parsed = TranscriptEntrySchema.safeParse(JSON.parse(entry.rawLine))
-    if (!parsed.success) {
-      logger.warn('Failed to parse transcript entry', {
-        lineNumber: entry.lineNumber,
-        rawLine: entry.rawLine,
-        error: parsed.error.message,
-      })
-      return null
-    }
-    return normalizeEntry(parsed.data as TranscriptEntry, entry.lineNumber)
-  } catch {
-    logger.warn('Skipping malformed transcript entry', {
-      lineNumber: entry.lineNumber,
-      rawLine: entry.rawLine,
-    })
-    return null
-  }
+  const rawEntry = parseRawLine(entry.rawLine, entry.lineNumber, logger)
+  if (!rawEntry) return null
+  return normalizeEntry(rawEntry, entry.lineNumber)
 }
 
 // ============================================================================

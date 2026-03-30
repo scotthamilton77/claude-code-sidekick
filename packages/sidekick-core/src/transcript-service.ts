@@ -16,7 +16,6 @@ import { existsSync, mkdirSync, readFileSync, copyFileSync, statSync } from 'nod
 import { dirname } from 'node:path'
 import { FSWatcher } from 'chokidar'
 import { LogEvents, logEvent } from './structured-logging.js'
-import { TranscriptEntrySchema } from './state/index.js'
 import type {
   TranscriptService,
   TranscriptMetrics,
@@ -38,7 +37,7 @@ export { createDefaultMetrics, createDefaultTokenUsage } from './transcript-help
 
 // Import from extracted modules
 import { createDefaultMetrics } from './transcript-helpers.js'
-import { normalizeEntry, parseBufferedEntry, renderTranscriptString } from './transcript-normalizer.js'
+import { normalizeEntry, parseBufferedEntry, parseRawLine, renderTranscriptString } from './transcript-normalizer.js'
 import { buildExcerpt, getBufferedEntries } from './transcript-excerpt-builder.js'
 import { processEntry as processMetricsEntry } from './transcript-metrics-engine.js'
 import {
@@ -311,28 +310,11 @@ export class TranscriptServiceImpl implements TranscriptService {
     const lines = content.split('\n').filter((line) => line.trim())
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      try {
-        const parsed = TranscriptEntrySchema.safeParse(JSON.parse(line))
-        if (!parsed.success) {
-          this.options.logger.warn('Skipping invalid transcript line', {
-            sessionId: this.sessionId,
-            line: i + 1,
-            error: parsed.error.message,
-          })
-          continue
-        }
-        const rawEntry = parsed.data as TranscriptEntry
-        const normalized = normalizeEntry(rawEntry, i + 1)
-        if (normalized) {
-          entries.push(...normalized)
-        }
-      } catch (err) {
-        this.options.logger.warn('Skipping malformed transcript line', {
-          sessionId: this.sessionId,
-          line: i + 1,
-          error: err instanceof Error ? err.message : String(err),
-        })
+      const rawEntry = parseRawLine(lines[i], i + 1, this.options.logger)
+      if (!rawEntry) continue
+      const normalized = normalizeEntry(rawEntry, i + 1)
+      if (normalized) {
+        entries.push(...normalized)
       }
     }
 
