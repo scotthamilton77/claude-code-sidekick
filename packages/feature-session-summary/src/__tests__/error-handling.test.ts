@@ -503,7 +503,7 @@ describe('Session Summary Error Handling', () => {
 
       // Verify warning was logged about snarky failure
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
-      expect(warnLogs.some((log) => log.msg === 'Failed to generate snarky message')).toBe(true)
+      expect(warnLogs.some((log) => log.msg === 'Snarky message generation failed')).toBe(true)
 
       // Verify main summary was still updated
       const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>
@@ -656,7 +656,7 @@ describe('Session Summary Error Handling', () => {
 
       // Verify warning was logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
-      expect(warnLogs.some((log) => log.msg === 'Failed to generate resume message')).toBe(true)
+      expect(warnLogs.some((log) => log.msg === 'Resume message generation failed')).toBe(true)
 
       // Verify main summary was still updated
       const summaryPath = stateService.sessionStatePath(sessionId, 'session-summary.json')
@@ -778,8 +778,8 @@ describe('Session Summary Error Handling', () => {
 
       // Verify both warnings were logged
       const warnLogs = logger.recordedLogs.filter((log) => log.level === 'warn')
-      expect(warnLogs.some((log) => log.msg === 'Failed to generate snarky message')).toBe(true)
-      expect(warnLogs.some((log) => log.msg === 'Failed to generate resume message')).toBe(true)
+      expect(warnLogs.some((log) => log.msg === 'Snarky message generation failed')).toBe(true)
+      expect(warnLogs.some((log) => log.msg === 'Resume message generation failed')).toBe(true)
 
       // Verify main summary was still updated correctly
       const summaryContent = stateService.getStored(summaryPath) as Record<string, unknown>

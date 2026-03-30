@@ -134,7 +134,6 @@ export async function generateSnarkyCore(params: SnarkyCoreParams): Promise<Snar
     return { status: 'success', state: snarkyState }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
-    ctx.logger.warn('Failed to generate snarky message', { sessionId, error: String(err) })
     return { status: 'error', error }
   }
 }
@@ -232,7 +231,6 @@ export async function generateResumeCore(params: ResumeCoreParams): Promise<Resu
     return { status: 'success', state: resumeState }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
-    ctx.logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
     return { status: 'error', error }
   }
 }
