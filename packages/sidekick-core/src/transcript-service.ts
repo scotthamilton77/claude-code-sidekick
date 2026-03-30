@@ -588,10 +588,7 @@ export class TranscriptServiceImpl implements TranscriptService {
       }
     )
 
-    // Notify subscribers
     this.notifyMetricsChange()
-
-    // Schedule debounced persistence
     this.schedulePersistence()
   }
 

@@ -5,22 +5,10 @@
  * and transcript string rendering.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { normalizeEntry, parseBufferedEntry, parseUuid, renderTranscriptString } from '../transcript-normalizer'
-import type { Logger, TranscriptEntry, CanonicalTranscriptEntry } from '@sidekick/types'
-
-function createMockLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createMockLogger()),
-    flush: vi.fn(() => Promise.resolve()),
-  }
-}
+import { createFakeLogger } from '@sidekick/testing-fixtures'
+import type { TranscriptEntry, CanonicalTranscriptEntry } from '@sidekick/types'
 
 // ============================================================================
 // normalizeEntry
@@ -147,7 +135,7 @@ describe('normalizeEntry', () => {
 
 describe('parseBufferedEntry', () => {
   it('parses valid buffered entry', () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const entry = {
       lineNumber: 1,
       rawLine: JSON.stringify({
@@ -165,7 +153,7 @@ describe('parseBufferedEntry', () => {
   })
 
   it('returns null for malformed JSON', () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const entry = {
       lineNumber: 1,
       rawLine: '{ invalid json }',
@@ -178,7 +166,7 @@ describe('parseBufferedEntry', () => {
   })
 
   it('returns null for non-message entry types', () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const entry = {
       lineNumber: 1,
       rawLine: JSON.stringify({ type: 'file-history-snapshot' }),

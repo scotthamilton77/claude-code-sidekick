@@ -5,7 +5,7 @@
  * and circular buffer operations.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import {
   buildExcerpt,
   formatExcerptLine,
@@ -14,20 +14,7 @@ import {
   getBufferedEntries,
 } from '../transcript-excerpt-builder'
 import type { BufferedEntry } from '../transcript-helpers'
-import type { Logger } from '@sidekick/types'
-
-function createMockLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createMockLogger()),
-    flush: vi.fn(() => Promise.resolve()),
-  }
-}
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 const defaultFilterOptions = {
   includeToolMessages: true,
@@ -277,7 +264,7 @@ describe('getRawContentString', () => {
 // ============================================================================
 
 describe('buildExcerpt', () => {
-  const logger = createMockLogger()
+  const logger = createFakeLogger()
   const knownUuids = new Set<string>()
 
   function makeBufferedEntry(lineNumber: number, type: string, content: string): BufferedEntry {

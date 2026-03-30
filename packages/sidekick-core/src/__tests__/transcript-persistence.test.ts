@@ -17,20 +17,8 @@ import {
 } from '../transcript-persistence'
 import { createDefaultMetrics } from '../transcript-helpers'
 import { StateNotFoundError } from '../state/index'
-import type { Logger, MinimalStateService } from '@sidekick/types'
-
-function createMockLogger(): Logger {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn(() => createMockLogger()),
-    flush: vi.fn(() => Promise.resolve()),
-  }
-}
+import { createFakeLogger, type MockedLogger } from '@sidekick/testing-fixtures'
+import type { MinimalStateService } from '@sidekick/types'
 
 function createMockStateService(storage: Map<string, unknown> = new Map()): MinimalStateService {
   return {
@@ -90,10 +78,10 @@ describe('getCompactionHistoryPath', () => {
 // ============================================================================
 
 describe('persistMetrics', () => {
-  let logger: Logger
+  let logger: MockedLogger
 
   beforeEach(() => {
-    logger = createMockLogger()
+    logger = createFakeLogger()
   })
 
   it('persists metrics and returns new timestamp', async () => {
@@ -171,10 +159,10 @@ describe('persistMetrics', () => {
 // ============================================================================
 
 describe('loadPersistedState', () => {
-  let logger: Logger
+  let logger: MockedLogger
 
   beforeEach(() => {
-    logger = createMockLogger()
+    logger = createFakeLogger()
   })
 
   it('returns metrics and byte offset from persisted state', async () => {
@@ -234,7 +222,7 @@ describe('loadPersistedState', () => {
 
 describe('persistCompactionHistory', () => {
   it('persists and returns pruned history', async () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const stateService = createMockStateService()
 
     const history = [
@@ -253,7 +241,7 @@ describe('persistCompactionHistory', () => {
   })
 
   it('returns original history when sessionId is null', async () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const stateService = createMockStateService()
 
     const history = [
@@ -278,7 +266,7 @@ describe('persistCompactionHistory', () => {
 
 describe('loadCompactionHistory', () => {
   it('returns empty array for new session', async () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const stateService = createMockStateService()
 
     const result = await loadCompactionHistory('session-1', stateService, '/state', logger)
@@ -288,7 +276,7 @@ describe('loadCompactionHistory', () => {
   })
 
   it('returns loaded history', async () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const storage = new Map<string, unknown>()
     const history = [
       {
@@ -313,7 +301,7 @@ describe('loadCompactionHistory', () => {
 
 describe('schedulePersistence', () => {
   it('returns a timer handle', () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const callback = vi.fn()
 
     const timer = schedulePersistence(null, 100, callback, logger, 'session-1')
@@ -323,7 +311,7 @@ describe('schedulePersistence', () => {
   })
 
   it('clears existing timer before creating new one', () => {
-    const logger = createMockLogger()
+    const logger = createFakeLogger()
     const callback = vi.fn()
 
     const timer1 = schedulePersistence(null, 100, callback, logger, 'session-1')
