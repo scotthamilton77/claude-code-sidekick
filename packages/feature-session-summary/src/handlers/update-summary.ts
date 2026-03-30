@@ -702,21 +702,6 @@ async function generateResumeMessage(
 
   switch (result.status) {
     case 'success':
-      logEvent(
-        ctx.logger,
-        LogEvents.resumeUpdated(
-          { sessionId },
-          {
-            snarky_comment: result.state.snarky_comment,
-            timestamp: result.state.timestamp,
-          }
-        )
-      )
-      ctx.logger.debug('Generated resume message', {
-        sessionId,
-        personaId: result.state.persona_id ?? 'none',
-      })
-      break
     case 'deterministic':
       logEvent(
         ctx.logger,
@@ -728,6 +713,12 @@ async function generateResumeMessage(
           }
         )
       )
+      if (result.status === 'success') {
+        ctx.logger.debug('Generated resume message', {
+          sessionId,
+          personaId: result.state.persona_id ?? 'none',
+        })
+      }
       break
     case 'skipped':
       if (result.reason === 'low_confidence') {
