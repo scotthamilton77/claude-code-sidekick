@@ -762,10 +762,9 @@ describe('Session Summary Side-Effects', () => {
       const summary = stateService.getStored(summaryPath) as Record<string, unknown>
       expect(summary.session_title).toBe('New Title')
 
-      // Snarky message should contain error message (written by the error path)
+      // Snarky message should NOT be written (core returns error status, thin wrapper drops it)
       const snarkyPath = stateService.sessionStatePath(sessionId, 'snarky-message.json')
-      const snarkyContent = stateService.getStored(snarkyPath) as { message: string }
-      expect(snarkyContent.message).toContain('is not recognized')
+      expect(stateService.has(snarkyPath)).toBe(false)
     })
 
     it('logs error and skips resume generation when persona has invalid defaultLlmProfile', async () => {
@@ -830,15 +829,9 @@ describe('Session Summary Side-Effects', () => {
       await updateSessionSummary(createUserPromptEvent(sessionId), ctxWithBadProfile)
       await flushPromises()
 
-      // Resume should NOT be created (invalid profile error)
+      // Resume should NOT be created (core returns error status for invalid profile)
       const resumePath = stateService.sessionStatePath(sessionId, 'resume-message.json')
       expect(stateService.has(resumePath)).toBe(false)
-
-      // Error should be logged
-      const errorLogs = logger.recordedLogs.filter((log) => log.level === 'error')
-      expect(errorLogs.some((log) => log.msg === 'Skipping resume generation due to invalid persona profile')).toBe(
-        true
-      )
     })
   })
 

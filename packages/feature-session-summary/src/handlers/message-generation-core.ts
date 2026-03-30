@@ -12,7 +12,6 @@ import type { DaemonContext, SnarkyMessageState, SessionSummaryState, Transcript
 import type { SessionSummaryStateAccessors } from '../state.js'
 import type { ResumeMessageState, SessionSummaryConfig } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
-import type { Logger } from '@sidekick/types'
 import type { ExcerptOptions } from '@sidekick/types'
 import { logEvent } from '@sidekick/core'
 import { SessionSummaryEvents } from '../events.js'
@@ -50,7 +49,6 @@ export interface SnarkyCoreParams {
   summaryState: SessionSummaryStateAccessors
   summary: SessionSummaryState
   config: SessionSummaryConfig
-  logger: Logger
 }
 
 export interface ResumeCoreParams extends SnarkyCoreParams {
@@ -79,75 +77,64 @@ export const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
  * @returns Discriminated union: success (with state), skipped, or error
  */
 export async function generateSnarkyCore(params: SnarkyCoreParams): Promise<SnarkyResult> {
-  const { ctx, sessionId, summaryState, summary, config, logger } = params
+  const { ctx, sessionId, summaryState, summary, config } = params
 
-  // 1. Load persona and check disabled
   const persona = await loadSessionPersona(ctx, sessionId, summaryState)
   if (persona?.id === 'disabled') {
-    logger.debug('Skipping snarky message generation (disabled persona)', { sessionId })
+    ctx.logger.debug('Skipping snarky message generation (disabled persona)', { sessionId })
     return { status: 'skipped', reason: 'persona_disabled' }
   }
 
-  // 2. Resolve prompt template
   const promptTemplate = ctx.assets.resolve(SNARKY_PROMPT_FILE)
   if (!promptTemplate) {
-    logger.warn('Snarky message prompt not found', { path: SNARKY_PROMPT_FILE })
+    ctx.logger.warn('Snarky message prompt not found', { path: SNARKY_PROMPT_FILE })
     return { status: 'skipped', reason: 'prompt_not_found' }
   }
 
-  // 3. Build persona + user profile context
   const personaContext = buildPersonaContext(persona)
-  const userProfileContext = loadUserProfileContext(logger)
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
-  // 4. Interpolate template
+  const metrics = ctx.transcript.getMetrics()
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
     ...userProfileContext,
     session_title: summary.session_title,
     latest_intent: summary.latest_intent,
-    turn_count: ctx.transcript.getMetrics().turnCount,
-    tool_count: ctx.transcript.getMetrics().toolCount,
+    turn_count: metrics.turnCount,
+    tool_count: metrics.toolCount,
     sessionSummary: JSON.stringify(summary, null, 2),
     maxSnarkyWords: config.maxSnarkyWords,
   })
 
-  // 5. Resolve LLM profile
   const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
-  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, logger)
+  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
   if ('errorMessage' in profileResult) {
     return { status: 'error', error: new Error(profileResult.errorMessage) }
   }
 
-  // 6. Create LLM provider
   const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
-  // 7. Emit snarkyMessageStart
-  logEvent(logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
+  logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
 
   try {
-    // 8. Call provider.complete()
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
     })
 
-    // 9. Strip quotes, build state
     const snarkyMessage = stripSurroundingQuotes(response.content.trim())
     const snarkyState: SnarkyMessageState = {
       message: snarkyMessage,
       timestamp: new Date().toISOString(),
     }
 
-    // 10. Write state
     await summaryState.snarkyMessage.write(sessionId, snarkyState)
 
-    // 11. Emit snarkyMessageFinish
-    logEvent(logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
+    logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
 
-    // 12. Return success
     return { status: 'success', state: snarkyState }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
-    logger.warn('Failed to generate snarky message', { sessionId, error: String(err) })
+    ctx.logger.warn('Failed to generate snarky message', { sessionId, error: String(err) })
     return { status: 'error', error }
   }
 }
@@ -169,9 +156,8 @@ export async function generateSnarkyCore(params: SnarkyCoreParams): Promise<Snar
  * @returns Discriminated union: success (with state), deterministic, skipped, or error
  */
 export async function generateResumeCore(params: ResumeCoreParams): Promise<ResumeResult> {
-  const { ctx, sessionId, summaryState, summary, config, logger } = params
+  const { ctx, sessionId, summaryState, summary, config } = params
 
-  // 1. Check confidence thresholds
   if (
     summary.session_title_confidence < RESUME_MIN_CONFIDENCE ||
     summary.latest_intent_confidence < RESUME_MIN_CONFIDENCE
@@ -179,10 +165,8 @@ export async function generateResumeCore(params: ResumeCoreParams): Promise<Resu
     return { status: 'skipped', reason: 'low_confidence' }
   }
 
-  // 2. Load persona
   const persona = await loadSessionPersona(ctx, sessionId, summaryState)
 
-  // 3. Disabled persona → deterministic message (title + intent, no LLM)
   if (persona?.id === 'disabled') {
     const resumeState: ResumeMessageState = {
       last_task_id: null,
@@ -196,24 +180,19 @@ export async function generateResumeCore(params: ResumeCoreParams): Promise<Resu
     return { status: 'deterministic', state: resumeState }
   }
 
-  // 4. Resolve prompt template
   const promptTemplate = ctx.assets.resolve(RESUME_PROMPT_FILE)
   if (!promptTemplate) {
-    logger.warn('Resume message prompt not found', { path: RESUME_PROMPT_FILE })
+    ctx.logger.warn('Resume message prompt not found', { path: RESUME_PROMPT_FILE })
     return { status: 'skipped', reason: 'prompt_not_found' }
   }
 
-  // 5. Build persona + user profile context
   const personaContext = buildPersonaContext(persona)
-  const userProfileContext = loadUserProfileContext(logger)
+  const userProfileContext = loadUserProfileContext(ctx.logger)
 
-  // 6. Get transcript excerpt
   const excerpt = params.transcript.getExcerpt(params.excerptOptions)
 
-  // 7. Build key phrases
   const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
 
-  // 8. Interpolate template
   const prompt = interpolateTemplate(promptTemplate, {
     ...personaContext,
     ...userProfileContext,
@@ -225,23 +204,19 @@ export async function generateResumeCore(params: ResumeCoreParams): Promise<Resu
     maxResumeWords: config.maxResumeWords,
   })
 
-  // 9. Resolve LLM profile
   const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
-  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, logger)
+  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
   if ('errorMessage' in profileResult) {
     return { status: 'error', error: new Error(profileResult.errorMessage) }
   }
 
-  // 10. Create LLM provider
   const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
 
   try {
-    // 11. Call provider.complete()
     const response = await provider.complete({
       messages: [{ role: 'user', content: prompt }],
     })
 
-    // 12. Strip quotes, build state
     const snarkyWelcome = stripSurroundingQuotes(response.content.trim())
     const resumeState: ResumeMessageState = {
       last_task_id: null,
@@ -252,14 +227,12 @@ export async function generateResumeCore(params: ResumeCoreParams): Promise<Resu
       persona_display_name: persona?.display_name ?? null,
     }
 
-    // 13. Write state
     await summaryState.resumeMessage.write(sessionId, resumeState)
 
-    // 14. Return success
     return { status: 'success', state: resumeState }
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err))
-    logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
+    ctx.logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
     return { status: 'error', error }
   }
 }

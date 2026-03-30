@@ -215,11 +215,7 @@ describe('updateSessionSummary event ordering', () => {
       expect(startIdx).toBeLessThan(finishIdx)
     }
 
-    // Verify a deferred decision event was logged
-    // logEvent() spreads payload fields into meta (no nested payload key)
-    const decisionLogs = infoLogs.filter((log) => log.meta?.type === 'decision:recorded')
-    const deferredDecision = decisionLogs.find((log) => log.meta?.decision === 'deferred')
-    expect(deferredDecision).toBeDefined()
-    expect(deferredDecision?.meta?.reason).toContain('will rerun after current analysis completes')
+    // CoalescingGuard handles deferred runs internally — no explicit decision event emitted.
+    // The 2 start/finish pairs above prove coalescing worked.
   })
 })

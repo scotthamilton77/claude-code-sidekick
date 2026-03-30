@@ -10,41 +10,25 @@
  */
 
 import type { TranscriptEvent } from '@sidekick/core'
-import { logEvent, LogEvents } from '@sidekick/core'
+import { logEvent, LogEvents, CoalescingGuard } from '@sidekick/core'
 import { SessionSummaryEvents } from '../events.js'
 import { DecisionEvents } from '@sidekick/types'
-import type { DaemonContext, EventContext, SummaryCountdownState, SnarkyMessageState } from '@sidekick/types'
+import type { DaemonContext, EventContext, SummaryCountdownState } from '@sidekick/types'
 import { z } from 'zod'
-import type { ResumeMessageState, SessionSummaryConfig, SessionSummaryState } from '../types.js'
+import type { SessionSummaryConfig, SessionSummaryState } from '../types.js'
 import { DEFAULT_SESSION_SUMMARY_CONFIG, RESUME_MIN_CONFIDENCE } from '../types.js'
 import { createSessionSummaryState, type SessionSummaryStateAccessors } from '../state.js'
-import {
-  buildPersonaContext,
-  getEffectiveProfile,
-  loadSessionPersona,
-  loadUserProfileContext,
-  stripSurroundingQuotes,
-} from './persona-utils.js'
 import { ensurePersonaForSession } from './persona-selection.js'
+import { generateSnarkyCore, generateResumeCore } from './message-generation-core.js'
 
 /** Human-readable titles for decision:recorded events shown in the UI timeline. */
 const DECISION_TITLE_SKIP = 'Skip session analysis'
 const DECISION_TITLE_RUN = 'Run session analysis'
 
-/**
- * Per-session concurrency guard for analysis with coalescing.
- * When analysis is requested while one is already in-flight,
- * the pending flag is set so a single rerun occurs after completion.
- * This prevents dropped analyses while bounding concurrency to at most
- * two sequential runs (current + one coalesced rerun).
- *
- * Map key: sessionId, value: true if a rerun is pending.
- */
-const analysisInFlight = new Map<string, boolean>()
+/** Per-session concurrency guard with coalescing for analysis. */
+const analysisGuard = new CoalescingGuard<string>()
 
 const PROMPT_FILE = 'prompts/session-summary.prompt.txt'
-const SNARKY_PROMPT_FILE = 'prompts/snarky-message.prompt.txt'
-const RESUME_PROMPT_FILE = 'prompts/resume-message.prompt.txt'
 const SESSION_SUMMARY_SCHEMA_FILE = 'schemas/session-summary.schema.json'
 
 /**
@@ -73,7 +57,7 @@ export { buildPersonaContext, type PersonaTemplateContext } from './persona-util
  * @internal Exported for test isolation only.
  */
 export function resetAnalysisGuard(): void {
-  analysisInFlight.clear()
+  analysisGuard.clear()
 }
 
 /**
@@ -160,7 +144,11 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       })
     )
     const countdown = await loadCountdownState(summaryState, sessionId)
-    void performAnalysis(event, ctx, summaryState, countdown, 'bulk_replay_complete')
+    void analysisGuard
+      .run(sessionId, () => performAnalysis(event, ctx, summaryState, countdown, 'bulk_replay_complete'))
+      .catch(() => {
+        /* errors logged inside performAnalysis */
+      })
     return
   }
 
@@ -169,7 +157,11 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
 
   // UserPrompt forces immediate analysis
   if (isUserPrompt) {
-    void performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced')
+    void analysisGuard
+      .run(sessionId, () => performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced'))
+      .catch(() => {
+        /* errors logged inside performAnalysis */
+      })
     return
   }
 
@@ -190,7 +182,11 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
       title: DECISION_TITLE_RUN,
     })
   )
-  void performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached')
+  void analysisGuard
+    .run(sessionId, () => performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached'))
+    .catch(() => {
+      /* errors logged inside performAnalysis */
+    })
 }
 
 async function loadCountdownState(
@@ -489,7 +485,6 @@ export async function orchestrateSideEffects(
   sessionId: string,
   summaryState: SessionSummaryStateAccessors,
   config: SessionSummaryConfig,
-  transcript: string,
   currentSummary: SessionSummaryState | null,
   updatedSummary: SessionSummaryState
 ): Promise<void> {
@@ -500,7 +495,6 @@ export async function orchestrateSideEffects(
   const changes = hasSignificantChange(updatedSummary, currentSummary)
   const isInitialAnalysis = !currentSummary
   if (config.snarkyMessages && (isInitialAnalysis || changes.titleChanged || changes.intentChanged)) {
-    // Note: We don't delete the old file first. If LLM fails, we keep stale over nothing.
     sideEffects.push(generateSnarkyMessage(ctx, summaryState, sessionId, updatedSummary, config))
   }
 
@@ -508,7 +502,7 @@ export async function orchestrateSideEffects(
   // @see docs/design/FEATURE-RESUME.md §3.2
   const hasResume = await resumeMessageExists(summaryState, sessionId)
   if (updatedSummary.pivot_detected || !hasResume) {
-    sideEffects.push(generateResumeMessage(ctx, summaryState, eventContext, updatedSummary, transcript, config))
+    sideEffects.push(generateResumeMessage(ctx, summaryState, eventContext, updatedSummary, config))
   }
 
   // Await all side-effects (errors are logged internally, won't fail main flow)
@@ -581,28 +575,9 @@ async function performAnalysis(
   const { context: eventContext, payload } = event
   const { sessionId } = eventContext
 
-  // Concurrency guard with coalescing: if analysis is already in-flight,
-  // set the pending flag so a rerun occurs after the current one finishes.
-  // This prevents dropped analyses while bounding concurrency.
-  if (analysisInFlight.has(sessionId)) {
-    analysisInFlight.set(sessionId, true)
-    logEvent(
-      ctx.logger,
-      DecisionEvents.decisionRecorded(eventContext, {
-        decision: 'deferred',
-        reason: 'Analysis deferred — will rerun after current analysis completes',
-        subsystem: 'session-summary',
-        title: DECISION_TITLE_SKIP,
-      })
-    )
-    return
-  }
-  analysisInFlight.set(sessionId, false)
-
   try {
     const startTime = Date.now()
 
-    // Emit start event
     logEvent(ctx.logger, SessionSummaryEvents.summaryStart(eventContext, { reason, countdown: countdown.countdown }))
 
     const inputs = await loadAnalysisInputs(ctx, summaryState, ctx.transcript, countdown, sessionId)
@@ -626,13 +601,11 @@ async function performAnalysis(
       sessionId,
       summaryState,
       inputs.config,
-      inputs.excerpt,
       inputs.currentSummary,
       updated
     )
     emitAnalysisEvents(ctx.logger, eventContext, inputs.currentSummary, updated)
 
-    // Log completion
     const avgConfidence = (updated.session_title_confidence + updated.latest_intent_confidence) / 2
     ctx.logger.info('Updated session summary', {
       sessionId,
@@ -647,16 +620,6 @@ async function performAnalysis(
       reason,
       error: err instanceof Error ? err.message : String(err),
     })
-  } finally {
-    const rerunPending = analysisInFlight.get(sessionId) ?? false
-    analysisInFlight.delete(sessionId)
-
-    // If a rerun was requested while we were running, perform one coalesced rerun.
-    // Re-load countdown state to get the latest bookmark/countdown values.
-    if (rerunPending) {
-      const freshCountdown = await loadCountdownState(summaryState, sessionId)
-      void performAnalysis(event, ctx, summaryState, freshCountdown, reason)
-    }
   }
 }
 
@@ -683,17 +646,8 @@ function hasSignificantChange(
 }
 
 /**
- * Generate snarky message as a side-effect.
- * Called when title or intent changed significantly.
- * Uses separate LLM call with higher temperature for creativity.
- *
- * Persona injection:
- * - If persona is "disabled", skip LLM call entirely
- * - If persona is selected, inject persona context into prompt
- * - If no persona, omit persona block from prompt
- *
+ * Generate snarky message as a side-effect via shared core pipeline.
  * @see docs/design/FEATURE-SESSION-SUMMARY.md §3.2.4
- * @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
  */
 async function generateSnarkyMessage(
   ctx: DaemonContext,
@@ -702,252 +656,96 @@ async function generateSnarkyMessage(
   summary: SessionSummaryState,
   config: SessionSummaryConfig
 ): Promise<void> {
-  // Load session persona
-  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
+  const result = await generateSnarkyCore({ ctx, sessionId, summaryState, summary, config })
 
-  // Disabled persona: skip snarky generation entirely
-  if (persona?.id === 'disabled') {
-    ctx.logger.debug('Skipping snarky message generation (disabled persona)', { sessionId })
-    return
-  }
-
-  const promptTemplate = ctx.assets.resolve(SNARKY_PROMPT_FILE)
-  if (!promptTemplate) {
-    ctx.logger.warn('Snarky message prompt not found', { path: SNARKY_PROMPT_FILE })
-    return
-  }
-
-  // Build persona and user profile context for template interpolation
-  const personaContext = buildPersonaContext(persona)
-  const userProfileContext = loadUserProfileContext(ctx.logger)
-
-  // Interpolate prompt with session summary data and persona
-  const prompt = interpolateTemplate(promptTemplate, {
-    ...personaContext,
-    ...userProfileContext,
-    session_title: summary.session_title,
-    latest_intent: summary.latest_intent,
-    turn_count: ctx.transcript.getMetrics().turnCount,
-    tool_count: ctx.transcript.getMetrics().toolCount,
-    sessionSummary: JSON.stringify(summary, null, 2),
-    maxSnarkyWords: config.maxSnarkyWords,
-  })
-
-  // Get profile configuration for snarky comment (creative profile)
-  const llmConfig = config.llm?.snarkyComment ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.snarkyComment!
-
-  // Resolve persona-specific LLM profile override
-  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
-  if ('errorMessage' in profileResult) {
-    // Write error as the snarky message
-    const snarkyState: SnarkyMessageState = {
-      message: profileResult.errorMessage,
-      timestamp: new Date().toISOString(),
-    }
-    await summaryState.snarkyMessage.write(sessionId, snarkyState)
-    return
-  }
-
-  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
-
-  // Emit snarky-message:start event before LLM call
-  logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageStart({ sessionId }, { sessionId }))
-
-  try {
-    const response = await provider.complete({
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    // Strip surrounding quotes if they enclose the entire response
-    const snarkyMessage = stripSurroundingQuotes(response.content.trim())
-
-    // Build state object
-    const snarkyState: SnarkyMessageState = {
-      message: snarkyMessage,
-      timestamp: new Date().toISOString(),
-    }
-
-    // Save via typed accessor (atomic write with schema validation)
-    await summaryState.snarkyMessage.write(sessionId, snarkyState)
-
-    // Emit snarky-message:finish event after writing
-    logEvent(ctx.logger, SessionSummaryEvents.snarkyMessageFinish({ sessionId }, { generatedMessage: snarkyMessage }))
-
-    ctx.logger.debug('Generated snarky message', {
-      sessionId,
-      personaId: persona?.id ?? 'none',
-      message: snarkyMessage.slice(0, 50),
-    })
-  } catch (err) {
-    ctx.logger.warn('Failed to generate snarky message', { sessionId, error: String(err) })
+  switch (result.status) {
+    case 'success':
+      ctx.logger.debug('Generated snarky message', {
+        sessionId,
+        message: result.state.message.slice(0, 50),
+      })
+      break
+    case 'skipped':
+      break
+    case 'error':
+      break
   }
 }
 
 /**
- * Generate resume message as a side-effect.
- * Called when pivot is detected in summary analysis.
- * Uses separate LLM call with higher temperature for creativity.
- *
- * Persona injection:
- * - If persona is "disabled", use deterministic output (session_title and latest_intent)
- * - If persona is selected, inject persona context into prompt
- * - If no persona, omit persona block from prompt
- *
+ * Generate resume message as a side-effect via shared core pipeline.
  * @see docs/design/FEATURE-RESUME.md §3.2
- * @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
  */
 async function generateResumeMessage(
   ctx: DaemonContext,
   summaryState: SessionSummaryStateAccessors,
   eventContext: EventContext,
   summary: SessionSummaryState,
-  transcriptExcerpt: string,
   config: SessionSummaryConfig
 ): Promise<void> {
   const { sessionId } = eventContext
 
-  // Check confidence thresholds
-  if (
-    summary.session_title_confidence < RESUME_MIN_CONFIDENCE ||
-    summary.latest_intent_confidence < RESUME_MIN_CONFIDENCE
-  ) {
-    // Log structured skip event
-    logEvent(
-      ctx.logger,
-      LogEvents.resumeSkipped(
-        { sessionId },
-        {
-          title_confidence: summary.session_title_confidence,
-          intent_confidence: summary.latest_intent_confidence,
-          min_confidence: RESUME_MIN_CONFIDENCE,
-        },
-        'confidence_below_threshold'
-      )
-    )
-    return
-  }
-
-  // Load session persona
-  const persona = await loadSessionPersona(ctx, sessionId, summaryState)
-
-  // Disabled persona: use deterministic output without LLM call
-  // @see docs/design/PERSONA-PROFILES-DESIGN.md - Disabled Persona Behavior
-  if (persona?.id === 'disabled') {
-    ctx.logger.debug('Using deterministic resume message (disabled persona)', { sessionId })
-
-    const resumeState: ResumeMessageState = {
-      last_task_id: null,
-      session_title: summary.session_title,
-      snarky_comment: summary.latest_intent,
-      timestamp: new Date().toISOString(),
-      persona_id: null,
-      persona_display_name: null,
-    }
-
-    await summaryState.resumeMessage.write(sessionId, resumeState)
-
-    logEvent(
-      ctx.logger,
-      LogEvents.resumeUpdated(
-        { sessionId },
-        {
-          snarky_comment: resumeState.snarky_comment,
-          timestamp: resumeState.timestamp,
-        }
-      )
-    )
-    return
-  }
-
-  const promptTemplate = ctx.assets.resolve(RESUME_PROMPT_FILE)
-  if (!promptTemplate) {
-    ctx.logger.warn('Resume message prompt not found', { path: RESUME_PROMPT_FILE })
-    return
-  }
-
-  // Log resume generation start
-  logEvent(
-    ctx.logger,
-    LogEvents.resumeGenerating(
-      { sessionId },
-      {
-        title_confidence: summary.session_title_confidence,
-        intent_confidence: summary.latest_intent_confidence,
-      }
-    )
-  )
-
-  // Build persona and user profile context for template interpolation
-  const personaContext = buildPersonaContext(persona)
-  const userProfileContext = loadUserProfileContext(ctx.logger)
-
-  // Interpolate prompt with session data and persona
-  const keyPhrases = summary.session_title_key_phrases?.join(', ') ?? ''
-  const prompt = interpolateTemplate(promptTemplate, {
-    ...personaContext,
-    ...userProfileContext,
-    sessionTitle: summary.session_title,
-    confidence: summary.session_title_confidence,
-    latestIntent: summary.latest_intent,
-    keyPhrases,
-    transcript: transcriptExcerpt,
-    maxResumeWords: config.maxResumeWords,
+  const result = await generateResumeCore({
+    ctx,
+    sessionId,
+    summaryState,
+    summary,
+    config,
+    excerptOptions: {
+      maxLines: config.excerptLines,
+      includeToolMessages: config.includeToolMessages,
+      includeToolOutputs: config.includeToolOutputs,
+      includeAssistantThinking: config.includeAssistantThinking,
+    },
+    transcript: ctx.transcript,
   })
 
-  // Get profile configuration for resume message (creative-long profile)
-  const llmConfig = config.llm?.resumeMessage ?? DEFAULT_SESSION_SUMMARY_CONFIG.llm!.resumeMessage!
-
-  // Resolve persona-specific LLM profile override
-  const profileResult = getEffectiveProfile(persona, llmConfig, config, ctx.config.llm.profiles, ctx.logger)
-  if ('errorMessage' in profileResult) {
-    ctx.logger.error('Skipping resume generation due to invalid persona profile', {
-      sessionId,
-      errorMessage: profileResult.errorMessage,
-    })
-    return
-  }
-
-  const provider = ctx.profileFactory.createForProfile(profileResult.profileId, llmConfig.fallbackProfile)
-
-  try {
-    // Resume message outputs plain text (snarky_welcome only)
-    const response = await provider.complete({
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    // Strip surrounding quotes if present
-    const snarkyWelcome = stripSurroundingQuotes(response.content.trim())
-
-    // Build resume message state
-    const resumeState: ResumeMessageState = {
-      last_task_id: null, // Not tracked in summary
-      session_title: summary.session_title,
-      snarky_comment: snarkyWelcome,
-      timestamp: new Date().toISOString(),
-      persona_id: persona?.id ?? null,
-      persona_display_name: persona?.display_name ?? null,
-    }
-
-    // Save via typed accessor
-    await summaryState.resumeMessage.write(sessionId, resumeState)
-
-    // Log resume updated event
-    logEvent(
-      ctx.logger,
-      LogEvents.resumeUpdated(
-        { sessionId },
-        {
-          snarky_comment: resumeState.snarky_comment,
-          timestamp: resumeState.timestamp,
-        }
+  switch (result.status) {
+    case 'success':
+      logEvent(
+        ctx.logger,
+        LogEvents.resumeUpdated(
+          { sessionId },
+          {
+            snarky_comment: result.state.snarky_comment,
+            timestamp: result.state.timestamp,
+          }
+        )
       )
-    )
-
-    ctx.logger.debug('Generated resume message', {
-      sessionId,
-      personaId: persona?.id ?? 'none',
-    })
-  } catch (err) {
-    ctx.logger.warn('Failed to generate resume message', { sessionId, error: String(err) })
+      ctx.logger.debug('Generated resume message', {
+        sessionId,
+        personaId: result.state.persona_id ?? 'none',
+      })
+      break
+    case 'deterministic':
+      logEvent(
+        ctx.logger,
+        LogEvents.resumeUpdated(
+          { sessionId },
+          {
+            snarky_comment: result.state.snarky_comment,
+            timestamp: result.state.timestamp,
+          }
+        )
+      )
+      break
+    case 'skipped':
+      if (result.reason === 'low_confidence') {
+        logEvent(
+          ctx.logger,
+          LogEvents.resumeSkipped(
+            { sessionId },
+            {
+              title_confidence: summary.session_title_confidence,
+              intent_confidence: summary.latest_intent_confidence,
+              min_confidence: RESUME_MIN_CONFIDENCE,
+            },
+            'confidence_below_threshold'
+          )
+        )
+      }
+      break
+    case 'error':
+      break
   }
 }

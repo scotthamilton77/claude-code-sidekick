@@ -126,7 +126,6 @@ function createCoreParams(overrides?: Partial<SnarkyCoreParams>): SnarkyCorePara
     summaryState: createMockSummaryState(),
     summary: createValidSummary(sessionId),
     config: { ...DEFAULT_SESSION_SUMMARY_CONFIG },
-    logger: ctx.logger,
     ...overrides,
   }
 }
@@ -146,7 +145,6 @@ function createResumeCoreParams(overrides?: Partial<ResumeCoreParams>): ResumeCo
     summaryState: createMockSummaryState(),
     summary: createValidSummary(sessionId),
     config: { ...DEFAULT_SESSION_SUMMARY_CONFIG },
-    logger: ctx.logger,
     excerptOptions: { maxLines: 50 },
     transcript,
     ...overrides,
@@ -217,7 +215,7 @@ describe('generateSnarkyCore', () => {
       const ctx = createTestContext({ llm, assets, logger })
       const summaryState = createMockSummaryState()
 
-      const params = createCoreParams({ ctx, summaryState, logger })
+      const params = createCoreParams({ ctx, summaryState })
       await generateSnarkyCore(params)
 
       // logEvent logs at 'info' level with structured event data
