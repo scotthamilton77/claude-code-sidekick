@@ -434,6 +434,7 @@ describe('orchestrateSideEffects', () => {
     assets.register(SNARKY_PROMPT_FILE, 'Snark: {{session_title}}')
     assets.register(RESUME_PROMPT_FILE, 'Resume: {{sessionTitle}}')
     transcript.setMetrics({ turnCount: 5, toolCount: 10, lastProcessedLine: 100 })
+    transcript.setMockExcerptContent('mock transcript excerpt')
   })
 
   it('generates snarky message on initial analysis (no currentSummary)', async () => {
@@ -446,7 +447,6 @@ describe('orchestrateSideEffects', () => {
       SESSION_ID,
       summaryState,
       DEFAULT_SESSION_SUMMARY_CONFIG,
-      'transcript text',
       null, // no current summary → initial analysis
       updated
     )
@@ -467,7 +467,6 @@ describe('orchestrateSideEffects', () => {
       SESSION_ID,
       summaryState,
       { ...DEFAULT_SESSION_SUMMARY_CONFIG, snarkyMessages: false }, // disable snarky
-      'transcript text',
       current,
       updated
     )
@@ -487,7 +486,6 @@ describe('orchestrateSideEffects', () => {
       SESSION_ID,
       summaryState,
       config,
-      'transcript text',
       null, // initial analysis would normally trigger snarky
       updated
     )

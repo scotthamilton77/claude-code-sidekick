@@ -105,7 +105,7 @@ export async function generateSnarkyMessageOnDemand(ctx: DaemonContext, sessionI
   const config = { ...DEFAULT_SESSION_SUMMARY_CONFIG, ...featureConfig.settings }
 
   // Delegate to shared core pipeline
-  const result = await generateSnarkyCore({ ctx, sessionId, summaryState, summary, config, logger: ctx.logger })
+  const result = await generateSnarkyCore({ ctx, sessionId, summaryState, summary, config })
 
   // Map core result to GenerationResult
   switch (result.status) {
@@ -165,7 +165,6 @@ export async function generateResumeMessageOnDemand(ctx: DaemonContext, sessionI
     summaryState,
     summary,
     config,
-    logger: ctx.logger,
     excerptOptions,
     transcript: ctx.transcript,
   })
