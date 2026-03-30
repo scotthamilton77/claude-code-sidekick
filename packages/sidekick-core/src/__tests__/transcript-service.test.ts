@@ -38,7 +38,25 @@ import { MockStateService } from '@sidekick/testing-fixtures'
 interface TranscriptServiceTestInternals {
   processTranscriptFile: () => Promise<void>
   persistMetrics: (immediate: boolean) => Promise<void>
-  // Streaming/buffer internals for testing
+  // Streaming state is now nested in streamingState object
+  streamingState: {
+    lastProcessedByteOffset: number
+    excerptBuffer: Array<{ lineNumber: number; rawLine: string; uuid: string | null }>
+    excerptBufferHead: number
+    excerptBufferCount: number
+    knownUuids: Set<string>
+  }
+  hasFiredBulkComplete: boolean
+  isBulkProcessing: boolean
+}
+
+/**
+ * Wrapper that provides backward-compatible access to internal state.
+ * Proxies streaming state properties through the nested streamingState object.
+ */
+interface TranscriptServiceTestHelpers {
+  processTranscriptFile: () => Promise<void>
+  persistMetrics: (immediate: boolean) => Promise<void>
   lastProcessedByteOffset: number
   excerptBufferCount: number
   getBufferedEntries: () => Array<{ lineNumber: number; rawLine: string; uuid: string | null }>
@@ -49,9 +67,46 @@ interface TranscriptServiceTestInternals {
 
 /**
  * Cast service to access internal methods for testing.
+ * Creates a proxy that bridges the old flat API to the new nested streamingState.
  */
-function getTestHelpers(service: TranscriptServiceImpl): TranscriptServiceTestInternals {
-  return service as unknown as TranscriptServiceTestInternals
+function getTestHelpers(service: TranscriptServiceImpl): TranscriptServiceTestHelpers {
+  const internals = service as unknown as TranscriptServiceTestInternals
+  return {
+    processTranscriptFile: () => internals.processTranscriptFile(),
+    persistMetrics: (immediate: boolean) => internals.persistMetrics(immediate),
+    get lastProcessedByteOffset() {
+      return internals.streamingState.lastProcessedByteOffset
+    },
+    get excerptBufferCount() {
+      return internals.streamingState.excerptBufferCount
+    },
+    getBufferedEntries() {
+      const state = internals.streamingState
+      if (state.excerptBufferCount === 0) return []
+      if (state.excerptBufferCount < 500) {
+        return state.excerptBuffer.slice(0, state.excerptBufferCount)
+      }
+      const result: Array<{ lineNumber: number; rawLine: string; uuid: string | null }> = []
+      for (let i = 0; i < 500; i++) {
+        const idx = (state.excerptBufferHead + i) % 500
+        result.push(state.excerptBuffer[idx])
+      }
+      return result
+    },
+    resetStreamingState() {
+      internals.streamingState.lastProcessedByteOffset = 0
+      internals.streamingState.excerptBuffer = []
+      internals.streamingState.excerptBufferHead = 0
+      internals.streamingState.excerptBufferCount = 0
+      internals.streamingState.knownUuids.clear()
+    },
+    get hasFiredBulkComplete() {
+      return internals.hasFiredBulkComplete
+    },
+    get isBulkProcessing() {
+      return internals.isBulkProcessing
+    },
+  }
 }
 
 // ============================================================================
