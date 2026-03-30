@@ -17,6 +17,7 @@ import {
   createDefaultTokenUsage,
   type TranscriptServiceOptions,
 } from '../transcript-service'
+import { EXCERPT_BUFFER_SIZE } from '../transcript-helpers'
 import type { HandlerRegistry, Logger, TranscriptEventType, TranscriptEntry } from '@sidekick/types'
 import { MockStateService } from '@sidekick/testing-fixtures'
 
@@ -83,12 +84,12 @@ function getTestHelpers(service: TranscriptServiceImpl): TranscriptServiceTestHe
     getBufferedEntries() {
       const state = internals.streamingState
       if (state.excerptBufferCount === 0) return []
-      if (state.excerptBufferCount < 500) {
+      if (state.excerptBufferCount < EXCERPT_BUFFER_SIZE) {
         return state.excerptBuffer.slice(0, state.excerptBufferCount)
       }
       const result: Array<{ lineNumber: number; rawLine: string; uuid: string | null }> = []
-      for (let i = 0; i < 500; i++) {
-        const idx = (state.excerptBufferHead + i) % 500
+      for (let i = 0; i < EXCERPT_BUFFER_SIZE; i++) {
+        const idx = (state.excerptBufferHead + i) % EXCERPT_BUFFER_SIZE
         result.push(state.excerptBuffer[idx])
       }
       return result
@@ -3044,7 +3045,7 @@ describe('TranscriptServiceImpl', () => {
       })
 
       it('maintains chronological order after buffer wraparound', async () => {
-        // Create more entries than EXCERPT_BUFFER_SIZE (500) to trigger wraparound
+        // Create more entries than EXCERPT_BUFFER_SIZE to trigger wraparound
         const totalEntries = 510
         const lines = createTranscriptLines(totalEntries)
         writeFileSync(transcriptPath, lines.join('\n'))
@@ -3052,11 +3053,11 @@ describe('TranscriptServiceImpl', () => {
         await service.start()
 
         const internals = getTestHelpers(service)
-        // Buffer should be capped at 500 (EXCERPT_BUFFER_SIZE)
-        expect(internals.excerptBufferCount).toBe(500)
+        // Buffer should be capped at EXCERPT_BUFFER_SIZE
+        expect(internals.excerptBufferCount).toBe(EXCERPT_BUFFER_SIZE)
 
         const buffered = internals.getBufferedEntries()
-        expect(buffered).toHaveLength(500)
+        expect(buffered).toHaveLength(EXCERPT_BUFFER_SIZE)
 
         // Oldest entries (1-10) should have been evicted
         const firstLineNumber = buffered[0].lineNumber
@@ -3094,7 +3095,7 @@ describe('TranscriptServiceImpl', () => {
 
     describe('buffer limits', () => {
       it('limits buffer to EXCERPT_BUFFER_SIZE entries', async () => {
-        // Create more lines than the buffer size (500)
+        // Create more lines than EXCERPT_BUFFER_SIZE
         // We'll use 10 lines but test the principle
         const lines = createTranscriptLines(10)
         writeFileSync(transcriptPath, lines.join('\n'))
@@ -3104,7 +3105,7 @@ describe('TranscriptServiceImpl', () => {
         const internals = getTestHelpers(service)
         // Buffer count should not exceed the buffer size
         // (In this test we only have 10 lines, but the principle is tested)
-        expect(internals.excerptBufferCount).toBeLessThanOrEqual(500)
+        expect(internals.excerptBufferCount).toBeLessThanOrEqual(EXCERPT_BUFFER_SIZE)
       })
     })
 

@@ -5,6 +5,7 @@
  * and path generation.
  */
 
+import { join } from 'node:path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   persistMetrics,
@@ -54,7 +55,7 @@ describe('getMetricsStatePath', () => {
 
   it('constructs correct path', () => {
     const path = getMetricsStatePath('session-123', '/state')
-    expect(path).toBe('/state/sessions/session-123/state/transcript-metrics.json')
+    expect(path).toBe(join('/state', 'sessions', 'session-123', 'state', 'transcript-metrics.json'))
   })
 })
 
@@ -69,7 +70,7 @@ describe('getCompactionHistoryPath', () => {
 
   it('constructs correct path', () => {
     const path = getCompactionHistoryPath('session-123', '/state')
-    expect(path).toBe('/state/sessions/session-123/state/compaction-history.json')
+    expect(path).toBe(join('/state', 'sessions', 'session-123', 'state', 'compaction-history.json'))
   })
 })
 
@@ -169,7 +170,7 @@ describe('loadPersistedState', () => {
     const storage = new Map<string, unknown>()
     const metrics = createDefaultMetrics()
     metrics.turnCount = 10
-    storage.set('/state/sessions/session-1/state/transcript-metrics.json', {
+    storage.set(join('/state', 'sessions', 'session-1', 'state', 'transcript-metrics.json'), {
       sessionId: 'session-1',
       metrics,
       persistedAt: Date.now(),
@@ -196,7 +197,7 @@ describe('loadPersistedState', () => {
 
   it('returns null on session ID mismatch', async () => {
     const storage = new Map<string, unknown>()
-    storage.set('/state/sessions/session-1/state/transcript-metrics.json', {
+    storage.set(join('/state', 'sessions', 'session-1', 'state', 'transcript-metrics.json'), {
       sessionId: 'different-session',
       metrics: createDefaultMetrics(),
       persistedAt: Date.now(),
@@ -286,7 +287,7 @@ describe('loadCompactionHistory', () => {
         postCompactLineCount: 0,
       },
     ]
-    storage.set('/state/sessions/session-1/state/compaction-history.json', history)
+    storage.set(join('/state', 'sessions', 'session-1', 'state', 'compaction-history.json'), history)
     const stateService = createMockStateService(storage)
 
     const result = await loadCompactionHistory('session-1', stateService, '/state', logger)

@@ -13,7 +13,7 @@ import {
   getRawContentString,
   getBufferedEntries,
 } from '../transcript-excerpt-builder'
-import type { BufferedEntry } from '../transcript-helpers'
+import { EXCERPT_BUFFER_SIZE, type BufferedEntry } from '../transcript-helpers'
 import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 const defaultFilterOptions = {
@@ -28,7 +28,7 @@ const defaultFilterOptions = {
 
 describe('getBufferedEntries', () => {
   it('returns empty array for empty buffer', () => {
-    expect(getBufferedEntries([], 0, 0, 500)).toEqual([])
+    expect(getBufferedEntries([], 0, 0, EXCERPT_BUFFER_SIZE)).toEqual([])
   })
 
   it('returns entries in order when buffer is not full', () => {
@@ -36,7 +36,7 @@ describe('getBufferedEntries', () => {
       { lineNumber: 1, rawLine: '{"type":"user"}', uuid: null },
       { lineNumber: 2, rawLine: '{"type":"assistant"}', uuid: null },
     ]
-    const result = getBufferedEntries(buffer, 0, 2, 500)
+    const result = getBufferedEntries(buffer, 0, 2, EXCERPT_BUFFER_SIZE)
     expect(result).toHaveLength(2)
     expect(result[0].lineNumber).toBe(1)
     expect(result[1].lineNumber).toBe(2)
