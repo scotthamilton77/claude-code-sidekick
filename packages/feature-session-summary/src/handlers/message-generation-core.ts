@@ -151,7 +151,7 @@ export async function generateSnarkyCore(params: SnarkyCoreParams): Promise<Snar
  * logging and result translation.
  *
  * No events are emitted by core — resume-specific log events
- * (resumeGenerating, resumeUpdated, resumeSkipped) stay in the periodic wrapper.
+ * (resumeUpdated, resumeSkipped) stay in the periodic wrapper.
  *
  * @returns Discriminated union: success (with state), deterministic, skipped, or error
  */

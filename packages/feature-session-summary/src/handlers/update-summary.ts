@@ -143,9 +143,8 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
         title: DECISION_TITLE_RUN,
       })
     )
-    const countdown = await loadCountdownState(summaryState, sessionId)
     void analysisGuard
-      .run(sessionId, () => performAnalysis(event, ctx, summaryState, countdown, 'bulk_replay_complete'))
+      .run(sessionId, () => performAnalysis(event, ctx, summaryState, 'bulk_replay_complete'))
       .catch(() => {
         /* errors logged inside performAnalysis */
       })
@@ -158,7 +157,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
   // UserPrompt forces immediate analysis
   if (isUserPrompt) {
     void analysisGuard
-      .run(sessionId, () => performAnalysis(event, ctx, summaryState, countdown, 'user_prompt_forced'))
+      .run(sessionId, () => performAnalysis(event, ctx, summaryState, 'user_prompt_forced'))
       .catch(() => {
         /* errors logged inside performAnalysis */
       })
@@ -183,7 +182,7 @@ export async function updateSessionSummary(event: TranscriptEvent, ctx: DaemonCo
     })
   )
   void analysisGuard
-    .run(sessionId, () => performAnalysis(event, ctx, summaryState, countdown, 'countdown_reached'))
+    .run(sessionId, () => performAnalysis(event, ctx, summaryState, 'countdown_reached'))
     .catch(() => {
       /* errors logged inside performAnalysis */
     })
@@ -568,7 +567,6 @@ async function performAnalysis(
   event: TranscriptEvent,
   ctx: DaemonContext,
   summaryState: SessionSummaryStateAccessors,
-  countdown: SummaryCountdownState,
   // Note: compaction_reset reserved for future compaction-triggered re-analysis
   reason: 'user_prompt_forced' | 'countdown_reached' | 'compaction_reset' | 'bulk_replay_complete'
 ): Promise<void> {
@@ -576,6 +574,8 @@ async function performAnalysis(
   const { sessionId } = eventContext
 
   try {
+    // Reload countdown state on each execution so coalesced reruns get fresh bookmark/countdown
+    const countdown = await loadCountdownState(summaryState, sessionId)
     const startTime = Date.now()
 
     logEvent(ctx.logger, SessionSummaryEvents.summaryStart(eventContext, { reason, countdown: countdown.countdown }))
@@ -668,6 +668,7 @@ async function generateSnarkyMessage(
     case 'skipped':
       break
     case 'error':
+      ctx.logger.warn('Snarky message generation failed', { sessionId, error: result.error.message })
       break
   }
 }
@@ -737,6 +738,7 @@ async function generateResumeMessage(
       }
       break
     case 'error':
+      ctx.logger.warn('Resume message generation failed', { sessionId, error: result.error.message })
       break
   }
 }
