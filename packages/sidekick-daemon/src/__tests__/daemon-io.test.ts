@@ -14,7 +14,8 @@ import type { Logger } from '@sidekick/core'
 
 // Mock @sidekick/core path functions to return predictable paths based on projectDir
 vi.mock('@sidekick/core', async (importOriginal) => {
-  const actual = await importOriginal()
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     getPidPath: (dir: string) => path.join(dir, '.sidekick', 'daemon.pid'),
@@ -178,8 +179,8 @@ describe('setupErrorHandlers', () => {
     const cleanupFn = vi.fn().mockResolvedValue(undefined)
 
     // Capture the registered handler
-    const handlers = new Map<string, (...args: unknown[]) => void>()
-    vi.spyOn(process, 'on').mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
+    const handlers = new Map<string | symbol, (...args: unknown[]) => void>()
+    vi.spyOn(process, 'on').mockImplementation((event: string | symbol, handler: (...args: unknown[]) => void) => {
       handlers.set(event, handler)
       return process
     })
@@ -214,8 +215,8 @@ describe('setupErrorHandlers', () => {
     const logger = createMockLogger()
     const cleanupFn = vi.fn().mockResolvedValue(undefined)
 
-    const handlers = new Map<string, (...args: unknown[]) => void>()
-    vi.spyOn(process, 'on').mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
+    const handlers = new Map<string | symbol, (...args: unknown[]) => void>()
+    vi.spyOn(process, 'on').mockImplementation((event: string | symbol, handler: (...args: unknown[]) => void) => {
       handlers.set(event, handler)
       return process
     })

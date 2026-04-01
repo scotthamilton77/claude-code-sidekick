@@ -90,7 +90,8 @@ describe('diffConfigs', () => {
 // ── resolveTranscriptPath ───────────────────────────────────────────────────
 
 vi.mock('@sidekick/core', async (importOriginal) => {
-  const actual = await importOriginal()
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
     reconstructTranscriptPath: vi.fn().mockReturnValue('/mock/transcript/path'),
