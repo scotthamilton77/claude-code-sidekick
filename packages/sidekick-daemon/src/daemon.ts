@@ -24,7 +24,6 @@ import {
   logEvent,
   type AssetResolver,
   type ConfigService,
-  type SidekickConfig,
 } from '@sidekick/core'
 import {
   registerStagingHandlers,
@@ -72,17 +71,16 @@ import { TaskRegistry } from './task-registry.js'
 import { TaskEngine } from './task-engine.js'
 import { DaemonStatusDescriptor } from './state-descriptors.js'
 import { stagePersonaTransition } from './persona-transition.js'
-
-// Read version from root package.json (single source of truth for monorepo)
-// Path is relative to dist/ output location: dist/ → packages/pkg/ → packages/ → root/
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-const VERSION: string = require('../../../package.json').version
-
-// Idle check interval (how often to check for idle timeout)
-const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
-
-// Heartbeat interval: write daemon status every 5 seconds per design/DAEMON.md §4.6
-const HEARTBEAT_INTERVAL_MS = 5 * 1000
+import {
+  VERSION,
+  IDLE_CHECK_INTERVAL_MS,
+  HEARTBEAT_INTERVAL_MS,
+  EVICTION_INTERVAL_MS,
+  REGISTRY_HEARTBEAT_INTERVAL_MS,
+  diffConfigs,
+  resolveTranscriptPath,
+  getPersonaInjectionEnabled,
+} from './daemon-helpers.js'
 
 /**
  * Daemon Process Entrypoint
@@ -516,7 +514,7 @@ export class Daemon {
       const newConfig = newConfigService.getAll()
 
       // Log all config value changes
-      const changes = this.diffConfigs(oldConfig, newConfig)
+      const changes = diffConfigs(oldConfig, newConfig)
       if (changes.length > 0) {
         this.logger.info('Configuration values changed', { changes })
       }
@@ -531,8 +529,8 @@ export class Daemon {
       }
 
       // Detect persona injection config change before reassigning configService
-      const oldInjection = this.getPersonaInjectionEnabled(this.configService)
-      const newInjection = this.getPersonaInjectionEnabled(newConfigService)
+      const oldInjection = getPersonaInjectionEnabled(this.configService)
+      const newInjection = getPersonaInjectionEnabled(newConfigService)
 
       // Update stored config service
       this.configService = newConfigService
@@ -668,63 +666,6 @@ export class Daemon {
     }
   }
 
-  /**
-   * Read the persona injection enabled flag from a config service.
-   * Defaults to true if not explicitly set.
-   */
-  private getPersonaInjectionEnabled(config: ConfigService): boolean {
-    type PersonaSettings = { personas?: { injectPersonaIntoClaude?: boolean } }
-    return config.getFeature<PersonaSettings>('session-summary').settings?.personas?.injectPersonaIntoClaude ?? true
-  }
-
-  /**
-   * Compare two config objects and return a list of changed values.
-   */
-  private diffConfigs(
-    oldConfig: SidekickConfig,
-    newConfig: SidekickConfig,
-    path: string[] = []
-  ): Array<{ path: string; old: unknown; new: unknown }> {
-    const changes: Array<{ path: string; old: unknown; new: unknown }> = []
-
-    const compareObjects = (
-      oldObj: Record<string, unknown>,
-      newObj: Record<string, unknown>,
-      currentPath: string[]
-    ): void => {
-      const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)])
-
-      for (const key of allKeys) {
-        const oldVal = oldObj[key]
-        const newVal = newObj[key]
-        const keyPath = [...currentPath, key]
-
-        if (oldVal === newVal) continue
-
-        if (
-          oldVal !== null &&
-          newVal !== null &&
-          typeof oldVal === 'object' &&
-          typeof newVal === 'object' &&
-          !Array.isArray(oldVal) &&
-          !Array.isArray(newVal)
-        ) {
-          // Recurse into nested objects
-          compareObjects(oldVal as Record<string, unknown>, newVal as Record<string, unknown>, keyPath)
-        } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-          changes.push({ path: keyPath.join('.'), old: oldVal, new: newVal })
-        }
-      }
-    }
-
-    compareObjects(
-      oldConfig as unknown as Record<string, unknown>,
-      newConfig as unknown as Record<string, unknown>,
-      path
-    )
-    return changes
-  }
-
   private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
     // Reset idle timer on any activity
     this.lastActivityTime = Date.now()
@@ -820,7 +761,7 @@ export class Daemon {
     // AFTER setting initial context with config (to avoid race condition)
     if (sessionId && hook !== 'SessionEnd') {
       const payload = event.payload as { transcriptPath?: string } | undefined
-      const transcriptPath = this.resolveTranscriptPath(sessionId, payload?.transcriptPath)
+      const transcriptPath = resolveTranscriptPath(this.projectDir, sessionId, payload?.transcriptPath, this.logger)
       await this.setContextForHook(sessionId, transcriptPath, { logger: requestLogger })
     }
 
@@ -1192,27 +1133,6 @@ export class Daemon {
       userMessage: result.userMessage,
       reasoning: result.classification.reasoning,
     }
-  }
-
-  /**
-   * Resolve transcript path for a session.
-   * Called by handleHookInvoke() before setting context.
-   *
-   * Note: Does NOT create the TranscriptService - that happens in setContextForHook()
-   * AFTER the initial context is set. This avoids the race condition where transcript
-   * events fire before handlers have access to config.
-   *
-   * @param sessionId - Session ID from event context
-   * @param providedTranscriptPath - Optional transcript path from event payload
-   * @returns The resolved transcript path
-   */
-  private resolveTranscriptPath(sessionId: string, providedTranscriptPath?: string): string {
-    // Determine transcript path: use provided or reconstruct using utility
-    const transcriptPath = providedTranscriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
-    if (!providedTranscriptPath) {
-      this.logger.debug('Reconstructed transcript path', { sessionId, transcriptPath })
-    }
-    return transcriptPath
   }
 
   /**
@@ -1669,8 +1589,6 @@ export class Daemon {
    * to prevent memory leaks. Runs every 5 minutes.
    */
   private startEvictionTimer(): void {
-    const EVICTION_INTERVAL_MS = 5 * 60 * 1000 // Every 5 minutes
-
     this.evictionTimer = setInterval(() => {
       void this.serviceFactory.evictStaleSessions()
     }, EVICTION_INTERVAL_MS)
@@ -1691,8 +1609,6 @@ export class Daemon {
 
   // --- Project Registry ---
 
-  private static readonly REGISTRY_HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
-
   private async registerProject(): Promise<void> {
     try {
       await this.registryService.register(this.projectDir)
@@ -1707,11 +1623,11 @@ export class Daemon {
   private startRegistryHeartbeat(): void {
     this.registryHeartbeatInterval = setInterval(() => {
       void this.registerProject()
-    }, Daemon.REGISTRY_HEARTBEAT_INTERVAL_MS)
+    }, REGISTRY_HEARTBEAT_INTERVAL_MS)
 
     this.registryHeartbeatInterval.unref()
     this.logger.debug('Registry heartbeat started', {
-      intervalMs: Daemon.REGISTRY_HEARTBEAT_INTERVAL_MS,
+      intervalMs: REGISTRY_HEARTBEAT_INTERVAL_MS,
     })
   }
 
