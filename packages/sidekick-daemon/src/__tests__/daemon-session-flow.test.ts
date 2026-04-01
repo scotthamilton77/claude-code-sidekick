@@ -11,7 +11,7 @@
  *
  * Fields accessed (all STAY on Daemon):
  * - handleSessionStart, handleSessionEnd, consumeCachedPersona (methods)
- * - serviceFactory, stateService (fields)
+ * - serviceFactory (field)
  *
  * Fields NOT accessed (MOVE during extraction):
  * - logCounters, globalLogCounters -> LogMetricsManager

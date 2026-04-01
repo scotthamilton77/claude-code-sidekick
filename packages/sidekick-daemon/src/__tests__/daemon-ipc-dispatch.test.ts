@@ -76,15 +76,19 @@ describe('Daemon IPC dispatch', () => {
       expect(result).toBe('pong')
     })
 
-    it('shutdown returns stopping status', async () => {
+    it('shutdown returns stopping status and schedules stop()', async () => {
       const { daemon, sup } = await createTestDaemon(tmpDir)
 
       // Mock stop() to prevent actual process.exit
-      vi.spyOn(daemon as unknown as { stop(): Promise<void> }, 'stop').mockResolvedValue(undefined)
+      const stopSpy = vi.spyOn(daemon as unknown as { stop(): Promise<void> }, 'stop').mockResolvedValue(undefined)
 
       const result = await sup.handleIpcRequest('shutdown', { token: 'test-token' })
 
       expect(result).toEqual({ status: 'stopping' })
+
+      // Flush the setImmediate that schedules stop()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(stopSpy).toHaveBeenCalledOnce()
     })
 
     it('unknown method throws Method not found', async () => {
