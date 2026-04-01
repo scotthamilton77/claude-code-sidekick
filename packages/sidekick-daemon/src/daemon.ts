@@ -5,11 +5,7 @@ import {
   createLogManager,
   DaemonGlobalLogMetricsDescriptor,
   getDefaultAssetsDir,
-  getPidPath,
   getSocketPath,
-  getTokenPath,
-  getUserPidPath,
-  getUserDaemonsDir,
   GlobalStateAccessor,
   HandlerRegistryImpl,
   updateDaemonHealth,
@@ -59,9 +55,7 @@ import type {
 import { LogMetricsStateSchema } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
-import { randomBytes } from 'crypto'
 import { homedir } from 'os'
-import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { PersonaChangeEvent, SessionPersonaWatcher } from './session-persona-watcher.js'
@@ -81,6 +75,7 @@ import {
   resolveTranscriptPath,
   getPersonaInjectionEnabled,
 } from './daemon-helpers.js'
+import { writePid, writeToken, cleanup, setupErrorHandlers } from './daemon-io.js'
 
 /**
  * Daemon Process Entrypoint
@@ -356,13 +351,13 @@ export class Daemon {
       logEvent(this.logger, LogEvents.daemonStarting({ projectDir: this.projectDir, pid: process.pid }))
 
       // 0. Set up process-level error handlers (per design/DAEMON.md §5)
-      this.setupErrorHandlers()
+      setupErrorHandlers(this.logger, this.projectDir, () => cleanup(this.projectDir))
 
       // 1. Write PID file
-      await this.writePid()
+      await writePid(this.projectDir)
 
       // 2. Generate and write Token
-      await this.writeToken()
+      this.token = await writeToken(this.projectDir)
 
       // 3. Preload StateService cache with existing global state files
       await this.stateService.preloadDirectory(this.stateService.globalStateDir())
@@ -424,7 +419,7 @@ export class Daemon {
       await updateDaemonHealth(this.projectDir, 'healthy', this.logger)
     } catch (err) {
       this.logger.fatal('Failed to start daemon', { error: err })
-      await this.cleanup()
+      await cleanup(this.projectDir)
       process.exit(1)
     }
   }
@@ -487,7 +482,7 @@ export class Daemon {
     }
 
     // Cleanup files
-    await this.cleanup()
+    await cleanup(this.projectDir)
 
     this.logger.info('Daemon stopped')
     process.exit(0)
@@ -1460,68 +1455,6 @@ export class Daemon {
   }
 
   /**
-   * Write PID files to both project-level and user-level locations.
-   *
-   * Project-level: .sidekick/daemon.pid (simple PID number)
-   * User-level: ~/.sidekick/daemons/{hash}.pid (JSON with project path and PID)
-   *
-   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
-   */
-  private async writePid(): Promise<void> {
-    // Project-level PID file (simple PID for backward compatibility)
-    const pidPath = getPidPath(this.projectDir)
-    await fs.mkdir(path.dirname(pidPath), { recursive: true })
-    await fs.writeFile(pidPath, process.pid.toString(), 'utf-8')
-
-    // User-level PID file for --kill-all discovery
-    const userPidPath = getUserPidPath(this.projectDir)
-    await fs.mkdir(getUserDaemonsDir(), { recursive: true })
-    const userPidData = JSON.stringify({
-      pid: process.pid,
-      projectDir: this.projectDir,
-      startedAt: new Date().toISOString(),
-    })
-    await fs.writeFile(userPidPath, userPidData, 'utf-8')
-  }
-
-  /**
-   * Generate and persist the IPC auth token.
-   *
-   * Format: 64-char hex string from 32 cryptographically random bytes.
-   * Written with mode 0600 so only the owning user can read it.
-   * Deleted on shutdown (cleanup) or stale-file recovery (DaemonClient).
-   */
-  private async writeToken(): Promise<void> {
-    this.token = randomBytes(32).toString('hex')
-    const tokenPath = getTokenPath(this.projectDir)
-    await fs.mkdir(path.dirname(tokenPath), { recursive: true })
-    await fs.writeFile(tokenPath, this.token, { mode: 0o600, encoding: 'utf-8' })
-  }
-
-  /**
-   * Clean up all daemon files on shutdown.
-   * Removes project-level PID, token, and user-level PID files.
-   *
-   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
-   */
-  private async cleanup(): Promise<void> {
-    const filesToRemove = [
-      getPidPath(this.projectDir),
-      getTokenPath(this.projectDir),
-      getUserPidPath(this.projectDir), // User-level PID for --kill-all discovery
-      // Socket is cleaned up by IpcServer
-    ]
-
-    for (const file of filesToRemove) {
-      try {
-        await fs.unlink(file)
-      } catch {
-        // File may not exist
-      }
-    }
-  }
-
-  /**
    * Start the idle timeout checker.
    * Per design/CLI.md §7: Self-terminate after configured idle timeout (default 5 minutes).
    * Set daemon.idleTimeoutMs to 0 to disable idle timeout.
@@ -1811,56 +1744,6 @@ export class Daemon {
     this.contextMetricsService.registerHandlers(this.handlerRegistry)
 
     this.logger.debug('Feature handlers registered (Reminders, Session Summary, Context Metrics)')
-  }
-
-  /**
-   * Set up process-level error handlers for uncaught exceptions and unhandled rejections.
-   * Per design/DAEMON.md §5: Log fatal error to sidekickd.log, attempt graceful cleanup, exit.
-   * CLI will restart the daemon on next run.
-   */
-  private setupErrorHandlers(): void {
-    // Track if we're already handling a fatal error to prevent recursion
-    let isHandlingFatalError = false
-
-    /**
-     * Handle fatal errors: log, attempt cleanup, exit.
-     * Uses synchronous cleanup where possible since process may be in unstable state.
-     */
-    const handleFatalError = (type: string, error: unknown): void => {
-      // Prevent recursion if cleanup itself throws
-      if (isHandlingFatalError) {
-        // Last resort: write to stderr and exit immediately
-        console.error(`Recursive fatal error during ${type} handling:`, error)
-        process.exit(1)
-      }
-      isHandlingFatalError = true
-
-      // Log the fatal error to sidekickd.log
-      this.logger.fatal(`Fatal ${type}`, {
-        error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
-        pid: process.pid,
-        projectDir: this.projectDir,
-      })
-
-      // Attempt graceful cleanup (best-effort, may fail if process is unstable)
-      // We use cleanup() which removes PID, token, and user PID files
-      // IPC server and task engine may already be in bad state, so we skip them
-      void this.cleanup().finally(() => {
-        process.exit(1)
-      })
-    }
-
-    // Handle uncaught synchronous exceptions
-    process.on('uncaughtException', (err: Error) => {
-      handleFatalError('uncaughtException', err)
-    })
-
-    // Handle unhandled promise rejections (async errors that weren't caught)
-    process.on('unhandledRejection', (reason: unknown) => {
-      handleFatalError('unhandledRejection', reason)
-    })
-
-    this.logger.debug('Process error handlers installed')
   }
 }
 

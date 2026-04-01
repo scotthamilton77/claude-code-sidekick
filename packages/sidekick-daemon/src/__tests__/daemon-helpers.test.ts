@@ -90,7 +90,7 @@ describe('diffConfigs', () => {
 // ── resolveTranscriptPath ───────────────────────────────────────────────────
 
 vi.mock('@sidekick/core', async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>
+  const actual = await importOriginal()
   return {
     ...actual,
     reconstructTranscriptPath: vi.fn().mockReturnValue('/mock/transcript/path'),
