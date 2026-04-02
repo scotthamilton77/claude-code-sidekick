@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { BookOpen, Scissors, ChevronDown, ChevronRight } from 'lucide-react'
 import type { TranscriptLine as TLine } from '../../types'
 import { formatTime } from '../../utils/formatTime'
@@ -31,6 +31,10 @@ export function TranscriptLineCard({
 }: TranscriptLineProps) {
   const [showThinking, setShowThinking] = useState(false)
   const [showInjection, setShowInjection] = useState(false)
+  const toolInputJson = useMemo(
+    () => line.toolInput ? JSON.stringify(line.toolInput, null, 2) : '',
+    [line.toolInput]
+  )
 
   // Compaction gets special full-width divider treatment
   if (line.type === 'compaction') {
@@ -260,7 +264,7 @@ export function TranscriptLineCard({
           {/* Tool input (collapsible JSON) */}
           {line.type === 'tool-use' && line.toolInput && (
             <CollapsibleContent
-              content={JSON.stringify(line.toolInput, null, 2)}
+              content={toolInputJson}
               previewLines={3}
               previewChars={300}
               mono

@@ -125,7 +125,7 @@ describe('TranscriptLineCard', () => {
       render(<TranscriptLineCard line={line} {...defaultProps} />)
       expect(screen.getByText('Bash')).toBeInTheDocument()
       // "git status" appears in both the header preview and the collapsible JSON body
-      expect(screen.getAllByText(/git status/).length).toBeGreaterThanOrEqual(1)
+      expect(screen.getAllByText(/git status/)).toHaveLength(2)
     })
 
     it('renders tool duration when provided', () => {
