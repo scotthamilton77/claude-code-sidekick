@@ -167,7 +167,16 @@ export class SetupStatusService {
         to: this.userStatusPath,
       })
       await this.writeUserStatus(parsed.data)
-      await fs.unlink(this.legacyUserStatusPath)
+      try {
+        await fs.unlink(this.legacyUserStatusPath)
+      } catch (unlinkErr) {
+        if ((unlinkErr as NodeJS.ErrnoException).code !== 'ENOENT') {
+          this.logger?.warn('Migrated user status but failed to remove legacy file', {
+            path: this.legacyUserStatusPath,
+            error: unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr),
+          })
+        }
+      }
       this.logger?.info('Legacy user status migration complete')
       return parsed.data
     } catch (err) {

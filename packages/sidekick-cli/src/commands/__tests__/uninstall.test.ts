@@ -161,7 +161,7 @@ describe('handleUninstallCommand', () => {
       expect(stdout.data).not.toContain('No sidekick installation detected')
     })
 
-    test('detects user scope when ~/.sidekick/setup-status.json exists', async () => {
+    test(`detects user scope when ~/.sidekick/${USER_STATUS_FILENAME} exists`, async () => {
       await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
