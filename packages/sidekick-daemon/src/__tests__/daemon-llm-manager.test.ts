@@ -1,10 +1,3 @@
-/**
- * LLM Provider Manager Tests
- *
- * Tests the LLMProviderManager class extracted from Daemon (Step 5).
- * Verifies lazy-init base provider, per-session instrumented providers,
- * profile factory management, and lifecycle operations.
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LLMProviderManager, type LLMManagerDeps } from '../daemon-llm-manager.js'
 
@@ -271,17 +264,14 @@ describe('LLMProviderManager', () => {
   describe('shutdownSessionProvider', () => {
     it('should shutdown and remove a cached session provider', async () => {
       const manager = new LLMProviderManager(createDeps())
-
-      // Create a provider first
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
       mockInstrumentedLLMProvider.shutdown.mockClear()
 
-      // Shutdown it
       await manager.shutdownSessionProvider('session-1')
 
       expect(mockInstrumentedLLMProvider.shutdown).toHaveBeenCalledOnce()
 
-      // Verify it was removed from cache: next call should create a new one
+      // Next call should create a new provider (cache was cleared)
       MockInstrumentedLLMProvider.mockClear()
       mockInstrumentedLLMProvider.initialize.mockClear()
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
@@ -291,7 +281,6 @@ describe('LLMProviderManager', () => {
     it('should be a no-op if session provider does not exist', async () => {
       const manager = new LLMProviderManager(createDeps())
 
-      // Should not throw
       await manager.shutdownSessionProvider('nonexistent')
 
       expect(mockInstrumentedLLMProvider.shutdown).not.toHaveBeenCalled()
@@ -303,8 +292,6 @@ describe('LLMProviderManager', () => {
   describe('shutdownAll', () => {
     it('should shutdown all cached providers and clear map', async () => {
       const manager = new LLMProviderManager(createDeps())
-
-      // Create two providers (note: same mock instance returned, but map tracks by key)
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
       mockInstrumentedLLMProvider.shutdown.mockClear()
 
@@ -312,7 +299,7 @@ describe('LLMProviderManager', () => {
 
       expect(mockInstrumentedLLMProvider.shutdown).toHaveBeenCalledOnce()
 
-      // Verify cache was cleared: next call creates new
+      // Next call should create a new provider (cache was cleared)
       MockInstrumentedLLMProvider.mockClear()
       mockInstrumentedLLMProvider.initialize.mockClear()
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
@@ -321,8 +308,6 @@ describe('LLMProviderManager', () => {
 
     it('should be safe to call when no providers exist', async () => {
       const manager = new LLMProviderManager(createDeps())
-
-      // Should not throw
       await manager.shutdownAll()
     })
   })
@@ -343,31 +328,23 @@ describe('LLMProviderManager', () => {
 
     it('should clear base provider cache (next call recreates)', () => {
       const manager = new LLMProviderManager(createDeps())
-
-      // Populate the cache
       manager.getBaseProvider()
       mockProfileProviderFactory.createDefault.mockClear()
 
-      // Config change should clear it
       manager.onConfigChange(createMockConfigService())
 
-      // Next call should recreate
       manager.getBaseProvider()
       expect(mockProfileProviderFactory.createDefault).toHaveBeenCalledOnce()
     })
 
     it('should clear instrumented providers cache', async () => {
       const manager = new LLMProviderManager(createDeps())
-
-      // Populate
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
       MockInstrumentedLLMProvider.mockClear()
       mockInstrumentedLLMProvider.initialize.mockClear()
 
-      // Config change
       manager.onConfigChange(createMockConfigService())
 
-      // Next call should create new
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
       expect(MockInstrumentedLLMProvider).toHaveBeenCalledOnce()
     })

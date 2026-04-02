@@ -2,9 +2,8 @@
  * Manages LLM provider lifecycle: base provider lazy-init,
  * per-session instrumented providers, and profile factories.
  */
-import type { ConfigService, Logger } from '@sidekick/core'
+import type { ConfigService, Logger, StateService } from '@sidekick/core'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
-import type { StateService } from '@sidekick/core'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 
 export interface LLMManagerDeps {
@@ -19,8 +18,8 @@ export class LLMProviderManager {
   private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
 
   private configService: ConfigService
-  private stateService: StateService
-  private logger: Logger
+  private readonly stateService: StateService
+  private readonly logger: Logger
 
   constructor(deps: LLMManagerDeps) {
     this.configService = deps.configService
@@ -29,25 +28,13 @@ export class LLMProviderManager {
     this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
   }
 
-  /**
-   * Lazy-init base LLM provider from the default profile.
-   * Returns the cached instance on subsequent calls.
-   */
+  /** Lazy-init base LLM provider from the default profile. */
   getBaseProvider(): LLMProvider {
-    if (!this.llmProvider) {
-      this.llmProvider = this.profileProviderFactory.createDefault()
-    }
+    this.llmProvider ??= this.profileProviderFactory.createDefault()
     return this.llmProvider
   }
 
-  /**
-   * Get or create an instrumented LLM provider for a session.
-   * Creates on first call, returns cached instance on subsequent calls.
-   *
-   * @param sessionId - Session ID for metrics tracking
-   * @param sessionDir - Path to session directory (parent of state dir)
-   * @param logger - Optional request-scoped logger (falls back to daemon logger)
-   */
+  /** Get or create an instrumented LLM provider for a session. */
   async getOrCreateInstrumentedProvider(
     sessionId: string,
     sessionDir: string,
@@ -85,13 +72,7 @@ export class LLMProviderManager {
     return instrumented
   }
 
-  /**
-   * Create an instrumented profile factory for a session.
-   * All providers created through this factory will be wrapped with instrumentation.
-   *
-   * @param sessionId - Session ID for metrics tracking
-   * @param sessionDir - Path to session directory (parent of state dir)
-   */
+  /** Create an instrumented profile factory wrapping all providers with metrics. */
   createInstrumentedProfileFactory(sessionId: string, sessionDir: string): InstrumentedProfileProviderFactory {
     return new InstrumentedProfileProviderFactory(this.profileProviderFactory, this.configService, {
       sessionId,
@@ -102,32 +83,21 @@ export class LLMProviderManager {
     })
   }
 
-  /**
-   * Get the base profile provider factory.
-   * Used by registration contexts that need a ProfileProviderFactory.
-   */
   getProfileFactory(): ProfileProviderFactory {
     return this.profileProviderFactory
   }
 
-  /**
-   * Shutdown an instrumented provider for a session and remove from cache.
-   * Called on SessionEnd to persist final metrics.
-   */
+  /** Shutdown and remove a session's instrumented provider to persist final metrics. */
   async shutdownSessionProvider(sessionId: string, logger?: Logger): Promise<void> {
-    const log = logger ?? this.logger
     const provider = this.instrumentedProviders.get(sessionId)
-    if (provider) {
-      await provider.shutdown()
-      this.instrumentedProviders.delete(sessionId)
-      log.debug('Shutdown instrumented LLM provider', { sessionId })
-    }
+    if (!provider) return
+
+    await provider.shutdown()
+    this.instrumentedProviders.delete(sessionId)
+    ;(logger ?? this.logger).debug('Shutdown instrumented LLM provider', { sessionId })
   }
 
-  /**
-   * Shutdown all instrumented providers and clear cache.
-   * Called during daemon stop to persist final metrics.
-   */
+  /** Shutdown all instrumented providers to persist final metrics. */
   async shutdownAll(): Promise<void> {
     for (const [sessionId, provider] of this.instrumentedProviders) {
       await provider.shutdown()
@@ -137,8 +107,8 @@ export class LLMProviderManager {
   }
 
   /**
-   * Handle config change: recreate profile factory, clear caches.
-   * The old factory held a reference to the old configService, so changes
+   * Recreate profile factory and clear caches on config change.
+   * The old factory held stale configService references, so changes
    * (providerAllowlist, temperature, etc.) wouldn't be picked up.
    */
   onConfigChange(newConfigService: ConfigService): void {

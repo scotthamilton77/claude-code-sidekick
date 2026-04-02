@@ -255,7 +255,6 @@ export class Daemon {
       skipCliCapture: false,
     })
 
-    // Initialize LLM Provider Manager (base provider, instrumented providers, profile factories)
     this.llmManager = new LLMProviderManager({
       configService: this.configService,
       stateService: this.stateService,
@@ -363,7 +362,6 @@ export class Daemon {
     // Stop persona watcher
     this.personaWatcher.stop()
 
-    // Shutdown all instrumented LLM providers (persists final metrics)
     try {
       await this.llmManager.shutdownAll()
     } catch (err) {
@@ -444,7 +442,6 @@ export class Daemon {
       // Update stored config service
       this.configService = newConfigService
 
-      // Recreate LLM provider factory and clear caches (fixes hot-reload for LLM profiles)
       this.llmManager.onConfigChange(this.configService)
 
       // Restage persona reminders for active sessions if injection setting changed
@@ -786,7 +783,6 @@ export class Daemon {
         })
       }
 
-      // Shutdown instrumented LLM provider (persists final metrics)
       await this.llmManager.shutdownSessionProvider(sessionId, log)
 
       // Clean up log counters for this session
@@ -1034,7 +1030,6 @@ export class Daemon {
       projectConfigDir: this.stateService.rootDir(),
     }
 
-    // Get the appropriate LLM provider and profile factory
     let llmProvider: LLMProvider = this.llmManager.getBaseProvider()
     let profileFactory: ProfileProviderFactoryInterface = this.llmManager.getProfileFactory()
     if (sessionId) {
@@ -1166,13 +1161,8 @@ export class Daemon {
       projectConfigDir: this.stateService.rootDir(),
     }
 
-    // Compute session directory for this session (used by instrumented providers)
     const sessionDir = this.stateService.sessionRootDir(sessionId)
-
-    // Get or create instrumented provider for this session (tracks metrics per-session)
     const instrumentedProvider = await this.llmManager.getOrCreateInstrumentedProvider(sessionId, sessionDir, log)
-
-    // Create instrumented profile factory for this session
     const instrumentedProfileFactory = this.llmManager.createInstrumentedProfileFactory(sessionId, sessionDir)
 
     // Get staging service (doesn't trigger transcript events)
