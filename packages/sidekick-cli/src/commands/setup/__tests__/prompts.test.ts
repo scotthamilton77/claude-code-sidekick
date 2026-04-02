@@ -164,6 +164,21 @@ describe('promptSelect', () => {
     const result = await promptSelect(ctx, 'Pick:', [{ value: 'only' as const, label: 'Only Option' }])
     expect(result).toBe('only')
   })
+
+  it('returns default option when stdin closes without answer (EOF)', async () => {
+    const stdin = new PassThrough()
+    const chunks: Buffer[] = []
+    const stdout = new PassThrough()
+    stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
+
+    const promise = promptSelect({ stdin, stdout }, 'Pick one:', [
+      { value: 'a' as const, label: 'Option A' },
+      { value: 'b' as const, label: 'Option B' },
+    ])
+    // Close stdin to simulate EOF
+    stdin.end()
+    expect(await promise).toBe('a')
+  })
 })
 
 // ============================================================================
@@ -253,5 +268,17 @@ describe('promptInput', () => {
     const { ctx, getOutput } = createContext(['answer'])
     await promptInput(ctx, 'What is your name')
     expect(getOutput()).toContain('What is your name')
+  })
+
+  it('returns empty string when stdin closes without answer (EOF)', async () => {
+    const stdin = new PassThrough()
+    const chunks: Buffer[] = []
+    const stdout = new PassThrough()
+    stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
+
+    const promise = promptInput({ stdin, stdout }, 'Enter API key')
+    // Close stdin to simulate EOF
+    stdin.end()
+    expect(await promise).toBe('')
   })
 })

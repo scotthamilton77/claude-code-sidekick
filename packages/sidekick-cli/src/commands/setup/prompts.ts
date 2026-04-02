@@ -68,18 +68,31 @@ export async function promptSelect<T extends string>(
   const prompt = `Enter choice (1-${options.length}) [${defaultNum}]: `
 
   return new Promise((resolve) => {
+    let resolved = false
+    const safeResolve = (value: T): void => {
+      if (!resolved) {
+        resolved = true
+        resolve(value)
+      }
+    }
+
+    // Handle stdin close/EOF -- resolve with default if no answer was read
+    rl.once('close', () => {
+      safeResolve(options[defaultIndex].value)
+    })
+
     const ask = (): void => {
       ctx.stdout.write(prompt)
       rl.once('line', (answer) => {
         const trimmed = answer.trim()
         if (trimmed === '') {
+          safeResolve(options[defaultIndex].value)
           rl.close()
-          resolve(options[defaultIndex].value)
         } else {
           const num = parseInt(trimmed, 10)
           if (num >= 1 && num <= options.length) {
+            safeResolve(options[num - 1].value)
             rl.close()
-            resolve(options[num - 1].value)
           } else {
             ctx.stdout.write(
               `${colors.yellow}Invalid choice. Enter a number between 1 and ${options.length}.${colors.reset}\n`
@@ -104,10 +117,23 @@ export async function promptInput(ctx: PromptContext, question: string): Promise
   })
 
   return new Promise((resolve) => {
+    let resolved = false
+    const safeResolve = (value: string): void => {
+      if (!resolved) {
+        resolved = true
+        resolve(value)
+      }
+    }
+
+    // Handle stdin close/EOF -- resolve with empty string if no answer was read
+    rl.once('close', () => {
+      safeResolve('')
+    })
+
     ctx.stdout.write(`${question}: `)
     rl.once('line', (answer) => {
+      safeResolve(answer.trim())
       rl.close()
-      resolve(answer.trim())
     })
   })
 }
