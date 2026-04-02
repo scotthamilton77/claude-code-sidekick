@@ -3,6 +3,20 @@
  */
 import * as readline from 'node:readline'
 
+/**
+ * Creates a guarded resolve function that can only be called once.
+ * Prevents double-resolution when both 'line' and 'close' events fire.
+ */
+export function createSafeResolver<T>(resolve: (value: T) => void): (value: T) => void {
+  let resolved = false
+  return (value: T): void => {
+    if (!resolved) {
+      resolved = true
+      resolve(value)
+    }
+  }
+}
+
 const colors = {
   yellow: '\x1b[1;33m',
   reset: '\x1b[0m',
@@ -39,13 +53,7 @@ export async function promptConfirm(ctx: PromptContext, question: string, defaul
   const prompt = `${question} ${hint} `
 
   return new Promise((resolve) => {
-    let resolved = false
-    const safeResolve = (value: boolean): void => {
-      if (!resolved) {
-        resolved = true
-        resolve(value)
-      }
-    }
+    const safeResolve = createSafeResolver(resolve)
 
     // Handle stdin close/EOF -- resolve with default if no answer was read
     rl.once('close', () => {

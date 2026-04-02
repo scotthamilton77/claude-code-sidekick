@@ -3,6 +3,7 @@ import * as readline from 'node:readline'
 
 // Re-export promptConfirm and PromptContext from shared utils
 export { promptConfirm, type PromptContext } from '../../utils/prompt.js'
+import { createSafeResolver } from '../../utils/prompt.js'
 import type { PromptContext } from '../../utils/prompt.js'
 
 const colors = {
@@ -68,13 +69,7 @@ export async function promptSelect<T extends string>(
   const prompt = `Enter choice (1-${options.length}) [${defaultNum}]: `
 
   return new Promise((resolve) => {
-    let resolved = false
-    const safeResolve = (value: T): void => {
-      if (!resolved) {
-        resolved = true
-        resolve(value)
-      }
-    }
+    const safeResolve = createSafeResolver(resolve)
 
     // Handle stdin close/EOF -- resolve with default if no answer was read
     rl.once('close', () => {
@@ -117,13 +112,7 @@ export async function promptInput(ctx: PromptContext, question: string): Promise
   })
 
   return new Promise((resolve) => {
-    let resolved = false
-    const safeResolve = (value: string): void => {
-      if (!resolved) {
-        resolved = true
-        resolve(value)
-      }
-    }
+    const safeResolve = createSafeResolver(resolve)
 
     // Handle stdin close/EOF -- resolve with empty string if no answer was read
     rl.once('close', () => {
