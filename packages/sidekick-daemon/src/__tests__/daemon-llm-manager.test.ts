@@ -210,6 +210,20 @@ describe('LLMProviderManager', () => {
       )
     })
 
+    it('should coalesce concurrent calls for the same sessionId', async () => {
+      const manager = new LLMProviderManager(createDeps())
+
+      // Launch two concurrent calls — only one provider should be created
+      const [first, second] = await Promise.all([
+        manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1'),
+        manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1'),
+      ])
+
+      expect(first).toBe(second)
+      expect(MockInstrumentedLLMProvider).toHaveBeenCalledOnce()
+      expect(mockInstrumentedLLMProvider.initialize).toHaveBeenCalledOnce()
+    })
+
     it('should omit profileParams when default profile not found', async () => {
       const configService = createMockConfigService()
       ;(configService as any).llm.profiles = {} // no default profile
@@ -310,6 +324,28 @@ describe('LLMProviderManager', () => {
       const manager = new LLMProviderManager(createDeps())
       await manager.shutdownAll()
     })
+
+    it('should continue shutting down remaining providers when one fails', async () => {
+      const deps = createDeps()
+      const manager = new LLMProviderManager(deps)
+
+      // Create two sessions (mock returns same instance, but map tracks by key)
+      await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
+      // The second call returns cached — we need a different session
+      MockInstrumentedLLMProvider.mockClear()
+      mockInstrumentedLLMProvider.initialize.mockClear()
+      // Clear the singleton mock so we can track shutdown calls
+      // Since all sessions share the same mock instance, we track via call count
+      mockInstrumentedLLMProvider.shutdown
+        .mockRejectedValueOnce(new Error('shutdown failed'))
+        .mockResolvedValueOnce(undefined)
+
+      await expect(manager.shutdownAll()).rejects.toThrow('shutdown failed')
+      expect((deps.logger.error as any)).toHaveBeenCalledWith(
+        'Failed to shutdown instrumented LLM provider',
+        expect.objectContaining({ sessionId: 'session-1' })
+      )
+    })
   })
 
   // ── onConfigChange ───────────────────────────────────────────────────
@@ -347,6 +383,18 @@ describe('LLMProviderManager', () => {
 
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
       expect(MockInstrumentedLLMProvider).toHaveBeenCalledOnce()
+    })
+
+    it('should fire-and-forget shutdown stale providers', async () => {
+      const manager = new LLMProviderManager(createDeps())
+      await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
+      mockInstrumentedLLMProvider.shutdown.mockClear()
+
+      manager.onConfigChange(createMockConfigService())
+
+      // Give the fire-and-forget promise a tick to resolve
+      await new Promise((r) => setImmediate(r))
+      expect(mockInstrumentedLLMProvider.shutdown).toHaveBeenCalledOnce()
     })
   })
 })
