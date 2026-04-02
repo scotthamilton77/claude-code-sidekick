@@ -65,17 +65,9 @@ import { TaskRegistry } from './task-registry.js'
 import { TaskEngine } from './task-engine.js'
 import { DaemonStatusDescriptor } from './state-descriptors.js'
 import { stagePersonaTransition } from './persona-transition.js'
-import {
-  VERSION,
-  IDLE_CHECK_INTERVAL_MS,
-  HEARTBEAT_INTERVAL_MS,
-  EVICTION_INTERVAL_MS,
-  REGISTRY_HEARTBEAT_INTERVAL_MS,
-  diffConfigs,
-  resolveTranscriptPath,
-  getPersonaInjectionEnabled,
-} from './daemon-helpers.js'
+import { VERSION, diffConfigs, resolveTranscriptPath, getPersonaInjectionEnabled } from './daemon-helpers.js'
 import { writePid, writeToken, cleanup, setupErrorHandlers } from './daemon-io.js'
+import { TimerManager } from './daemon-timer-manager.js'
 
 /**
  * Daemon Process Entrypoint
@@ -122,13 +114,8 @@ export class Daemon {
   /** Typed accessor for global log metrics state */
   private globalLogMetricsAccessor!: GlobalStateAccessor<LogMetricsState, LogMetricsState>
   private token: string = ''
-  private lastActivityTime: number = Date.now()
-  private idleCheckInterval: ReturnType<typeof setInterval> | null = null
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
-  private evictionTimer: ReturnType<typeof setInterval> | null = null
-  private registryHeartbeatInterval: ReturnType<typeof setInterval> | null = null
   private registryService: ProjectRegistryService
-  private startTime: number = Date.now()
+  private timerManager: TimerManager
 
   /** Cache persona for handoff on clear. */
   private cachePersonaForClear(personaId: string): void {
@@ -313,6 +300,17 @@ export class Daemon {
       metricsPersistIntervalMs: this.configService.transcript.metricsPersistIntervalMs,
     })
 
+    // Initialize Timer Manager (idle check, heartbeat, eviction, registry)
+    this.timerManager = new TimerManager({
+      configService: this.configService,
+      serviceFactory: this.serviceFactory,
+      registryService: this.registryService,
+      logger: this.logger,
+      projectDir: this.projectDir,
+      onIdle: () => this.stop(),
+      onHeartbeat: () => this.writeHeartbeat(),
+    })
+
     // Initialize Context Metrics Service
     this.contextMetricsService = createContextMetricsService({
       projectDir,
@@ -397,23 +395,13 @@ export class Daemon {
       // 8b. Start persona watcher for CLI-written persona changes
       this.personaWatcher.start()
 
-      // 9. Start idle timeout checker
-      this.startIdleCheck()
-
-      // 10. Start heartbeat for monitoring UI
-      this.startHeartbeat()
-
-      // 11. Start periodic session eviction
-      this.startEvictionTimer()
-
-      // 12. Register project and start registry heartbeat (hourly)
-      await this.registerProject()
-      this.startRegistryHeartbeat()
+      // 9–12. Start all periodic timers (idle, heartbeat, eviction, registry)
+      await this.timerManager.startAll()
 
       this.logger.info('Daemon started successfully')
 
       // Emit daemon:started event (all initialization complete)
-      logEvent(this.logger, LogEvents.daemonStarted({ startupDurationMs: Date.now() - this.startTime }))
+      logEvent(this.logger, LogEvents.daemonStarted({ startupDurationMs: Date.now() - this.timerManager.startTime }))
 
       // 12. Report healthy status (clears any previous failed state)
       await updateDaemonHealth(this.projectDir, 'healthy', this.logger)
@@ -427,17 +415,8 @@ export class Daemon {
   async stop(): Promise<void> {
     this.logger.info('Daemon stopping')
 
-    // Stop idle checker
-    this.stopIdleCheck()
-
-    // Stop heartbeat
-    this.stopHeartbeat()
-
-    // Clear eviction timer
-    this.stopEvictionTimer()
-
-    // Stop registry heartbeat
-    this.stopRegistryHeartbeat()
+    // Stop all periodic timers (idle, heartbeat, eviction, registry)
+    this.timerManager.stopAll()
 
     // Stop config watcher
     this.configWatcher.stop()
@@ -663,7 +642,7 @@ export class Daemon {
 
   private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
     // Reset idle timer on any activity
-    this.lastActivityTime = Date.now()
+    this.timerManager.lastActivityTime = Date.now()
 
     this.logger.debug('IPC Request', { method })
 
@@ -1454,121 +1433,29 @@ export class Daemon {
     await this.orchestrator.onUserPromptSubmit(sessionId)
   }
 
-  /**
-   * Start the idle timeout checker.
-   * Per design/CLI.md §7: Self-terminate after configured idle timeout (default 5 minutes).
-   * Set daemon.idleTimeoutMs to 0 to disable idle timeout.
-   */
-  private startIdleCheck(): void {
-    const idleTimeoutMs = this.configService.core.daemon.idleTimeoutMs
+  // ── Delegation shims — existing tests type-cast to call these ─────────
 
-    // 0 = disabled
-    if (idleTimeoutMs === 0) {
-      this.logger.info('Idle timeout disabled')
-      return
-    }
-
-    this.lastActivityTime = Date.now()
-    this.idleCheckInterval = setInterval(() => {
-      const idleTime = Date.now() - this.lastActivityTime
-      if (idleTime >= idleTimeoutMs) {
-        this.logger.info('Idle timeout reached, shutting down', {
-          idleTimeMs: idleTime,
-          idleTimeoutMs,
-        })
-        void this.stop()
-      }
-    }, IDLE_CHECK_INTERVAL_MS)
-
-    // Don't let the interval keep the process alive if everything else is done
-    this.idleCheckInterval.unref()
-  }
-
-  private stopIdleCheck(): void {
-    if (this.idleCheckInterval) {
-      clearInterval(this.idleCheckInterval)
-      this.idleCheckInterval = null
-    }
-  }
-
-  /**
-   * Start the heartbeat mechanism.
-   * Per design/DAEMON.md §4.6: Write daemon status every 5 seconds for Monitoring UI.
-   */
-  private startHeartbeat(): void {
-    // Write initial heartbeat immediately
-    void this.writeHeartbeat()
-
-    this.heartbeatInterval = setInterval(() => {
-      void this.writeHeartbeat()
-    }, HEARTBEAT_INTERVAL_MS)
-
-    // Don't let the interval keep the process alive
-    this.heartbeatInterval.unref()
-
-    this.logger.debug('Heartbeat started', { intervalMs: HEARTBEAT_INTERVAL_MS })
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
-    }
-  }
-
-  /**
-   * Start periodic session eviction timer.
-   * Evicts orphaned sessions (e.g., from crashed Claude Code instances)
-   * to prevent memory leaks. Runs every 5 minutes.
-   */
   private startEvictionTimer(): void {
-    this.evictionTimer = setInterval(() => {
-      void this.serviceFactory.evictStaleSessions()
-    }, EVICTION_INTERVAL_MS)
-
-    // Don't let the interval keep the process alive
-    this.evictionTimer.unref()
-
-    this.logger.info('Session eviction timer started', { intervalMs: EVICTION_INTERVAL_MS })
-    logEvent(this.logger, LogEvents.sessionEvictionStarted({ intervalMs: EVICTION_INTERVAL_MS }))
+    this.timerManager.startEvictionTimer()
   }
 
   private stopEvictionTimer(): void {
-    if (this.evictionTimer) {
-      clearInterval(this.evictionTimer)
-      this.evictionTimer = null
-    }
+    this.timerManager.stopEvictionTimer()
   }
 
-  // --- Project Registry ---
-
-  private async registerProject(): Promise<void> {
-    try {
-      await this.registryService.register(this.projectDir)
-      this.logger.info('Project registered for UI discovery', { projectDir: this.projectDir })
-    } catch (err) {
-      this.logger.warn('Failed to register project', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+  // Field shims: eviction-timer.test.ts and daemon-heartbeat.test.ts read these via type-cast
+  private get evictionTimer(): ReturnType<typeof setInterval> | null {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+    return (this.timerManager as any).evictionTimer
   }
 
-  private startRegistryHeartbeat(): void {
-    this.registryHeartbeatInterval = setInterval(() => {
-      void this.registerProject()
-    }, REGISTRY_HEARTBEAT_INTERVAL_MS)
-
-    this.registryHeartbeatInterval.unref()
-    this.logger.debug('Registry heartbeat started', {
-      intervalMs: REGISTRY_HEARTBEAT_INTERVAL_MS,
-    })
+  private get startTime(): number {
+    return this.timerManager.startTime
   }
 
-  private stopRegistryHeartbeat(): void {
-    if (this.registryHeartbeatInterval) {
-      clearInterval(this.registryHeartbeatInterval)
-      this.registryHeartbeatInterval = null
-    }
+  private set startTime(v: number) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+    ;(this.timerManager as any).startTime = v
   }
 
   /**
