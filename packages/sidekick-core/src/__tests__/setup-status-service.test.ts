@@ -43,6 +43,7 @@ import {
   LEGACY_USER_STATUS_FILENAME,
 } from '../setup-status-service.js'
 import type { UserSetupStatus, ProjectSetupStatus } from '@sidekick/types'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 
 describe('SetupStatusService', () => {
   let tempDir: string
@@ -257,18 +258,8 @@ describe('SetupStatusService', () => {
     })
 
     it('logs a warning when projectDir equals homeDir', async () => {
-      const mockLogger = {
-        trace: vi.fn() as any,
-        debug: vi.fn() as any,
-        info: vi.fn() as any,
-        warn: vi.fn() as any,
-        error: vi.fn() as any,
-        fatal: vi.fn() as any,
-        child: vi.fn() as any,
-        level: 'debug' as const,
-        silent: false,
-      }
-      const collisionService = new SetupStatusService(homeDir, { homeDir, logger: mockLogger as any })
+      const mockLogger = createFakeLogger()
+      const collisionService = new SetupStatusService(homeDir, { homeDir, logger: mockLogger })
       const status = createProjectStatus()
 
       await collisionService.writeProjectStatus(status)
@@ -319,6 +310,29 @@ describe('SetupStatusService', () => {
 
       const result = await service.getProjectStatus()
       expect(result).toBeNull()
+    })
+
+    it('returns null when projectDir equals homeDir', async () => {
+      const collisionService = new SetupStatusService(homeDir, { homeDir })
+      // Even if a file exists at ~/.sidekick/setup-status.json, the guard should prevent reading it
+      const projectPath = path.join(homeDir, '.sidekick', PROJECT_STATUS_FILENAME)
+      await fs.mkdir(path.dirname(projectPath), { recursive: true })
+      await fs.writeFile(projectPath, JSON.stringify(createProjectStatus(), null, 2))
+
+      const result = await collisionService.getProjectStatus()
+      expect(result).toBeNull()
+    })
+
+    it('logs a debug message when projectDir equals homeDir', async () => {
+      const mockLogger = createFakeLogger()
+      const collisionService = new SetupStatusService(homeDir, { homeDir, logger: mockLogger })
+
+      await collisionService.getProjectStatus()
+
+      expect(mockLogger.debug).toHaveBeenCalledWith(
+        'Skipping project status read: projectDir is the home directory',
+        expect.objectContaining({ projectDir: homeDir })
+      )
     })
   })
 

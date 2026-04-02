@@ -16,12 +16,6 @@ import {
   type StatuslineStatus,
 } from '@sidekick/types'
 import { installGitignoreSection } from './gitignore.js'
-
-// Filenames for status files (centralized to prevent collision bugs)
-export const USER_STATUS_FILENAME = 'user-setup-status.json'
-export const PROJECT_STATUS_FILENAME = 'setup-status.json'
-/** @deprecated Old user-scope filename, kept for migration only */
-export const LEGACY_USER_STATUS_FILENAME = 'setup-status.json'
 import type { UserApiKeyStatus, ProjectApiKeyStatus } from '@sidekick/types'
 import {
   type ApiKeyName,
@@ -54,6 +48,12 @@ export type {
 } from './api-key-detector.js'
 export type { PluginInstallationStatus, PluginLivenessStatus } from './plugin-detector.js'
 export type { DoctorCheckOptions, DoctorCheckResult, DoctorItemResult, DoctorApiKeyResult } from './doctor-engine.js'
+
+// Filenames for status files (centralized to prevent collision bugs)
+export const USER_STATUS_FILENAME = 'user-setup-status.json'
+export const PROJECT_STATUS_FILENAME = 'setup-status.json'
+/** @deprecated Old user-scope filename — intentionally equals PROJECT_STATUS_FILENAME because that collision was the bug. Kept for migration only. */
+export const LEGACY_USER_STATUS_FILENAME = PROJECT_STATUS_FILENAME
 
 export interface SetupStatusServiceOptions {
   homeDir?: string
@@ -187,6 +187,15 @@ export class SetupStatusService {
   }
 
   async getProjectStatus(): Promise<ProjectSetupStatus | null> {
+    // Guard: skip project-level reads when projectDir IS the home directory.
+    // Symmetric with writeProjectStatus — prevents reading stale/wrong data
+    // from ~/.sidekick/setup-status.json when ~ is the project dir.
+    if (path.resolve(this.projectDir) === path.resolve(this.homeDir)) {
+      this.logger?.debug('Skipping project status read: projectDir is the home directory', {
+        projectDir: this.projectDir,
+      })
+      return null
+    }
     try {
       const content = await fs.readFile(this.projectStatusPath, 'utf-8')
       const parsed = ProjectSetupStatusSchema.safeParse(JSON.parse(content))

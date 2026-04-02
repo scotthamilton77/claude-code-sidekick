@@ -302,6 +302,7 @@ async function detectUserScope(userHome: string): Promise<boolean> {
     // Fall through to legacy check
   }
   try {
+    // Legacy file may exist if migration hasn't run yet
     await fs.access(path.join(userHome, '.sidekick', LEGACY_USER_STATUS_FILENAME))
     return true
   } catch {
