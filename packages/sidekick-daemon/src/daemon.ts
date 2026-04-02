@@ -1,16 +1,9 @@
 import {
   createAssetResolver,
   createConfigService,
-  createHookableLogger,
   createLogManager,
-  DaemonGlobalLogMetricsDescriptor,
   getDefaultAssetsDir,
-  getPidPath,
   getSocketPath,
-  getTokenPath,
-  getUserPidPath,
-  getUserDaemonsDir,
-  GlobalStateAccessor,
   HandlerRegistryImpl,
   updateDaemonHealth,
   ProjectRegistryService,
@@ -24,7 +17,6 @@ import {
   logEvent,
   type AssetResolver,
   type ConfigService,
-  type SidekickConfig,
 } from '@sidekick/core'
 import {
   registerStagingHandlers,
@@ -51,18 +43,13 @@ import type {
   ServiceFactory,
   HookName,
   HookEvent,
-  DaemonStatus,
   DaemonContext,
   RuntimePaths,
   ProfileProviderFactory as ProfileProviderFactoryInterface,
-  LogMetricsState,
 } from '@sidekick/types'
-import { LogMetricsStateSchema } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
-import { randomBytes } from 'crypto'
 import { homedir } from 'os'
-import fs from 'fs/promises'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
 import { PersonaChangeEvent, SessionPersonaWatcher } from './session-persona-watcher.js'
@@ -70,19 +57,11 @@ import { ContextMetricsService, createContextMetricsService } from './context-me
 import { registerStandardTaskHandlers } from './task-handlers.js'
 import { TaskRegistry } from './task-registry.js'
 import { TaskEngine } from './task-engine.js'
-import { DaemonStatusDescriptor } from './state-descriptors.js'
 import { stagePersonaTransition } from './persona-transition.js'
-
-// Read version from root package.json (single source of truth for monorepo)
-// Path is relative to dist/ output location: dist/ → packages/pkg/ → packages/ → root/
-// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-const VERSION: string = require('../../../package.json').version
-
-// Idle check interval (how often to check for idle timeout)
-const IDLE_CHECK_INTERVAL_MS = 30 * 1000 // Check every 30 seconds
-
-// Heartbeat interval: write daemon status every 5 seconds per design/DAEMON.md §4.6
-const HEARTBEAT_INTERVAL_MS = 5 * 1000
+import { VERSION, diffConfigs, resolveTranscriptPath, getPersonaInjectionEnabled } from './daemon-helpers.js'
+import { writePid, writeToken, cleanup, setupErrorHandlers } from './daemon-io.js'
+import { TimerManager } from './daemon-timer-manager.js'
+import { LogMetricsManager } from './daemon-log-metrics.js'
 
 /**
  * Daemon Process Entrypoint
@@ -118,24 +97,12 @@ export class Daemon {
   private contextMetricsService: ContextMetricsService
   /** Reminder orchestrator for cross-reminder coordination rules */
   private orchestrator: ReminderOrchestrator
-  /** Per-session log counters for statusline {logs} indicator */
-  private logCounters = new Map<string, { warnings: number; errors: number }>()
+  private logMetrics: LogMetricsManager
   /** Transient cache for persona handoff across /clear boundaries */
   private lastClearedPersona: { personaId: string; timestamp: number } | null = null
-  /** Global log counters for daemon-level errors (not tied to any session) */
-  private globalLogCounters = { warnings: 0, errors: 0 }
-  /** Typed accessor for daemon status state */
-  private daemonStatusAccessor!: GlobalStateAccessor<DaemonStatus, DaemonStatus>
-  /** Typed accessor for global log metrics state */
-  private globalLogMetricsAccessor!: GlobalStateAccessor<LogMetricsState, LogMetricsState>
   private token: string = ''
-  private lastActivityTime: number = Date.now()
-  private idleCheckInterval: ReturnType<typeof setInterval> | null = null
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
-  private evictionTimer: ReturnType<typeof setInterval> | null = null
-  private registryHeartbeatInterval: ReturnType<typeof setInterval> | null = null
   private registryService: ProjectRegistryService
-  private startTime: number = Date.now()
+  private timerManager: TimerManager
 
   /** Cache persona for handoff on clear. */
   private cachePersonaForClear(personaId: string): void {
@@ -163,6 +130,7 @@ export class Daemon {
   }
 
   constructor(projectDir: string) {
+    const startTime = Date.now()
     this.projectDir = projectDir
 
     // Initialize Asset Resolver first (needed for configService YAML defaults)
@@ -192,62 +160,14 @@ export class Daemon {
         console: { enabled: this.configService.core.logging.consoleEnabled },
       },
     })
-    // Wrap logger to count warnings/errors for statusline display
-    // Uses hookable logger pattern to extract sessionId from log metadata
-    this.logger = createHookableLogger(this.logManager.getLogger(), {
-      levels: ['warn', 'error', 'fatal'],
-      hook: (level, msg, meta) => {
-        // Extract sessionId from log metadata context
-        const sessionId =
-          (meta?.context as { sessionId?: string })?.sessionId ?? (meta as { sessionId?: string })?.sessionId
-        if (sessionId) {
-          // Session-specific counter
-          const counters = this.logCounters.get(sessionId)
-          if (counters) {
-            if (level === 'warn') counters.warnings++
-            else counters.errors++ // error and fatal
-          }
-        } else {
-          // Global counter for daemon-level logs without session context
-          if (level === 'warn') this.globalLogCounters.warnings++
-          else this.globalLogCounters.errors++ // error and fatal
-        }
-
-        // Emit structured error:occurred event for error/fatal levels
-        if (level === 'error' || level === 'fatal') {
-          const errorObj = (meta?.error ?? meta?.err) as { message?: string; stack?: string } | undefined
-          const errorMessage = errorObj?.message ?? msg
-          const errorStack = errorObj?.stack
-
-          // Extract context fields accumulated by child loggers
-          const metaContext = (meta?.context ?? {}) as {
-            sessionId?: string
-            correlationId?: string
-            traceId?: string
-            hook?: HookName
-            taskId?: string
-          }
-
-          // Log on the BASE logger to avoid infinite recursion through the hookable wrapper
-          const event = LogEvents.daemonErrorOccurred(
-            {
-              sessionId: sessionId ?? '',
-              correlationId: metaContext.correlationId,
-              traceId: metaContext.traceId,
-              hook: metaContext.hook,
-              taskId: metaContext.taskId,
-            },
-            {
-              errorMessage,
-              errorStack,
-            }
-          )
-          const baseLogger = this.logManager.getLogger()
-          const eventLogger = sessionId ? baseLogger.child({ context: { sessionId } }) : baseLogger
-          logEvent(eventLogger, event)
-        }
-      },
+    // Create log-metrics manager (owns counting logger, log counters, heartbeat writer)
+    this.logMetrics = new LogMetricsManager({
+      logManager: this.logManager,
+      getStateService: () => this.stateService,
+      getTaskEngine: () => this.taskEngine,
+      getStartTime: () => this.timerManager.startTime,
     })
+    this.logger = this.logMetrics.createCountingLogger()
 
     // Initialize Components
     // Pass config getter for hot-reload support - dev mode changes picked up dynamically
@@ -277,10 +197,6 @@ export class Daemon {
     })
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = new TaskRegistry(this.stateService, this.logger)
-
-    // Initialize typed state accessors for daemon-specific state files
-    this.daemonStatusAccessor = new GlobalStateAccessor(this.stateService, DaemonStatusDescriptor)
-    this.globalLogMetricsAccessor = new GlobalStateAccessor(this.stateService, DaemonGlobalLogMetricsDescriptor)
 
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
     // In dev mode, also watch source assets directory for immediate feedback
@@ -318,6 +234,18 @@ export class Daemon {
       stagingStateService: this.stagingStateService,
       watchDebounceMs: this.configService.transcript.watchDebounceMs,
       metricsPersistIntervalMs: this.configService.transcript.metricsPersistIntervalMs,
+    })
+
+    // Initialize Timer Manager (idle check, heartbeat, eviction, registry)
+    this.timerManager = new TimerManager({
+      configService: this.configService,
+      serviceFactory: this.serviceFactory,
+      registryService: this.registryService,
+      logger: this.logger,
+      projectDir: this.projectDir,
+      startTime,
+      onIdle: () => this.stop(),
+      onHeartbeat: () => this.logMetrics.writeHeartbeat(),
     })
 
     // Initialize Context Metrics Service
@@ -358,13 +286,13 @@ export class Daemon {
       logEvent(this.logger, LogEvents.daemonStarting({ projectDir: this.projectDir, pid: process.pid }))
 
       // 0. Set up process-level error handlers (per design/DAEMON.md §5)
-      this.setupErrorHandlers()
+      setupErrorHandlers(this.logger, this.projectDir, () => cleanup(this.projectDir))
 
       // 1. Write PID file
-      await this.writePid()
+      await writePid(this.projectDir)
 
       // 2. Generate and write Token
-      await this.writeToken()
+      this.token = await writeToken(this.projectDir)
 
       // 3. Preload StateService cache with existing global state files
       await this.stateService.preloadDirectory(this.stateService.globalStateDir())
@@ -404,29 +332,19 @@ export class Daemon {
       // 8b. Start persona watcher for CLI-written persona changes
       this.personaWatcher.start()
 
-      // 9. Start idle timeout checker
-      this.startIdleCheck()
-
-      // 10. Start heartbeat for monitoring UI
-      this.startHeartbeat()
-
-      // 11. Start periodic session eviction
-      this.startEvictionTimer()
-
-      // 12. Register project and start registry heartbeat (hourly)
-      await this.registerProject()
-      this.startRegistryHeartbeat()
+      // 9–12. Start all periodic timers (idle, heartbeat, eviction, registry)
+      await this.timerManager.startAll()
 
       this.logger.info('Daemon started successfully')
 
       // Emit daemon:started event (all initialization complete)
-      logEvent(this.logger, LogEvents.daemonStarted({ startupDurationMs: Date.now() - this.startTime }))
+      logEvent(this.logger, LogEvents.daemonStarted({ startupDurationMs: Date.now() - this.timerManager.startTime }))
 
       // 12. Report healthy status (clears any previous failed state)
       await updateDaemonHealth(this.projectDir, 'healthy', this.logger)
     } catch (err) {
       this.logger.fatal('Failed to start daemon', { error: err })
-      await this.cleanup()
+      await cleanup(this.projectDir)
       process.exit(1)
     }
   }
@@ -434,17 +352,8 @@ export class Daemon {
   async stop(): Promise<void> {
     this.logger.info('Daemon stopping')
 
-    // Stop idle checker
-    this.stopIdleCheck()
-
-    // Stop heartbeat
-    this.stopHeartbeat()
-
-    // Clear eviction timer
-    this.stopEvictionTimer()
-
-    // Stop registry heartbeat
-    this.stopRegistryHeartbeat()
+    // Stop all periodic timers (idle, heartbeat, eviction, registry)
+    this.timerManager.stopAll()
 
     // Stop config watcher
     this.configWatcher.stop()
@@ -489,7 +398,7 @@ export class Daemon {
     }
 
     // Cleanup files
-    await this.cleanup()
+    await cleanup(this.projectDir)
 
     this.logger.info('Daemon stopped')
     process.exit(0)
@@ -516,7 +425,7 @@ export class Daemon {
       const newConfig = newConfigService.getAll()
 
       // Log all config value changes
-      const changes = this.diffConfigs(oldConfig, newConfig)
+      const changes = diffConfigs(oldConfig, newConfig)
       if (changes.length > 0) {
         this.logger.info('Configuration values changed', { changes })
       }
@@ -531,8 +440,8 @@ export class Daemon {
       }
 
       // Detect persona injection config change before reassigning configService
-      const oldInjection = this.getPersonaInjectionEnabled(this.configService)
-      const newInjection = this.getPersonaInjectionEnabled(newConfigService)
+      const oldInjection = getPersonaInjectionEnabled(this.configService)
+      const newInjection = getPersonaInjectionEnabled(newConfigService)
 
       // Update stored config service
       this.configService = newConfigService
@@ -552,10 +461,10 @@ export class Daemon {
 
       // Restage persona reminders for active sessions if injection setting changed
       if (oldInjection !== newInjection) {
-        // logCounters tracks sessions that have sent at least one hook event
+        // logMetrics tracks sessions that have sent at least one hook event
         // since daemon startup. Sessions that haven't interacted yet will
         // pick up the new config on their next hook invocation.
-        const activeSessionIds = [...this.logCounters.keys()]
+        const activeSessionIds = this.logMetrics.getActiveSessionIds()
         this.logger.info('Persona injection config changed, restaging reminders', {
           oldValue: oldInjection,
           newValue: newInjection,
@@ -668,66 +577,9 @@ export class Daemon {
     }
   }
 
-  /**
-   * Read the persona injection enabled flag from a config service.
-   * Defaults to true if not explicitly set.
-   */
-  private getPersonaInjectionEnabled(config: ConfigService): boolean {
-    type PersonaSettings = { personas?: { injectPersonaIntoClaude?: boolean } }
-    return config.getFeature<PersonaSettings>('session-summary').settings?.personas?.injectPersonaIntoClaude ?? true
-  }
-
-  /**
-   * Compare two config objects and return a list of changed values.
-   */
-  private diffConfigs(
-    oldConfig: SidekickConfig,
-    newConfig: SidekickConfig,
-    path: string[] = []
-  ): Array<{ path: string; old: unknown; new: unknown }> {
-    const changes: Array<{ path: string; old: unknown; new: unknown }> = []
-
-    const compareObjects = (
-      oldObj: Record<string, unknown>,
-      newObj: Record<string, unknown>,
-      currentPath: string[]
-    ): void => {
-      const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)])
-
-      for (const key of allKeys) {
-        const oldVal = oldObj[key]
-        const newVal = newObj[key]
-        const keyPath = [...currentPath, key]
-
-        if (oldVal === newVal) continue
-
-        if (
-          oldVal !== null &&
-          newVal !== null &&
-          typeof oldVal === 'object' &&
-          typeof newVal === 'object' &&
-          !Array.isArray(oldVal) &&
-          !Array.isArray(newVal)
-        ) {
-          // Recurse into nested objects
-          compareObjects(oldVal as Record<string, unknown>, newVal as Record<string, unknown>, keyPath)
-        } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-          changes.push({ path: keyPath.join('.'), old: oldVal, new: newVal })
-        }
-      }
-    }
-
-    compareObjects(
-      oldConfig as unknown as Record<string, unknown>,
-      newConfig as unknown as Record<string, unknown>,
-      path
-    )
-    return changes
-  }
-
   private async handleIpcRequest(method: string, params: unknown): Promise<unknown> {
     // Reset idle timer on any activity
-    this.lastActivityTime = Date.now()
+    this.timerManager.lastActivityTime = Date.now()
 
     this.logger.debug('IPC Request', { method })
 
@@ -820,7 +672,7 @@ export class Daemon {
     // AFTER setting initial context with config (to avoid race condition)
     if (sessionId && hook !== 'SessionEnd') {
       const payload = event.payload as { transcriptPath?: string } | undefined
-      const transcriptPath = this.resolveTranscriptPath(sessionId, payload?.transcriptPath)
+      const transcriptPath = resolveTranscriptPath(this.projectDir, sessionId, payload?.transcriptPath, this.logger)
       await this.setContextForHook(sessionId, transcriptPath, { logger: requestLogger })
     }
 
@@ -840,10 +692,9 @@ export class Daemon {
     }
 
     // Ensure log counters exist for this session (daemon may have restarted)
-    if (sessionId && !this.logCounters.has(sessionId)) {
-      const existing = await this.loadExistingLogCounts(sessionId)
-      this.logCounters.set(sessionId, existing)
-      requestLogger.debug('Log counters initialized from file for hook', { hook, existing })
+    if (sessionId && !this.logMetrics.hasSession(sessionId)) {
+      await this.logMetrics.initSessionCounters(sessionId, false)
+      requestLogger.debug('Log counters initialized from file for hook', { hook })
     }
 
     // Dispatch to registered handlers
@@ -885,22 +736,15 @@ export class Daemon {
       // Initialize log counters for new/cleared session
       // For startup: load existing counts (daemon might have restarted mid-session)
       // For clear: reset to 0 (user wants a fresh start)
-      if (startType === 'clear') {
-        this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
-        log.debug('Log counters reset for cleared session')
-      } else {
-        const existing = await this.loadExistingLogCounts(sessionId)
-        this.logCounters.set(sessionId, existing)
-        log.debug('Log counters initialized from file for startup', { existing })
-      }
+      await this.logMetrics.initSessionCounters(sessionId, startType === 'clear')
+      log.debug('Log counters initialized for session start', { startType })
 
       log.info('Staging cleared on session start', { startType })
     } else {
       // For resume, load existing counts if not already tracking this session
-      if (!this.logCounters.has(sessionId)) {
-        const existing = await this.loadExistingLogCounts(sessionId)
-        this.logCounters.set(sessionId, existing)
-        log.debug('Log counters loaded from file for resumed session', { existing })
+      if (!this.logMetrics.hasSession(sessionId)) {
+        await this.logMetrics.initSessionCounters(sessionId, false)
+        log.debug('Log counters loaded from file for resumed session')
       }
     }
   }
@@ -963,7 +807,7 @@ export class Daemon {
       }
 
       // Clean up log counters for this session
-      this.logCounters.delete(sessionId)
+      this.logMetrics.deleteSessionCounters(sessionId)
 
       await this.serviceFactory.shutdownSession(sessionId)
       log.info('Session ended')
@@ -1192,27 +1036,6 @@ export class Daemon {
       userMessage: result.userMessage,
       reasoning: result.classification.reasoning,
     }
-  }
-
-  /**
-   * Resolve transcript path for a session.
-   * Called by handleHookInvoke() before setting context.
-   *
-   * Note: Does NOT create the TranscriptService - that happens in setContextForHook()
-   * AFTER the initial context is set. This avoids the race condition where transcript
-   * events fire before handlers have access to config.
-   *
-   * @param sessionId - Session ID from event context
-   * @param providedTranscriptPath - Optional transcript path from event payload
-   * @returns The resolved transcript path
-   */
-  private resolveTranscriptPath(sessionId: string, providedTranscriptPath?: string): string {
-    // Determine transcript path: use provided or reconstruct using utility
-    const transcriptPath = providedTranscriptPath ?? reconstructTranscriptPath(this.projectDir, sessionId)
-    if (!providedTranscriptPath) {
-      this.logger.debug('Reconstructed transcript path', { sessionId, transcriptPath })
-    }
-    return transcriptPath
   }
 
   /**
@@ -1539,301 +1362,46 @@ export class Daemon {
     await this.orchestrator.onUserPromptSubmit(sessionId)
   }
 
-  /**
-   * Write PID files to both project-level and user-level locations.
-   *
-   * Project-level: .sidekick/daemon.pid (simple PID number)
-   * User-level: ~/.sidekick/daemons/{hash}.pid (JSON with project path and PID)
-   *
-   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
-   */
-  private async writePid(): Promise<void> {
-    // Project-level PID file (simple PID for backward compatibility)
-    const pidPath = getPidPath(this.projectDir)
-    await fs.mkdir(path.dirname(pidPath), { recursive: true })
-    await fs.writeFile(pidPath, process.pid.toString(), 'utf-8')
+  // ── Delegation shims — existing tests type-cast to call these ─────────
 
-    // User-level PID file for --kill-all discovery
-    const userPidPath = getUserPidPath(this.projectDir)
-    await fs.mkdir(getUserDaemonsDir(), { recursive: true })
-    const userPidData = JSON.stringify({
-      pid: process.pid,
-      projectDir: this.projectDir,
-      startedAt: new Date().toISOString(),
-    })
-    await fs.writeFile(userPidPath, userPidData, 'utf-8')
-  }
-
-  /**
-   * Generate and persist the IPC auth token.
-   *
-   * Format: 64-char hex string from 32 cryptographically random bytes.
-   * Written with mode 0600 so only the owning user can read it.
-   * Deleted on shutdown (cleanup) or stale-file recovery (DaemonClient).
-   */
-  private async writeToken(): Promise<void> {
-    this.token = randomBytes(32).toString('hex')
-    const tokenPath = getTokenPath(this.projectDir)
-    await fs.mkdir(path.dirname(tokenPath), { recursive: true })
-    await fs.writeFile(tokenPath, this.token, { mode: 0o600, encoding: 'utf-8' })
-  }
-
-  /**
-   * Clean up all daemon files on shutdown.
-   * Removes project-level PID, token, and user-level PID files.
-   *
-   * @see docs/design/CLI.md §7 Daemon Lifecycle Management
-   */
-  private async cleanup(): Promise<void> {
-    const filesToRemove = [
-      getPidPath(this.projectDir),
-      getTokenPath(this.projectDir),
-      getUserPidPath(this.projectDir), // User-level PID for --kill-all discovery
-      // Socket is cleaned up by IpcServer
-    ]
-
-    for (const file of filesToRemove) {
-      try {
-        await fs.unlink(file)
-      } catch {
-        // File may not exist
-      }
-    }
-  }
-
-  /**
-   * Start the idle timeout checker.
-   * Per design/CLI.md §7: Self-terminate after configured idle timeout (default 5 minutes).
-   * Set daemon.idleTimeoutMs to 0 to disable idle timeout.
-   */
-  private startIdleCheck(): void {
-    const idleTimeoutMs = this.configService.core.daemon.idleTimeoutMs
-
-    // 0 = disabled
-    if (idleTimeoutMs === 0) {
-      this.logger.info('Idle timeout disabled')
-      return
-    }
-
-    this.lastActivityTime = Date.now()
-    this.idleCheckInterval = setInterval(() => {
-      const idleTime = Date.now() - this.lastActivityTime
-      if (idleTime >= idleTimeoutMs) {
-        this.logger.info('Idle timeout reached, shutting down', {
-          idleTimeMs: idleTime,
-          idleTimeoutMs,
-        })
-        void this.stop()
-      }
-    }, IDLE_CHECK_INTERVAL_MS)
-
-    // Don't let the interval keep the process alive if everything else is done
-    this.idleCheckInterval.unref()
-  }
-
-  private stopIdleCheck(): void {
-    if (this.idleCheckInterval) {
-      clearInterval(this.idleCheckInterval)
-      this.idleCheckInterval = null
-    }
-  }
-
-  /**
-   * Start the heartbeat mechanism.
-   * Per design/DAEMON.md §4.6: Write daemon status every 5 seconds for Monitoring UI.
-   */
-  private startHeartbeat(): void {
-    // Write initial heartbeat immediately
-    void this.writeHeartbeat()
-
-    this.heartbeatInterval = setInterval(() => {
-      void this.writeHeartbeat()
-    }, HEARTBEAT_INTERVAL_MS)
-
-    // Don't let the interval keep the process alive
-    this.heartbeatInterval.unref()
-
-    this.logger.debug('Heartbeat started', { intervalMs: HEARTBEAT_INTERVAL_MS })
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
-    }
-  }
-
-  /**
-   * Start periodic session eviction timer.
-   * Evicts orphaned sessions (e.g., from crashed Claude Code instances)
-   * to prevent memory leaks. Runs every 5 minutes.
-   */
   private startEvictionTimer(): void {
-    const EVICTION_INTERVAL_MS = 5 * 60 * 1000 // Every 5 minutes
-
-    this.evictionTimer = setInterval(() => {
-      void this.serviceFactory.evictStaleSessions()
-    }, EVICTION_INTERVAL_MS)
-
-    // Don't let the interval keep the process alive
-    this.evictionTimer.unref()
-
-    this.logger.info('Session eviction timer started', { intervalMs: EVICTION_INTERVAL_MS })
-    logEvent(this.logger, LogEvents.sessionEvictionStarted({ intervalMs: EVICTION_INTERVAL_MS }))
+    this.timerManager.startEvictionTimer()
   }
 
   private stopEvictionTimer(): void {
-    if (this.evictionTimer) {
-      clearInterval(this.evictionTimer)
-      this.evictionTimer = null
-    }
+    this.timerManager.stopEvictionTimer()
   }
 
-  // --- Project Registry ---
-
-  private static readonly REGISTRY_HEARTBEAT_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
-
-  private async registerProject(): Promise<void> {
-    try {
-      await this.registryService.register(this.projectDir)
-      this.logger.info('Project registered for UI discovery', { projectDir: this.projectDir })
-    } catch (err) {
-      this.logger.warn('Failed to register project', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+  // Field shims: eviction-timer.test.ts and daemon-heartbeat.test.ts read these via type-cast
+  private get evictionTimer(): ReturnType<typeof setInterval> | null {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+    return (this.timerManager as any).evictionTimer
   }
 
-  private startRegistryHeartbeat(): void {
-    this.registryHeartbeatInterval = setInterval(() => {
-      void this.registerProject()
-    }, Daemon.REGISTRY_HEARTBEAT_INTERVAL_MS)
-
-    this.registryHeartbeatInterval.unref()
-    this.logger.debug('Registry heartbeat started', {
-      intervalMs: Daemon.REGISTRY_HEARTBEAT_INTERVAL_MS,
-    })
+  private get startTime(): number {
+    return this.timerManager.startTime
   }
 
-  private stopRegistryHeartbeat(): void {
-    if (this.registryHeartbeatInterval) {
-      clearInterval(this.registryHeartbeatInterval)
-      this.registryHeartbeatInterval = null
-    }
+  private set startTime(v: number) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+    ;(this.timerManager as any).startTime = v
   }
 
-  /**
-   * Write current daemon status to state file.
-   * Per design/DAEMON.md §4.6: Includes timestamp, pid, uptime, memory, queue stats.
-   */
-  private async writeHeartbeat(): Promise<void> {
-    const memUsage = process.memoryUsage()
-    const taskStatus = this.taskEngine.getStatus()
-
-    const status: DaemonStatus = {
-      timestamp: Date.now(),
-      pid: process.pid,
-      version: VERSION,
-      uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
-      memory: {
-        heapUsed: memUsage.heapUsed,
-        heapTotal: memUsage.heapTotal,
-        rss: memUsage.rss,
-      },
-      queue: {
-        pending: taskStatus.pending,
-        active: taskStatus.active,
-      },
-      activeTasks: taskStatus.activeTasks,
-    }
-
-    try {
-      await this.daemonStatusAccessor.write(status)
-    } catch (err) {
-      // Log but don't crash - heartbeat is non-critical
-      this.logger.warn('Failed to write heartbeat status', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-
-    // Persist log metrics for each active session
-    await this.persistLogMetrics()
+  // Log-metrics delegation shims — daemon-heartbeat.test.ts type-casts to access these
+  private get logCounters(): Map<string, { warnings: number; errors: number }> {
+    return this.logMetrics.logCounters
   }
 
-  /**
-   * Load existing log counts from daemon-log-metrics.json.
-   * Used to restore counts after daemon restart mid-session.
-   */
-  private async loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
-    const logMetricsPath = this.stateService.sessionStatePath(sessionId, 'daemon-log-metrics.json')
-
-    const defaultMetrics: LogMetricsState = {
-      sessionId,
-      warningCount: 0,
-      errorCount: 0,
-      lastUpdatedAt: 0,
-    }
-
-    const result = await this.stateService.read(logMetricsPath, LogMetricsStateSchema, defaultMetrics)
-    const existing = {
-      warnings: result.data.warningCount,
-      errors: result.data.errorCount,
-    }
-
-    if (result.source !== 'default') {
-      this.logger.debug('Loaded existing daemon log counts', { sessionId, existing })
-    }
-
-    return existing
+  private get globalLogCounters(): { warnings: number; errors: number } {
+    return this.logMetrics.globalLogCounters
   }
 
-  /**
-   * Persist log metrics for all active sessions and global daemon metrics.
-   * Writes daemon-log-metrics.json to each session's state directory,
-   * and daemon-global-log-metrics.json to the daemon state directory.
-   */
-  private async persistLogMetrics(): Promise<void> {
-    const now = Date.now()
+  private writeHeartbeat(): Promise<void> {
+    return this.logMetrics.writeHeartbeat()
+  }
 
-    // Persist per-session log metrics
-    for (const [sessionId, counts] of this.logCounters) {
-      const logMetricsPath = this.stateService.sessionStatePath(sessionId, 'daemon-log-metrics.json')
-
-      const logMetrics: LogMetricsState = {
-        sessionId,
-        warningCount: counts.warnings,
-        errorCount: counts.errors,
-        lastUpdatedAt: now,
-      }
-
-      try {
-        await this.stateService.write(logMetricsPath, logMetrics, LogMetricsStateSchema)
-      } catch (err) {
-        // Log but don't crash - log metrics are non-critical
-        this.logger.warn('Failed to persist log metrics', {
-          sessionId,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
-    }
-
-    // Persist global daemon log metrics (for logs without session context)
-    const globalMetrics: LogMetricsState = {
-      warningCount: this.globalLogCounters.warnings,
-      errorCount: this.globalLogCounters.errors,
-      lastUpdatedAt: now,
-    }
-
-    try {
-      await this.globalLogMetricsAccessor.write(globalMetrics)
-    } catch (err) {
-      // Log but don't crash - log metrics are non-critical
-      // Note: This log itself won't cause infinite recursion since the hook
-      // only increments counters, it doesn't trigger persistence
-      this.logger.warn('Failed to persist global log metrics', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+  private loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
+    return this.logMetrics.loadExistingLogCounts(sessionId)
   }
 
   /**
@@ -1895,56 +1463,6 @@ export class Daemon {
     this.contextMetricsService.registerHandlers(this.handlerRegistry)
 
     this.logger.debug('Feature handlers registered (Reminders, Session Summary, Context Metrics)')
-  }
-
-  /**
-   * Set up process-level error handlers for uncaught exceptions and unhandled rejections.
-   * Per design/DAEMON.md §5: Log fatal error to sidekickd.log, attempt graceful cleanup, exit.
-   * CLI will restart the daemon on next run.
-   */
-  private setupErrorHandlers(): void {
-    // Track if we're already handling a fatal error to prevent recursion
-    let isHandlingFatalError = false
-
-    /**
-     * Handle fatal errors: log, attempt cleanup, exit.
-     * Uses synchronous cleanup where possible since process may be in unstable state.
-     */
-    const handleFatalError = (type: string, error: unknown): void => {
-      // Prevent recursion if cleanup itself throws
-      if (isHandlingFatalError) {
-        // Last resort: write to stderr and exit immediately
-        console.error(`Recursive fatal error during ${type} handling:`, error)
-        process.exit(1)
-      }
-      isHandlingFatalError = true
-
-      // Log the fatal error to sidekickd.log
-      this.logger.fatal(`Fatal ${type}`, {
-        error: error instanceof Error ? { message: error.message, stack: error.stack } : String(error),
-        pid: process.pid,
-        projectDir: this.projectDir,
-      })
-
-      // Attempt graceful cleanup (best-effort, may fail if process is unstable)
-      // We use cleanup() which removes PID, token, and user PID files
-      // IPC server and task engine may already be in bad state, so we skip them
-      void this.cleanup().finally(() => {
-        process.exit(1)
-      })
-    }
-
-    // Handle uncaught synchronous exceptions
-    process.on('uncaughtException', (err: Error) => {
-      handleFatalError('uncaughtException', err)
-    })
-
-    // Handle unhandled promise rejections (async errors that weren't caught)
-    process.on('unhandledRejection', (reason: unknown) => {
-      handleFatalError('unhandledRejection', reason)
-    })
-
-    this.logger.debug('Process error handlers installed')
   }
 }
 
