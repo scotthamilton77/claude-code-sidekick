@@ -18,6 +18,8 @@ export interface TimerManagerDeps {
   registryService: ProjectRegistryService
   logger: Logger
   projectDir: string
+  /** Injected from Daemon — captured at process start, before constructor work. */
+  startTime: number
   /** Called when idle timeout fires (daemon should self-terminate). */
   onIdle: () => Promise<void>
   /** Called on each heartbeat tick (write daemon status). */
@@ -26,14 +28,16 @@ export interface TimerManagerDeps {
 
 export class TimerManager {
   lastActivityTime = Date.now()
-  readonly startTime = Date.now()
+  readonly startTime: number
 
   private idleCheckInterval: ReturnType<typeof setInterval> | null = null
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private evictionTimer: ReturnType<typeof setInterval> | null = null
   private registryHeartbeatInterval: ReturnType<typeof setInterval> | null = null
 
-  constructor(private deps: TimerManagerDeps) {}
+  constructor(private deps: TimerManagerDeps) {
+    this.startTime = deps.startTime
+  }
 
   /** Start idle timeout checker. Set daemon.idleTimeoutMs to 0 to disable. */
   startIdleCheck(): void {

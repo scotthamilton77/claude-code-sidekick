@@ -130,6 +130,7 @@ export class Daemon {
   }
 
   constructor(projectDir: string) {
+    const startTime = Date.now()
     this.projectDir = projectDir
 
     // Initialize Asset Resolver first (needed for configService YAML defaults)
@@ -242,6 +243,7 @@ export class Daemon {
       registryService: this.registryService,
       logger: this.logger,
       projectDir: this.projectDir,
+      startTime,
       onIdle: () => this.stop(),
       onHeartbeat: () => this.logMetrics.writeHeartbeat(),
     })

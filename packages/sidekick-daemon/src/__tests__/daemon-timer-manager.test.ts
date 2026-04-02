@@ -37,6 +37,7 @@ function createMockDeps(overrides?: Partial<TimerManagerDeps>): TimerManagerDeps
       child: vi.fn().mockReturnThis() as any,
     } as unknown as TimerManagerDeps['logger'],
     projectDir: '/tmp/test-project',
+    startTime: Date.now(),
     onIdle: vi.fn().mockResolvedValue(undefined),
     onHeartbeat: vi.fn().mockResolvedValue(undefined),
     ...overrides,
