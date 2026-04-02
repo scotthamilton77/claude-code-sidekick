@@ -43,7 +43,7 @@ export type ApiKeyScope = z.infer<typeof ApiKeyScopeSchema>
 
 /**
  * Comprehensive API key status for USER level (no project scope).
- * Used in ~/.sidekick/setup-status.json
+ * Used in ~/.sidekick/user-setup-status.json
  */
 export const UserApiKeyStatusSchema = z.object({
   /** Which scope's key is being used (first valid in priority order) */
@@ -98,7 +98,7 @@ export const UserApiKeyValueSchema = z.union([ApiKeyHealthSchema, UserApiKeyStat
 export type UserApiKeyValue = z.infer<typeof UserApiKeyValueSchema>
 
 /**
- * User-level setup status stored in ~/.sidekick/setup-status.json
+ * User-level setup status stored in ~/.sidekick/user-setup-status.json
  */
 export const UserSetupStatusSchema = z.object({
   version: z.literal(1),

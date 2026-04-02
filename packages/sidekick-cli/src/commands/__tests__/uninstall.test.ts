@@ -19,6 +19,7 @@ import path from 'node:path'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
 import { createFakeLogger } from '@sidekick/testing-fixtures'
+import { USER_STATUS_FILENAME, LEGACY_USER_STATUS_FILENAME, PROJECT_STATUS_FILENAME } from '@sidekick/core'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -126,7 +127,7 @@ describe('handleUninstallCommand', () => {
   describe('scope detection', () => {
     test('detects project scope when .sidekick/setup-status.json exists', async () => {
       await writeFile(
-        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME),
         JSON.stringify({ version: 1, autoConfigured: true })
       )
 
@@ -161,7 +162,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('detects user scope when ~/.sidekick/setup-status.json exists', async () => {
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -184,8 +185,8 @@ describe('handleUninstallCommand', () => {
 
     test('respects --scope=project to limit uninstall', async () => {
       // Install artifacts in both scopes
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -195,9 +196,9 @@ describe('handleUninstallCommand', () => {
 
       expect(result.exitCode).toBe(0)
       // Project setup-status should be gone
-      await expect(readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
+      await expect(readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')).rejects.toThrow()
       // User setup-status should still exist
-      const userStatus = await readFile(path.join(userHome, '.sidekick', 'setup-status.json'), 'utf-8')
+      const userStatus = await readFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), 'utf-8')
       expect(userStatus).toBeTruthy()
     })
   })
@@ -221,7 +222,7 @@ describe('handleUninstallCommand', () => {
         }
       )
 
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -243,7 +244,7 @@ describe('handleUninstallCommand', () => {
         }
       )
 
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -266,7 +267,7 @@ describe('handleUninstallCommand', () => {
         someOtherSetting: true,
       }
       await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -287,7 +288,7 @@ describe('handleUninstallCommand', () => {
         },
       }
       await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -308,7 +309,7 @@ describe('handleUninstallCommand', () => {
         someOtherSetting: true,
       }
       await writeFile(path.join(tempDir, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -339,7 +340,7 @@ describe('handleUninstallCommand', () => {
       }
       await writeFile(path.join(tempDir, '.claude', 'settings.local.json'), JSON.stringify(settings, null, 2))
       await writeFile(
-        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME),
         JSON.stringify({ version: 1, devMode: true })
       )
 
@@ -372,7 +373,7 @@ describe('handleUninstallCommand', () => {
         someOtherSetting: true,
       }
       await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       // Simulate plugin uninstall removing the sidekick key from enabledPlugins externally.
       // cleanSettingsFile only handles statusLine and hooks, so we test that leftover
@@ -405,7 +406,7 @@ describe('handleUninstallCommand', () => {
         emptySection: {},
       }
       await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -427,7 +428,7 @@ describe('handleUninstallCommand', () => {
         someOtherSetting: 'keep',
       }
       await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -452,7 +453,7 @@ describe('handleUninstallCommand', () => {
         nullVal: null,
       }
       await writeFile(path.join(userHome, '.claude', 'settings.json'), JSON.stringify(settings, null, 2))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -480,7 +481,7 @@ describe('handleUninstallCommand', () => {
       }
       await writeFile(path.join(tempDir, '.claude', 'settings.local.json'), JSON.stringify(settings, null, 2))
       await writeFile(
-        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME),
         JSON.stringify({ version: 1, devMode: true })
       )
 
@@ -498,7 +499,7 @@ describe('handleUninstallCommand', () => {
 
   describe('config file removal', () => {
     test('removes setup-status.json from project scope', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -507,12 +508,12 @@ describe('handleUninstallCommand', () => {
       })
 
       expect(result.exitCode).toBe(0)
-      await expect(readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
+      await expect(readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')).rejects.toThrow()
     })
 
     test('removes features.yaml from user scope', async () => {
       await writeFile(path.join(userHome, '.sidekick', 'features.yaml'), 'personas:\n  enabled: true\n')
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -527,7 +528,7 @@ describe('handleUninstallCommand', () => {
   describe('.env handling', () => {
     test('removes .env when --force is set', async () => {
       await writeFile(path.join(tempDir, '.sidekick', '.env'), 'OPENROUTER_API_KEY=sk-or-test-1234')
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -541,7 +542,7 @@ describe('handleUninstallCommand', () => {
 
     test('keeps .env when user declines interactive prompt', async () => {
       await writeFile(path.join(tempDir, '.sidekick', '.env'), 'OPENROUTER_API_KEY=sk-or-test-1234')
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         scope: 'project',
@@ -562,7 +563,7 @@ describe('handleUninstallCommand', () => {
       await mkdir(path.join(tempDir, '.sidekick', 'sessions'), { recursive: true })
       await mkdir(path.join(tempDir, '.sidekick', 'state'), { recursive: true })
       await writeFile(path.join(tempDir, '.sidekick', 'logs', 'sidekick.log'), 'test log')
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -594,7 +595,7 @@ describe('handleUninstallCommand', () => {
         'dist/',
       ].join('\n')
       await writeFile(path.join(tempDir, '.gitignore'), gitignoreContent)
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -615,7 +616,7 @@ describe('handleUninstallCommand', () => {
     test('kills project daemon during uninstall (graceful fails, falls back to kill)', async () => {
       await writeFile(path.join(tempDir, '.sidekick', 'sidekickd.pid'), '12345')
       await writeFile(path.join(tempDir, '.sidekick', 'sidekickd.token'), 'test-token')
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       mockDaemonStopAndWait.mockResolvedValue(false) // Graceful fails
       mockDaemonKill.mockResolvedValue({ killed: true })
 
@@ -634,7 +635,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('attempts graceful stop before kill during uninstall', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       mockDaemonStopAndWait.mockResolvedValue(true)
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -650,7 +651,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('falls back to kill when graceful stop fails', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       mockDaemonStopAndWait.mockResolvedValue(false) // Graceful failed (timeout)
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -665,7 +666,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('falls back to kill when graceful stop throws', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       mockDaemonStopAndWait.mockRejectedValue(new Error('IPC connection failed'))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -681,7 +682,7 @@ describe('handleUninstallCommand', () => {
 
   describe('user-scope daemon killing', () => {
     test('kills all daemons during user-scope uninstall', async () => {
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       mockKillAllDaemons.mockResolvedValue([
         { projectDir: '/project/a', pid: 1001, killed: true },
         { projectDir: '/project/b', pid: 1002, killed: true },
@@ -700,7 +701,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('does not kill all daemons for project-only scope', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -713,7 +714,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('handles killAllDaemons failures gracefully', async () => {
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       mockKillAllDaemons.mockResolvedValue([{ projectDir: '/project/a', pid: 1001, killed: false, error: 'EPERM' }])
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -727,7 +728,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('dry-run reports user daemons without killing', async () => {
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -743,7 +744,7 @@ describe('handleUninstallCommand', () => {
 
   describe('dry-run mode', () => {
     test('reports what would be removed without acting', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       await writeFile(path.join(tempDir, '.sidekick', '.env'), 'OPENROUTER_API_KEY=sk-test')
       await mkdir(path.join(tempDir, '.sidekick', 'logs'), { recursive: true })
 
@@ -757,7 +758,7 @@ describe('handleUninstallCommand', () => {
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('dry-run')
       // Files should still exist
-      const status = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      const status = await readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')
       expect(status).toBeTruthy()
       const env = await readFile(path.join(tempDir, '.sidekick', '.env'), 'utf-8')
       expect(env).toBeTruthy()
@@ -782,7 +783,7 @@ describe('handleUninstallCommand', () => {
       )
       mockDaemonKill.mockResolvedValue({ killed: true })
 
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       await writeFile(path.join(tempDir, '.sidekick', 'sidekickd.pid'), '12345')
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -824,11 +825,11 @@ describe('handleUninstallCommand', () => {
 
   describe('report', () => {
     test('groups removed artifacts by scope and sorts alphabetically', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       await writeFile(path.join(tempDir, '.sidekick', 'features.yaml'), 'personas:\n  enabled: true\n')
 
       // Trigger user scope too
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -851,7 +852,7 @@ describe('handleUninstallCommand', () => {
     /** Write a project setup-status.json with devMode: true (common fixture for guard tests). */
     async function writeDevModeStatus(): Promise<void> {
       await writeFile(
-        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           devMode: true,
@@ -874,7 +875,7 @@ describe('handleUninstallCommand', () => {
 
       expect(result.exitCode).toBe(0)
       // setup-status.json should still exist
-      const content = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      const content = await readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')
       expect(JSON.parse(content).devMode).toBe(true)
       expect(stdout.data).toContain('dev-mode')
     })
@@ -950,7 +951,7 @@ describe('handleUninstallCommand', () => {
 
     test('still allows user-scope cleanup when dev-mode is active at project scope', async () => {
       await writeDevModeStatus()
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -958,14 +959,14 @@ describe('handleUninstallCommand', () => {
       })
 
       expect(result.exitCode).toBe(0)
-      await expect(readFile(path.join(userHome, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
-      const projectStatus = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      await expect(readFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), 'utf-8')).rejects.toThrow()
+      const projectStatus = await readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')
       expect(JSON.parse(projectStatus).devMode).toBe(true)
     })
 
     test('non-dev-mode uninstall behavior unchanged', async () => {
       await writeFile(
-        path.join(tempDir, '.sidekick', 'setup-status.json'),
+        path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME),
         JSON.stringify({ version: 1, autoConfigured: true })
       )
 
@@ -976,13 +977,13 @@ describe('handleUninstallCommand', () => {
       })
 
       expect(result.exitCode).toBe(0)
-      await expect(readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')).rejects.toThrow()
+      await expect(readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')).rejects.toThrow()
     })
   })
 
   describe('detection summary and confirmation', () => {
     test('shows detection summary before prompting when not --force', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
       await writeFile(
         path.join(tempDir, '.claude', 'settings.json'),
         JSON.stringify({
@@ -1008,7 +1009,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('skips summary and prompt when --force is set', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         force: true,
@@ -1022,7 +1023,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('skips summary and prompt when --dry-run is set (without --force)', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         dryRun: true,
@@ -1036,7 +1037,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('exits with code 0 and cancellation message when user declines', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         scope: 'project',
@@ -1046,13 +1047,13 @@ describe('handleUninstallCommand', () => {
 
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('Uninstall cancelled.')
-      const status = await readFile(path.join(tempDir, '.sidekick', 'setup-status.json'), 'utf-8')
+      const status = await readFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), 'utf-8')
       expect(status).toBeTruthy()
     })
 
     test('shows both scopes when both are detected', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         stdin: createAutoStdin('y'),
@@ -1065,7 +1066,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('defaults to no when empty input is given (default answer behavior)', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       // Empty input (just a newline) should default to 'no' for uninstall prompt
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
@@ -1079,7 +1080,7 @@ describe('handleUninstallCommand', () => {
     })
 
     test('resolves (does not hang) when stdin closes without newline (EOF)', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       // Create a stdin that closes immediately without any data (simulates piped EOF)
       const eofStdin = new Readable({
@@ -1100,7 +1101,7 @@ describe('handleUninstallCommand', () => {
     }, 5000) // 5s timeout — if it hangs, the test fails
 
     test('resolves when stdin sends partial data then EOF (no newline)', async () => {
-      await writeFile(path.join(tempDir, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       // Create a stdin that sends 'y' but never a newline, then closes.
       // readline emits a 'line' event with buffered data on stream close,
@@ -1138,7 +1139,7 @@ describe('handleUninstallCommand', () => {
           }
         }
       )
-      await writeFile(path.join(userHome, '.sidekick', 'setup-status.json'), JSON.stringify({ version: 1 }))
+      await writeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), JSON.stringify({ version: 1 }))
 
       const result = await handleUninstallCommand(tempDir, logger, stdout, {
         stdin: createAutoStdin('y'),

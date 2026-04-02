@@ -19,6 +19,7 @@ import { describe, expect, test, beforeEach, afterEach, vi } from 'vitest'
 import { handleSetupCommand } from '../setup'
 import { detectInstalledScope } from '../setup/plugin-installer.js'
 import type { Logger } from '@sidekick/types'
+import { USER_STATUS_FILENAME, PROJECT_STATUS_FILENAME } from '@sidekick/core'
 
 // Mock plugin scope detection so tests don't call real CLI
 vi.mock('../setup/plugin-installer.js', async (importOriginal) => {
@@ -161,7 +162,7 @@ describe('handleSetupCommand', () => {
       // Create a user status with configured statusline but missing API key
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
-      const statusPath = path.join(sidekickDir, 'setup-status.json')
+      const statusPath = path.join(sidekickDir, USER_STATUS_FILENAME)
       const userStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -188,7 +189,7 @@ describe('handleSetupCommand', () => {
       // Create a user status with invalid API key
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
-      const statusPath = path.join(sidekickDir, 'setup-status.json')
+      const statusPath = path.join(sidekickDir, USER_STATUS_FILENAME)
       const userStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -239,7 +240,7 @@ describe('handleSetupCommand', () => {
       await writeFile(envPath, 'OPENROUTER_API_KEY=sk-or-test-key\n')
 
       // Create user status cache
-      const statusPath = path.join(sidekickDir, 'setup-status.json')
+      const statusPath = path.join(sidekickDir, USER_STATUS_FILENAME)
       const userStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -303,7 +304,7 @@ describe('handleSetupCommand', () => {
       // Create user status cache with not-required API key
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
-      const statusPath = path.join(sidekickDir, 'setup-status.json')
+      const statusPath = path.join(sidekickDir, USER_STATUS_FILENAME)
       const userStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -437,7 +438,7 @@ describe('handleSetupCommand', () => {
       // Pre-populate project setup-status.json with devMode: true
       const projectSidekickDir = path.join(projectDir, '.sidekick')
       await mkdir(projectSidekickDir, { recursive: true })
-      const statusPath = path.join(projectSidekickDir, 'setup-status.json')
+      const statusPath = path.join(projectSidekickDir, PROJECT_STATUS_FILENAME)
       const existingStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -511,7 +512,7 @@ describe('handleSetupCommand', () => {
 
       expect(result.exitCode).toBe(0)
       // setup-status.json should exist
-      const statusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const statusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const content = await readFile(statusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.version).toBe(1)
@@ -523,7 +524,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(projectDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, PROJECT_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -542,7 +543,7 @@ describe('handleSetupCommand', () => {
       })
 
       expect(result.exitCode).toBe(0)
-      const content = await readFile(path.join(sidekickDir, 'setup-status.json'), 'utf-8')
+      const content = await readFile(path.join(sidekickDir, PROJECT_STATUS_FILENAME), 'utf-8')
       const status = JSON.parse(content)
       expect(status.devMode).toBe(true)
       expect(status.statusline).toBe('user')
@@ -562,7 +563,7 @@ describe('handleSetupCommand', () => {
       // Disabling personas should NOT write API key status to user setup-status.
       // API keys are independent of persona choice — they power all LLM features.
       // The project status should not mark the key as not-required either.
-      const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const projectStatusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const content = await readFile(projectStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.apiKeys.OPENROUTER_API_KEY.status).not.toBe('not-required')
@@ -573,7 +574,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(projectDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, PROJECT_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -599,7 +600,7 @@ describe('handleSetupCommand', () => {
       expect(result.exitCode).toBe(0)
 
       // Existing healthy API key status should be preserved, not downgraded
-      const content = await readFile(path.join(sidekickDir, 'setup-status.json'), 'utf-8')
+      const content = await readFile(path.join(sidekickDir, PROJECT_STATUS_FILENAME), 'utf-8')
       const status = JSON.parse(content)
       expect(status.apiKeys.OPENROUTER_API_KEY.status).toBe('healthy')
     })
@@ -610,7 +611,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(projectDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, PROJECT_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -710,7 +711,7 @@ describe('handleSetupCommand', () => {
       // Create user-level status (missing key)
       const userSidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(userSidekickDir, { recursive: true })
-      const userStatusPath = path.join(userSidekickDir, 'setup-status.json')
+      const userStatusPath = path.join(userSidekickDir, USER_STATUS_FILENAME)
       const userStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -730,7 +731,7 @@ describe('handleSetupCommand', () => {
       // Create project-level status (healthy, references user key)
       const projectSidekickDir = path.join(projectDir, '.sidekick')
       await mkdir(projectSidekickDir, { recursive: true })
-      const projectStatusPath = path.join(projectSidekickDir, 'setup-status.json')
+      const projectStatusPath = path.join(projectSidekickDir, PROJECT_STATUS_FILENAME)
       const projectStatus = {
         version: 1,
         lastUpdatedAt: new Date().toISOString(),
@@ -773,7 +774,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, USER_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -798,7 +799,7 @@ describe('handleSetupCommand', () => {
     })
 
     test('fixes missing user setup-status file', async () => {
-      // No user setup-status.json exists
+      // No user setup status file exists
       await handleSetupCommand(projectDir, logger, output, {
         checkOnly: true,
         fix: true,
@@ -806,8 +807,8 @@ describe('handleSetupCommand', () => {
       })
 
       expect(output.data).toContain('User Setup')
-      // User setup-status.json should now exist
-      const statusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      // User setup status file should now exist
+      const statusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       const content = await readFile(statusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.version).toBe(1)
@@ -818,7 +819,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, USER_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -889,9 +890,9 @@ describe('handleSetupCommand', () => {
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(path.join(sidekickDir, '.env'), 'OPENROUTER_API_KEY=sk-or-test-key\n')
 
-      // User setup-status.json
+      // User setup status
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, USER_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -971,7 +972,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, USER_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),
@@ -1072,7 +1073,7 @@ describe('handleSetupCommand', () => {
       expect(output.data).toContain('Skipping --auto-config=auto')
 
       // User status should NOT have autoConfigureProjects: true
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       await expect(readFile(userStatusPath, 'utf-8')).rejects.toThrow()
     })
 
@@ -1087,7 +1088,7 @@ describe('handleSetupCommand', () => {
       expect(output.data).toContain("Auto-config set to 'auto'")
 
       // User status should have autoConfigureProjects: true
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       const content = await readFile(userStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.preferences.autoConfigureProjects).toBe(true)
@@ -1129,7 +1130,7 @@ describe('handleSetupCommand', () => {
       expect(output.data).toContain("Auto-config set to 'manual'")
 
       // User status should have autoConfigureProjects: false
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       const content = await readFile(userStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.preferences.autoConfigureProjects).toBe(false)
@@ -1140,7 +1141,7 @@ describe('handleSetupCommand', () => {
       const sidekickDir = path.join(homeDir, '.sidekick')
       await mkdir(sidekickDir, { recursive: true })
       await writeFile(
-        path.join(sidekickDir, 'setup-status.json'),
+        path.join(sidekickDir, USER_STATUS_FILENAME),
         JSON.stringify({
           version: 1,
           lastUpdatedAt: new Date().toISOString(),

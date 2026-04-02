@@ -18,6 +18,7 @@ import {
   detectGitignoreStatus,
   findZombieDaemons,
   killZombieDaemons,
+  USER_STATUS_FILENAME,
   type ApiKeySource,
   type PluginInstallationStatus,
   type PluginLivenessStatus,
@@ -116,7 +117,7 @@ async function runDoctorFixes(
       },
     }
     await setupService.writeUserStatus(userStatus)
-    stdout.write('  ✓ Created ~/.sidekick/setup-status.json with defaults\n')
+    stdout.write(`  ✓ Created ~/.sidekick/${USER_STATUS_FILENAME} with defaults\n`)
     fixedCount++
   }
 
@@ -300,7 +301,7 @@ export async function runDoctor(
         }
         if (!result.userSetupExists) {
           const setupIcon = '⚠'
-          stdout.write(`${setupIcon} User Setup: missing (~/.sidekick/setup-status.json not found)\n`)
+          stdout.write(`${setupIcon} User Setup: missing (~/.sidekick/${USER_STATUS_FILENAME} not found)\n`)
         }
       })
     )

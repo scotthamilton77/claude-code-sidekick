@@ -4,7 +4,7 @@ import * as path from 'node:path'
 import * as os from 'node:os'
 import type { UserSetupStatus, ProjectSetupStatus } from '@sidekick/types'
 import { runDoctorCheck, type StatusFileIO } from '../doctor-engine.js'
-import { SetupStatusService } from '../setup-status-service.js'
+import { SetupStatusService, USER_STATUS_FILENAME, PROJECT_STATUS_FILENAME } from '../setup-status-service.js'
 
 describe('doctor-engine', () => {
   let tempDir: string
@@ -100,13 +100,13 @@ describe('doctor-engine', () => {
 
   // Helper to write status files directly
   const writeUserStatus = async (status: UserSetupStatus): Promise<void> => {
-    const p = path.join(homeDir, '.sidekick', 'setup-status.json')
+    const p = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
     await fs.mkdir(path.dirname(p), { recursive: true })
     await fs.writeFile(p, JSON.stringify(status, null, 2))
   }
 
   const writeProjectStatus = async (status: ProjectSetupStatus): Promise<void> => {
-    const p = path.join(projectDir, '.sidekick', 'setup-status.json')
+    const p = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
     await fs.mkdir(path.dirname(p), { recursive: true })
     await fs.writeFile(p, JSON.stringify(status, null, 2))
   }

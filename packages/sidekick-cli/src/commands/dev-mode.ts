@@ -25,6 +25,7 @@ import {
   removeGitignoreSection,
   findZombieDaemons,
   killZombieDaemons,
+  PROJECT_STATUS_FILENAME,
 } from '@sidekick/core'
 import { fileExists } from '../utils/fs.js'
 import { promptConfirm } from '../utils/prompt.js'
@@ -628,7 +629,7 @@ async function doCleanAll(
   await removeDirectory(path.join(sidekickDir, 'state'), 'state', stdout)
 
   // Remove setup-status.json (created by dev-mode enable)
-  const setupStatusPath = path.join(sidekickDir, 'setup-status.json')
+  const setupStatusPath = path.join(sidekickDir, PROJECT_STATUS_FILENAME)
   if (await fileExists(setupStatusPath)) {
     await unlink(setupStatusPath)
     log(stdout, 'info', `Removed ${setupStatusPath}`)

@@ -36,7 +36,12 @@ function createMockChildProcess(): EventEmitter & {
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import { SetupStatusService } from '../setup-status-service.js'
+import {
+  SetupStatusService,
+  USER_STATUS_FILENAME,
+  PROJECT_STATUS_FILENAME,
+  LEGACY_USER_STATUS_FILENAME,
+} from '../setup-status-service.js'
 import type { UserSetupStatus, ProjectSetupStatus } from '@sidekick/types'
 
 describe('SetupStatusService', () => {
@@ -106,13 +111,20 @@ describe('SetupStatusService', () => {
 
   // Helper to write status files
   const writeUserStatus = async (status: UserSetupStatus): Promise<void> => {
-    const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+    const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
     await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
     await fs.writeFile(userStatusPath, JSON.stringify(status, null, 2))
   }
 
+  /** Write to the LEGACY user-scope location (for migration tests) */
+  const writeLegacyUserStatus = async (status: UserSetupStatus): Promise<void> => {
+    const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
+    await fs.mkdir(path.dirname(legacyPath), { recursive: true })
+    await fs.writeFile(legacyPath, JSON.stringify(status, null, 2))
+  }
+
   const writeProjectStatus = async (status: ProjectSetupStatus): Promise<void> => {
-    const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+    const projectStatusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
     await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
     await fs.writeFile(projectStatusPath, JSON.stringify(status, null, 2))
   }
@@ -148,7 +160,7 @@ describe('SetupStatusService', () => {
     })
 
     it('returns null when user status file contains corrupt JSON', async () => {
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
       await fs.writeFile(userStatusPath, '{invalid json}')
 
@@ -157,12 +169,123 @@ describe('SetupStatusService', () => {
     })
 
     it('returns null when user status file contains invalid schema', async () => {
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
       await fs.writeFile(userStatusPath, JSON.stringify({ version: 2 }))
 
       const result = await service.getUserStatus()
       expect(result).toBeNull()
+    })
+  })
+
+  describe('getUserStatus - legacy migration', () => {
+    it('migrates from legacy location when new file does not exist', async () => {
+      const status = createUserStatus()
+      await writeLegacyUserStatus(status)
+
+      const result = await service.getUserStatus()
+      expect(result).toEqual(status)
+
+      // New file should now exist
+      const newPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
+      const newContent = await fs.readFile(newPath, 'utf-8')
+      expect(JSON.parse(newContent).version).toBe(1)
+
+      // Legacy file should be deleted
+      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
+      await expect(fs.access(legacyPath)).rejects.toThrow()
+    })
+
+    it('does not migrate when new file already exists', async () => {
+      const newStatus = createUserStatus({ statusline: 'user' })
+      await writeUserStatus(newStatus)
+      // Also write a different status to legacy location
+      const legacyStatus = createUserStatus({ statusline: 'none' })
+      await writeLegacyUserStatus(legacyStatus)
+
+      const result = await service.getUserStatus()
+      // Should read from new location, not legacy
+      expect(result?.statusline).toBe('user')
+
+      // Legacy file should still exist (not touched)
+      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
+      const legacyContent = await fs.readFile(legacyPath, 'utf-8')
+      expect(JSON.parse(legacyContent).statusline).toBe('none')
+    })
+
+    it('does not migrate when legacy file contains project-format data (collision scenario)', async () => {
+      // This is the bug scenario: project-format data got written to user-scope location
+      const projectData = createProjectStatus()
+      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
+      await fs.mkdir(path.dirname(legacyPath), { recursive: true })
+      await fs.writeFile(legacyPath, JSON.stringify(projectData, null, 2))
+
+      const result = await service.getUserStatus()
+      // Should return null because project-format data doesn't parse as UserSetupStatus
+      expect(result).toBeNull()
+
+      // Legacy file should NOT be deleted (not a valid migration source)
+      await expect(fs.access(legacyPath)).resolves.toBeUndefined()
+    })
+
+    it('returns null when legacy file contains corrupt JSON', async () => {
+      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
+      await fs.mkdir(path.dirname(legacyPath), { recursive: true })
+      await fs.writeFile(legacyPath, '{ broken JSON !!!')
+
+      const result = await service.getUserStatus()
+      expect(result).toBeNull()
+    })
+
+    it('returns null when neither new nor legacy file exists', async () => {
+      const result = await service.getUserStatus()
+      expect(result).toBeNull()
+    })
+  })
+
+  describe('writeProjectStatus - homeDir collision guard', () => {
+    it('skips writing when projectDir equals homeDir', async () => {
+      const collisionService = new SetupStatusService(homeDir, { homeDir })
+      const status = createProjectStatus()
+
+      // Should silently skip
+      await collisionService.writeProjectStatus(status)
+
+      // No project-scope file should have been created in ~/.sidekick/
+      const projectPath = path.join(homeDir, '.sidekick', PROJECT_STATUS_FILENAME)
+      await expect(fs.access(projectPath)).rejects.toThrow()
+    })
+
+    it('logs a warning when projectDir equals homeDir', async () => {
+      const mockLogger = {
+        trace: vi.fn() as any,
+        debug: vi.fn() as any,
+        info: vi.fn() as any,
+        warn: vi.fn() as any,
+        error: vi.fn() as any,
+        fatal: vi.fn() as any,
+        child: vi.fn() as any,
+        level: 'debug' as const,
+        silent: false,
+      }
+      const collisionService = new SetupStatusService(homeDir, { homeDir, logger: mockLogger as any })
+      const status = createProjectStatus()
+
+      await collisionService.writeProjectStatus(status)
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Skipping project status write: projectDir is the home directory',
+        expect.objectContaining({ projectDir: homeDir })
+      )
+    })
+
+    it('writes normally when projectDir differs from homeDir', async () => {
+      const status = createProjectStatus()
+      await service.writeProjectStatus(status)
+
+      const projectPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
+      const content = await fs.readFile(projectPath, 'utf-8')
+      expect(JSON.parse(content).version).toBe(1)
     })
   })
 
@@ -181,7 +304,7 @@ describe('SetupStatusService', () => {
     })
 
     it('returns null when project status file contains corrupt JSON', async () => {
-      const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const projectStatusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
       await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
       await fs.writeFile(projectStatusPath, '{invalid json}')
 
@@ -190,7 +313,7 @@ describe('SetupStatusService', () => {
     })
 
     it('returns null when project status file contains invalid schema', async () => {
-      const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const projectStatusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
       await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
       await fs.writeFile(projectStatusPath, JSON.stringify({ version: 2 }))
 
@@ -556,7 +679,7 @@ describe('SetupStatusService', () => {
       const status = createUserStatus()
       await service.writeUserStatus(status)
 
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       const stat = await fs.stat(userStatusPath)
       // 0o600 = owner read/write only (octal 0100600 includes file type bits)
       expect(stat.mode & 0o777).toBe(0o600)
@@ -595,7 +718,7 @@ describe('SetupStatusService', () => {
       const status = createProjectStatus()
       await service.writeProjectStatus(status)
 
-      const projectStatusPath = path.join(projectDir, '.sidekick', 'setup-status.json')
+      const projectStatusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const stat = await fs.stat(projectStatusPath)
       expect(stat.mode & 0o777).toBe(0o600)
     })
@@ -1297,7 +1420,7 @@ describe('SetupStatusService', () => {
     })
 
     it('reports unhealthy (not crash) when user setup-status file contains corrupt JSON', async () => {
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
       await fs.writeFile(userStatusPath, '{invalid json}')
 
@@ -1952,7 +2075,7 @@ describe('SetupStatusService', () => {
       }
       const serviceWithLogger = new SetupStatusService(projectDir, { homeDir, logger: mockLogger as any })
 
-      const userStatusPath = path.join(homeDir, '.sidekick', 'setup-status.json')
+      const userStatusPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
       await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
       await fs.writeFile(userStatusPath, '{ this is not valid JSON !!!')
 
@@ -1960,7 +2083,7 @@ describe('SetupStatusService', () => {
 
       expect(result).toBeNull()
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        'Corrupt user setup-status.json, treating as missing',
+        `Corrupt ${USER_STATUS_FILENAME}, treating as missing`,
         expect.objectContaining({
           path: userStatusPath,
           error: expect.any(String),
