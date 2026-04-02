@@ -15,12 +15,10 @@ interface CollapsibleContentProps {
 const JSON_TOKEN_RE = /("(?:[^"\\]|\\.)*")(\s*:)?|(true|false|null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g
 
 function highlightJson(text: string): ReactNode {
-  JSON_TOKEN_RE.lastIndex = 0
   const parts: ReactNode[] = []
   let lastIndex = 0
-  let match: RegExpExecArray | null
 
-  while ((match = JSON_TOKEN_RE.exec(text)) !== null) {
+  for (const match of text.matchAll(JSON_TOKEN_RE)) {
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index))
     }
@@ -91,12 +89,16 @@ export function CollapsibleContent({
     [content, previewLines, previewChars]
   )
 
-  const renderContent = (text: string) => highlight === 'json' ? highlightJson(text) : text
+  const displayText = isLong ? (expanded ? content : preview) : content
+  const rendered = useMemo(
+    () => highlight === 'json' ? highlightJson(displayText) : displayText,
+    [highlight, displayText]
+  )
 
   if (!isLong) {
     return (
       <pre className={`text-[10px] leading-relaxed whitespace-pre-wrap ${mono ? 'font-mono' : ''} ${className}`}>
-        {renderContent(content)}
+        {rendered}
       </pre>
     )
   }
@@ -104,7 +106,7 @@ export function CollapsibleContent({
   return (
     <div>
       <pre className={`text-[10px] leading-relaxed whitespace-pre-wrap ${mono ? 'font-mono' : ''} ${className}`}>
-        {renderContent(expanded ? content : preview)}
+        {rendered}
       </pre>
       <button
         onClick={(e) => {
