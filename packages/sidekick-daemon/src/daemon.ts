@@ -47,8 +47,7 @@ import type {
   RuntimePaths,
   ProfileProviderFactory as ProfileProviderFactoryInterface,
 } from '@sidekick/types'
-import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
-import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
+import type { LLMProvider } from '@sidekick/shared-providers'
 import { homedir } from 'os'
 import path from 'path'
 import { ConfigChangeEvent, ConfigWatcher } from './config-watcher.js'
@@ -62,6 +61,7 @@ import { VERSION, diffConfigs, resolveTranscriptPath, getPersonaInjectionEnabled
 import { writePid, writeToken, cleanup, setupErrorHandlers } from './daemon-io.js'
 import { TimerManager } from './daemon-timer-manager.js'
 import { LogMetricsManager } from './daemon-log-metrics.js'
+import { LLMProviderManager } from './daemon-llm-manager.js'
 
 /**
  * Daemon Process Entrypoint
@@ -91,9 +91,7 @@ export class Daemon {
   private handlerRegistry: HandlerRegistry
   private serviceFactory: ServiceFactory
   private assetResolver: AssetResolver
-  private llmProvider: LLMProvider | null = null
-  private profileProviderFactory: ProfileProviderFactory
-  private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
+  private llmManager: LLMProviderManager
   private contextMetricsService: ContextMetricsService
   /** Reminder orchestrator for cross-reminder coordination rules */
   private orchestrator: ReminderOrchestrator
@@ -257,8 +255,11 @@ export class Daemon {
       skipCliCapture: false,
     })
 
-    // Initialize Profile Provider Factory for profile-based LLM provider creation
-    this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
+    this.llmManager = new LLMProviderManager({
+      configService: this.configService,
+      stateService: this.stateService,
+      logger: this.logger,
+    })
 
     // Initialize Reminder Orchestrator for cross-reminder coordination
     // Uses serviceFactory.getStagingService for session-scoped staging access
@@ -361,13 +362,8 @@ export class Daemon {
     // Stop persona watcher
     this.personaWatcher.stop()
 
-    // Shutdown all instrumented LLM providers (persists final metrics)
     try {
-      for (const [sessionId, provider] of this.instrumentedProviders) {
-        await provider.shutdown()
-        this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
-      }
-      this.instrumentedProviders.clear()
+      await this.llmManager.shutdownAll()
     } catch (err) {
       this.logger.error('Failed to shutdown instrumented LLM providers', { error: err })
     }
@@ -446,18 +442,7 @@ export class Daemon {
       // Update stored config service
       this.configService = newConfigService
 
-      // Recreate ProfileProviderFactory with new config (fixes hot-reload for LLM profiles)
-      // The old factory held a reference to the old configService, so profile changes
-      // (providerAllowlist, temperature, etc.) wouldn't be picked up
-      this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
-
-      // Clear cached LLM provider so it gets recreated from the updated factory
-      // on next use (lazy initialization pattern)
-      this.llmProvider = null
-
-      // Clear instrumented providers cache - they wrap the old base provider
-      // and need to be recreated with the new config on next use
-      this.instrumentedProviders.clear()
+      this.llmManager.onConfigChange(this.configService)
 
       // Restage persona reminders for active sessions if injection setting changed
       if (oldInjection !== newInjection) {
@@ -798,13 +783,7 @@ export class Daemon {
         })
       }
 
-      // Shutdown instrumented LLM provider (persists final metrics)
-      const instrumentedProvider = this.instrumentedProviders.get(sessionId)
-      if (instrumentedProvider) {
-        await instrumentedProvider.shutdown()
-        this.instrumentedProviders.delete(sessionId)
-        log.debug('Shutdown instrumented LLM provider')
-      }
+      await this.llmManager.shutdownSessionProvider(sessionId, log)
 
       // Clean up log counters for this session
       this.logMetrics.deleteSessionCounters(sessionId)
@@ -968,12 +947,8 @@ export class Daemon {
       projectConfigDir: this.stateService.rootDir(),
     }
 
-    if (!this.llmProvider) {
-      this.llmProvider = this.profileProviderFactory.createDefault()
-    }
-
     const sessionDir = this.stateService.sessionRootDir(sessionId)
-    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
+    const instrumentedProfileFactory = this.llmManager.createInstrumentedProfileFactory(sessionId, sessionDir)
 
     const stagingService = this.serviceFactory.getStagingService(sessionId)
     const transcriptService = await this.serviceFactory.prepareTranscriptService(sessionId, resolvedTranscriptPath)
@@ -1008,7 +983,7 @@ export class Daemon {
       assets: this.assetResolver,
       paths,
       handlers: this.handlerRegistry,
-      llm: this.llmProvider,
+      llm: this.llmManager.getBaseProvider(),
       profileFactory: instrumentedProfileFactory,
       staging: stagingService,
       transcript: transcriptService,
@@ -1039,23 +1014,6 @@ export class Daemon {
   }
 
   /**
-   * Create an instrumented profile factory for a session.
-   * All providers created through this factory will be wrapped with instrumentation.
-   *
-   * @param sessionId - Session ID for metrics tracking
-   * @param sessionDir - Path to session directory (parent of state dir)
-   */
-  private createInstrumentedProfileFactory(sessionId: string, sessionDir: string): InstrumentedProfileProviderFactory {
-    return new InstrumentedProfileProviderFactory(this.profileProviderFactory, this.configService, {
-      sessionId,
-      stateService: this.stateService,
-      sessionDir,
-      logger: this.logger,
-      debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
-    })
-  }
-
-  /**
    * Get DaemonContext for task execution.
    *
    * Used by TaskEngine to provide context to task handlers.
@@ -1072,47 +1030,12 @@ export class Daemon {
       projectConfigDir: this.stateService.rootDir(),
     }
 
-    // Create base LLM provider if needed (lazy init, uses default profile)
-    if (!this.llmProvider) {
-      this.llmProvider = this.profileProviderFactory.createDefault()
-    }
-
-    // Get the appropriate LLM provider and profile factory
-    let llmProvider: LLMProvider = this.llmProvider
-    let profileFactory: ProfileProviderFactoryInterface = this.profileProviderFactory
+    let llmProvider: LLMProvider = this.llmManager.getBaseProvider()
+    let profileFactory: ProfileProviderFactoryInterface = this.llmManager.getProfileFactory()
     if (sessionId) {
       const sessionDir = this.stateService.sessionRootDir(sessionId)
-
-      // Try to get existing instrumented provider for this session
-      const instrumented = this.instrumentedProviders.get(sessionId)
-      if (instrumented) {
-        llmProvider = instrumented
-      } else {
-        // Create instrumented provider on-demand
-        const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
-        const newInstrumented = new InstrumentedLLMProvider(this.llmProvider, {
-          sessionId,
-          stateService: this.stateService,
-          sessionDir,
-          logger: this.logger,
-          debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
-          profileParams: defaultProfile
-            ? {
-                profileName: this.configService.llm.defaultProfile,
-                temperature: defaultProfile.temperature,
-                maxTokens: defaultProfile.maxTokens,
-                timeout: defaultProfile.timeout,
-              }
-            : undefined,
-        })
-        await newInstrumented.initialize()
-        this.instrumentedProviders.set(sessionId, newInstrumented)
-        this.logger.debug('Created instrumented LLM provider for task', { sessionId })
-        llmProvider = newInstrumented
-      }
-
-      // Create instrumented profile factory for this session
-      profileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
+      llmProvider = await this.llmManager.getOrCreateInstrumentedProvider(sessionId, sessionDir)
+      profileFactory = this.llmManager.createInstrumentedProfileFactory(sessionId, sessionDir)
     }
 
     // Get staging service if sessionId provided, otherwise use a no-op stub
@@ -1238,40 +1161,9 @@ export class Daemon {
       projectConfigDir: this.stateService.rootDir(),
     }
 
-    // Create LLM provider if needed (lazy init, uses default profile)
-    if (!this.llmProvider) {
-      this.llmProvider = this.profileProviderFactory.createDefault()
-    }
-
-    // Compute session directory for this session (used by instrumented providers)
     const sessionDir = this.stateService.sessionRootDir(sessionId)
-
-    // Get or create instrumented provider for this session (tracks metrics per-session)
-    let instrumentedProvider = this.instrumentedProviders.get(sessionId)
-    if (!instrumentedProvider) {
-      const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
-      instrumentedProvider = new InstrumentedLLMProvider(this.llmProvider, {
-        sessionId,
-        stateService: this.stateService,
-        sessionDir,
-        logger: log,
-        debugDumpEnabled: this.configService.llm.global.debugDumpEnabled,
-        profileParams: defaultProfile
-          ? {
-              profileName: this.configService.llm.defaultProfile,
-              temperature: defaultProfile.temperature,
-              maxTokens: defaultProfile.maxTokens,
-              timeout: defaultProfile.timeout,
-            }
-          : undefined,
-      })
-      await instrumentedProvider.initialize()
-      this.instrumentedProviders.set(sessionId, instrumentedProvider)
-      log.debug('Created instrumented LLM provider for session')
-    }
-
-    // Create instrumented profile factory for this session
-    const instrumentedProfileFactory = this.createInstrumentedProfileFactory(sessionId, sessionDir)
+    const instrumentedProvider = await this.llmManager.getOrCreateInstrumentedProvider(sessionId, sessionDir, log)
+    const instrumentedProfileFactory = this.llmManager.createInstrumentedProfileFactory(sessionId, sessionDir)
 
     // Get staging service (doesn't trigger transcript events)
     const stagingService = this.serviceFactory.getStagingService(sessionId)
@@ -1450,7 +1342,7 @@ export class Daemon {
       handlers: this.handlerRegistry,
       // Placeholder services - will be replaced via setContext() in handleSessionStart
       llm: null as unknown as LLMProvider,
-      profileFactory: this.profileProviderFactory,
+      profileFactory: this.llmManager.getProfileFactory(),
       staging: null as unknown as StagingService,
       transcript: null as unknown as TranscriptService,
       stateService: this.stateService,
