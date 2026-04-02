@@ -14,38 +14,34 @@ interface CollapsibleContentProps {
 
 const JSON_TOKEN_RE = /("(?:[^"\\]|\\.)*")(\s*:)?|(true|false|null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g
 
-export function highlightJson(text: string): ReactNode {
+function highlightJson(text: string): ReactNode {
+  JSON_TOKEN_RE.lastIndex = 0
   const parts: ReactNode[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null
 
   while ((match = JSON_TOKEN_RE.exec(text)) !== null) {
-    // Push any plain text before this match
     if (match.index > lastIndex) {
       parts.push(text.slice(lastIndex, match.index))
     }
 
     if (match[1] != null) {
-      // Quoted string — is it a key (followed by `:`) or a value?
+      // Key (followed by `:`) vs string value
       if (match[2] != null) {
-        // Key + colon
         parts.push(
           <span key={match.index} className="text-cyan-600 dark:text-cyan-400">{match[1]}</span>
         )
-        parts.push(match[2]) // the colon + whitespace as plain text
+        parts.push(match[2])
       } else {
-        // String value
         parts.push(
           <span key={match.index} className="text-green-600 dark:text-green-400">{match[1]}</span>
         )
       }
     } else if (match[3] != null) {
-      // Boolean or null
       parts.push(
         <span key={match.index} className="text-purple-600 dark:text-purple-400">{match[3]}</span>
       )
     } else if (match[4] != null) {
-      // Number
       parts.push(
         <span key={match.index} className="text-amber-600 dark:text-amber-400">{match[4]}</span>
       )
@@ -54,7 +50,6 @@ export function highlightJson(text: string): ReactNode {
     lastIndex = match.index + match[0].length
   }
 
-  // Push any remaining text after last match
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex))
   }
