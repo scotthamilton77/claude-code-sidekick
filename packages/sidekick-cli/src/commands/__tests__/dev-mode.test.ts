@@ -18,7 +18,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
 import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { handleDevModeCommand } from '../dev-mode'
-import { DaemonClient } from '@sidekick/core'
+import { DaemonClient, PROJECT_STATUS_FILENAME } from '@sidekick/core'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {
@@ -188,7 +188,7 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(0)
 
       // Check that devMode was set in .sidekick/setup-status.json
-      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const setupStatusPath = path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const content = await readFile(setupStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.devMode).toBe(true)
@@ -224,7 +224,7 @@ describe('handleDevModeCommand', () => {
 
       expect(result.exitCode).toBe(0)
 
-      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const setupStatusPath = path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const content = await readFile(setupStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.devMode).toBe(true)
@@ -286,7 +286,7 @@ describe('handleDevModeCommand', () => {
 
     test('updates existing setup-status.json to local statusline and installed gitignore', async () => {
       // Create an existing setup-status.json with different values
-      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const setupStatusPath = path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME)
       await writeFile(
         setupStatusPath,
         JSON.stringify({
@@ -384,7 +384,7 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(0)
 
       // Check that devMode was set to false in .sidekick/setup-status.json
-      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const setupStatusPath = path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const content = await readFile(setupStatusPath, 'utf-8')
       const status = JSON.parse(content)
       expect(status.devMode).toBe(false)
@@ -415,7 +415,7 @@ describe('handleDevModeCommand', () => {
       stdout.data = ''
 
       // Simulate plugin being detected by setting pluginDetected flag
-      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const setupStatusPath = path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME)
       const status = JSON.parse(await readFile(setupStatusPath, 'utf-8'))
       status.pluginDetected = true
       await writeFile(setupStatusPath, JSON.stringify(status, null, 2))
@@ -584,7 +584,7 @@ describe('handleDevModeCommand', () => {
       stdout.data = ''
 
       // Verify setup-status.json exists
-      const setupStatusPath = path.join(tempDir, '.sidekick', 'setup-status.json')
+      const setupStatusPath = path.join(tempDir, '.sidekick', PROJECT_STATUS_FILENAME)
       await access(setupStatusPath, constants.F_OK) // throws if not exists
 
       // Run clean-all

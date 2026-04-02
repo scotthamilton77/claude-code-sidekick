@@ -49,6 +49,12 @@ export type {
 export type { PluginInstallationStatus, PluginLivenessStatus } from './plugin-detector.js'
 export type { DoctorCheckOptions, DoctorCheckResult, DoctorItemResult, DoctorApiKeyResult } from './doctor-engine.js'
 
+// Filenames for status files (centralized to prevent collision bugs)
+export const USER_STATUS_FILENAME = 'user-setup-status.json'
+export const PROJECT_STATUS_FILENAME = 'setup-status.json'
+/** @deprecated Old user-scope filename — intentionally equals PROJECT_STATUS_FILENAME because that collision was the bug. Kept for migration only. */
+export const LEGACY_USER_STATUS_FILENAME = PROJECT_STATUS_FILENAME
+
 export interface SetupStatusServiceOptions {
   homeDir?: string
   logger?: Logger
@@ -57,7 +63,7 @@ export interface SetupStatusServiceOptions {
 /**
  * SetupStatusService - Manages dual-scope setup status files.
  *
- * User-level: ~/.sidekick/setup-status.json
+ * User-level: ~/.sidekick/user-setup-status.json
  * Project-level: .sidekick/setup-status.json
  *
  * Provides merged getters so consumers don't need to know about scope.
@@ -77,11 +83,16 @@ export class SetupStatusService {
   // === Paths ===
 
   private get userStatusPath(): string {
-    return path.join(this.homeDir, '.sidekick', 'setup-status.json')
+    return path.join(this.homeDir, '.sidekick', USER_STATUS_FILENAME)
+  }
+
+  /** Legacy path for migration: old user-scope file that collided with project-scope */
+  private get legacyUserStatusPath(): string {
+    return path.join(this.homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
   }
 
   private get projectStatusPath(): string {
-    return path.join(this.projectDir, '.sidekick', 'setup-status.json')
+    return path.join(this.projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
   }
 
   // === Feature config ===
@@ -117,10 +128,11 @@ export class SetupStatusService {
       return parsed.data
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return null
+        // New file doesn't exist — try migrating from legacy location
+        return this.migrateFromLegacyUserStatus()
       }
       if (err instanceof SyntaxError) {
-        this.logger?.warn('Corrupt user setup-status.json, treating as missing', {
+        this.logger?.warn(`Corrupt ${USER_STATUS_FILENAME}, treating as missing`, {
           path: this.userStatusPath,
           error: err.message,
         })
@@ -130,7 +142,69 @@ export class SetupStatusService {
     }
   }
 
+  /**
+   * Migration: read user status from the legacy `setup-status.json` location,
+   * write it to the new `user-setup-status.json`, and remove the old file.
+   *
+   * Only migrates if the legacy file contains valid UserSetupStatus data
+   * (not project-format data that may have been written by the collision bug).
+   */
+  private async migrateFromLegacyUserStatus(): Promise<UserSetupStatus | null> {
+    try {
+      const legacyContent = await fs.readFile(this.legacyUserStatusPath, 'utf-8')
+      const parsed = UserSetupStatusSchema.safeParse(JSON.parse(legacyContent))
+      if (!parsed.success) {
+        // Legacy file exists but isn't valid user-format — don't migrate
+        // (could be a project-format file from the collision bug)
+        this.logger?.debug('Legacy user status file exists but is not valid user format, skipping migration', {
+          path: this.legacyUserStatusPath,
+        })
+        return null
+      }
+      // Write to new location and remove legacy file
+      this.logger?.info('Migrating user status from legacy location', {
+        from: this.legacyUserStatusPath,
+        to: this.userStatusPath,
+      })
+      await this.writeUserStatus(parsed.data)
+      try {
+        await fs.unlink(this.legacyUserStatusPath)
+      } catch (unlinkErr) {
+        if ((unlinkErr as NodeJS.ErrnoException).code !== 'ENOENT') {
+          this.logger?.warn('Migrated user status but failed to remove legacy file', {
+            path: this.legacyUserStatusPath,
+            error: unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr),
+          })
+        }
+      }
+      this.logger?.info('Legacy user status migration complete')
+      return parsed.data
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+        // Neither new nor legacy file exists
+        return null
+      }
+      if (err instanceof SyntaxError) {
+        this.logger?.warn(`Corrupt legacy ${LEGACY_USER_STATUS_FILENAME}, treating as missing`, {
+          path: this.legacyUserStatusPath,
+          error: err.message,
+        })
+        return null
+      }
+      throw err
+    }
+  }
+
   async getProjectStatus(): Promise<ProjectSetupStatus | null> {
+    // Guard: skip project-level reads when projectDir IS the home directory.
+    // Symmetric with writeProjectStatus — prevents reading stale/wrong data
+    // from ~/.sidekick/setup-status.json when ~ is the project dir.
+    if (path.resolve(this.projectDir) === path.resolve(this.homeDir)) {
+      this.logger?.debug('Skipping project status read: projectDir is the home directory', {
+        projectDir: this.projectDir,
+      })
+      return null
+    }
     try {
       const content = await fs.readFile(this.projectStatusPath, 'utf-8')
       const parsed = ProjectSetupStatusSchema.safeParse(JSON.parse(content))
@@ -144,7 +218,7 @@ export class SetupStatusService {
         return null
       }
       if (err instanceof SyntaxError) {
-        this.logger?.warn('Corrupt project setup-status.json, treating as missing', {
+        this.logger?.warn(`Corrupt project ${PROJECT_STATUS_FILENAME}, treating as missing`, {
           path: this.projectStatusPath,
           error: err.message,
         })
@@ -164,6 +238,15 @@ export class SetupStatusService {
   }
 
   async writeProjectStatus(status: ProjectSetupStatus): Promise<void> {
+    // Guard: skip project-level writes when projectDir IS the home directory.
+    // In that case project status is meaningless (~ is not a real project),
+    // and writing would collide with / overwrite user-scope data.
+    if (path.resolve(this.projectDir) === path.resolve(this.homeDir)) {
+      this.logger?.warn('Skipping project status write: projectDir is the home directory', {
+        projectDir: this.projectDir,
+      })
+      return
+    }
     const validated = ProjectSetupStatusSchema.parse(status)
     const dir = path.dirname(this.projectStatusPath)
     await fs.mkdir(dir, { recursive: true })

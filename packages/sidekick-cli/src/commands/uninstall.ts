@@ -12,7 +12,15 @@ import { execFile } from 'node:child_process'
 import { Readable } from 'node:stream'
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/types'
-import { DaemonClient, killAllDaemons, removeGitignoreSection, SetupStatusService } from '@sidekick/core'
+import {
+  DaemonClient,
+  killAllDaemons,
+  removeGitignoreSection,
+  SetupStatusService,
+  USER_STATUS_FILENAME,
+  LEGACY_USER_STATUS_FILENAME,
+  PROJECT_STATUS_FILENAME,
+} from '@sidekick/core'
 import type { KillResult } from '@sidekick/core'
 import { promptConfirm } from '../utils/prompt.js'
 import { fileExists, readFileOrNull } from '../utils/fs.js'
@@ -147,15 +155,15 @@ export async function handleUninstallCommand(
     if (devModeActive) {
       actions.push({
         scope: 'project',
-        artifact: 'setup-status.json',
-        path: path.join(projectDir, '.sidekick', 'setup-status.json'),
+        artifact: PROJECT_STATUS_FILENAME,
+        path: path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME),
         action: 'skipped',
       })
     } else {
       await removeFile(
-        path.join(projectDir, '.sidekick', 'setup-status.json'),
+        path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME),
         'project',
-        'setup-status.json',
+        PROJECT_STATUS_FILENAME,
         actions,
         {
           dryRun,
@@ -164,9 +172,18 @@ export async function handleUninstallCommand(
     }
   }
   if (userDetected) {
-    await removeFile(path.join(userHome, '.sidekick', 'setup-status.json'), 'user', 'setup-status.json', actions, {
+    // Remove new user status file
+    await removeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), 'user', USER_STATUS_FILENAME, actions, {
       dryRun,
     })
+    // Also remove legacy user status file if it still exists (pre-migration)
+    await removeFile(
+      path.join(userHome, '.sidekick', LEGACY_USER_STATUS_FILENAME),
+      'user',
+      LEGACY_USER_STATUS_FILENAME,
+      actions,
+      { dryRun }
+    )
     await removeFile(path.join(userHome, '.sidekick', 'features.yaml'), 'user', 'features.yaml', actions, { dryRun })
   }
 
@@ -260,7 +277,7 @@ export async function handleUninstallCommand(
 
 async function detectProjectScope(projectDir: string): Promise<boolean> {
   try {
-    await fs.access(path.join(projectDir, '.sidekick', 'setup-status.json'))
+    await fs.access(path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME))
     return true
   } catch {
     // Also check for sidekick entries in settings.local.json or settings.json
@@ -278,7 +295,15 @@ async function detectProjectScope(projectDir: string): Promise<boolean> {
 
 async function detectUserScope(userHome: string): Promise<boolean> {
   try {
-    await fs.access(path.join(userHome, '.sidekick', 'setup-status.json'))
+    // Check for new filename first, then legacy
+    await fs.access(path.join(userHome, '.sidekick', USER_STATUS_FILENAME))
+    return true
+  } catch {
+    // Fall through to legacy check
+  }
+  try {
+    // Legacy file may exist if migration hasn't run yet
+    await fs.access(path.join(userHome, '.sidekick', LEGACY_USER_STATUS_FILENAME))
     return true
   } catch {
     // Also check for sidekick statusline in settings.json
@@ -360,7 +385,7 @@ async function collectDetectionSummary(
 
     // Config
     if (!devModeActive) {
-      const configFiles = await detectExistingItems(projectDir, ['setup-status.json'])
+      const configFiles = await detectExistingItems(projectDir, [PROJECT_STATUS_FILENAME])
       if (configFiles.length > 0) {
         summary.project.push({ label: 'Config', details: configFiles.join(', ') })
       }
@@ -404,7 +429,11 @@ async function collectDetectionSummary(
     }
 
     // Config
-    const userConfigFiles = await detectExistingItems(userHome, ['setup-status.json', 'features.yaml'])
+    const userConfigFiles = await detectExistingItems(userHome, [
+      USER_STATUS_FILENAME,
+      LEGACY_USER_STATUS_FILENAME,
+      'features.yaml',
+    ])
     if (userConfigFiles.length > 0) {
       summary.user.push({ label: 'Config', details: userConfigFiles.join(', ') })
     }
