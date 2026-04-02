@@ -257,6 +257,19 @@ export function TranscriptLineCard({
             </p>
           )}
 
+          {/* Tool input (collapsible JSON) */}
+          {line.type === 'tool-use' && line.toolInput && (
+            <CollapsibleContent
+              content={JSON.stringify(line.toolInput, null, 2)}
+              previewLines={3}
+              previewChars={300}
+              mono
+              highlight="json"
+              className="text-slate-500 dark:text-slate-400 mt-0.5"
+              label="input"
+            />
+          )}
+
           {/* Thinking-only assistant message — show thinking as primary content */}
           {line.type === 'assistant-message' && !line.content && line.thinking && (
             <div className="pl-3 border-l-2 border-slate-200 dark:border-slate-700 mt-0.5">

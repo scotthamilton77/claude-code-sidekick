@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 interface CollapsibleContentProps {
@@ -9,6 +9,57 @@ interface CollapsibleContentProps {
   mono?: boolean
   label?: string
   defaultExpanded?: boolean
+  highlight?: 'json'
+}
+
+const JSON_TOKEN_RE = /("(?:[^"\\]|\\.)*")(\s*:)?|(true|false|null)|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g
+
+export function highlightJson(text: string): ReactNode {
+  const parts: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = JSON_TOKEN_RE.exec(text)) !== null) {
+    // Push any plain text before this match
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index))
+    }
+
+    if (match[1] != null) {
+      // Quoted string — is it a key (followed by `:`) or a value?
+      if (match[2] != null) {
+        // Key + colon
+        parts.push(
+          <span key={match.index} className="text-cyan-600 dark:text-cyan-400">{match[1]}</span>
+        )
+        parts.push(match[2]) // the colon + whitespace as plain text
+      } else {
+        // String value
+        parts.push(
+          <span key={match.index} className="text-green-600 dark:text-green-400">{match[1]}</span>
+        )
+      }
+    } else if (match[3] != null) {
+      // Boolean or null
+      parts.push(
+        <span key={match.index} className="text-purple-600 dark:text-purple-400">{match[3]}</span>
+      )
+    } else if (match[4] != null) {
+      // Number
+      parts.push(
+        <span key={match.index} className="text-amber-600 dark:text-amber-400">{match[4]}</span>
+      )
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  // Push any remaining text after last match
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex))
+  }
+
+  return parts.length > 0 ? parts : text
 }
 
 function computePreview(content: string, previewLines: number, previewChars: number): { preview: string; totalLines: number; isLong: boolean } {
@@ -36,6 +87,7 @@ export function CollapsibleContent({
   mono = false,
   label,
   defaultExpanded = false,
+  highlight,
 }: CollapsibleContentProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
@@ -44,10 +96,12 @@ export function CollapsibleContent({
     [content, previewLines, previewChars]
   )
 
+  const renderContent = (text: string) => highlight === 'json' ? highlightJson(text) : text
+
   if (!isLong) {
     return (
       <pre className={`text-[10px] leading-relaxed whitespace-pre-wrap ${mono ? 'font-mono' : ''} ${className}`}>
-        {content}
+        {renderContent(content)}
       </pre>
     )
   }
@@ -55,7 +109,7 @@ export function CollapsibleContent({
   return (
     <div>
       <pre className={`text-[10px] leading-relaxed whitespace-pre-wrap ${mono ? 'font-mono' : ''} ${className}`}>
-        {expanded ? content : preview}
+        {renderContent(expanded ? content : preview)}
       </pre>
       <button
         onClick={(e) => {
