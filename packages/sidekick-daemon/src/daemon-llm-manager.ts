@@ -18,6 +18,8 @@ export class LLMProviderManager {
   private instrumentedProviders = new Map<string, InstrumentedLLMProvider>()
   /** In-flight init promises to coalesce concurrent getOrCreate calls for the same session. */
   private inflightInits = new Map<string, Promise<InstrumentedLLMProvider>>()
+  /** Monotonic counter incremented on config change; lets in-flight inits detect staleness. */
+  private configGeneration = 0
 
   private configService: ConfigService
   private readonly stateService: StateService
@@ -63,6 +65,7 @@ export class LLMProviderManager {
     logger?: Logger
   ): Promise<InstrumentedLLMProvider> {
     const log = logger ?? this.logger
+    const gen = this.configGeneration
     const baseProvider = this.getBaseProvider()
     const defaultProfile = this.configService.llm.profiles[this.configService.llm.defaultProfile]
 
@@ -83,6 +86,15 @@ export class LLMProviderManager {
     })
 
     await instrumented.initialize()
+
+    // Config changed while we were awaiting — discard the stale provider
+    if (gen !== this.configGeneration) {
+      void instrumented.shutdown().catch((err: unknown) => {
+        log.error('Failed to shutdown stale in-flight provider', { sessionId, error: err })
+      })
+      throw new Error(`Config changed during provider init for session ${sessionId}`)
+    }
+
     this.instrumentedProviders.set(sessionId, instrumented)
     log.debug('Created instrumented LLM provider', { sessionId })
 
@@ -105,6 +117,17 @@ export class LLMProviderManager {
 
   /** Flushes pending metrics before removing the session's instrumented provider. */
   async shutdownSessionProvider(sessionId: string, logger?: Logger): Promise<void> {
+    // Await any in-flight init before checking cache — otherwise the init
+    // completes after we return and caches a provider that outlives the session.
+    const inflight = this.inflightInits.get(sessionId)
+    if (inflight) {
+      try {
+        await inflight
+      } catch {
+        /* init failed — nothing to shutdown */
+      }
+    }
+
     const provider = this.instrumentedProviders.get(sessionId)
     if (!provider) return
 
@@ -115,14 +138,15 @@ export class LLMProviderManager {
 
   /** Flushes pending metrics for all providers. Continues on per-provider failure. */
   async shutdownAll(): Promise<void> {
-    let firstError: unknown
+    let firstError: Error | undefined
     for (const [sessionId, provider] of this.instrumentedProviders) {
       try {
         await provider.shutdown()
         this.logger.debug('Shutdown instrumented LLM provider', { sessionId })
       } catch (err) {
-        firstError ??= err
-        this.logger.error('Failed to shutdown instrumented LLM provider', { sessionId, error: err })
+        const error = err instanceof Error ? err : new Error(String(err))
+        firstError ??= error
+        this.logger.error('Failed to shutdown instrumented LLM provider', { sessionId, error })
       }
     }
     this.instrumentedProviders.clear()
@@ -138,6 +162,7 @@ export class LLMProviderManager {
   onConfigChange(newConfigService: ConfigService): void {
     const staleProviders = Array.from(this.instrumentedProviders.entries())
 
+    this.configGeneration++
     this.configService = newConfigService
     this.profileProviderFactory = new ProfileProviderFactory(this.configService, this.logger)
     this.llmProvider = null

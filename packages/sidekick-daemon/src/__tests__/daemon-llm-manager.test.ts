@@ -106,8 +106,8 @@ describe('LLMProviderManager', () => {
     mockProfileProviderFactory.createDefault.mockClear()
     mockProfileProviderFactory.createForProfile.mockClear()
     MockInstrumentedLLMProvider.mockClear()
-    mockInstrumentedLLMProvider.initialize.mockClear()
-    mockInstrumentedLLMProvider.shutdown.mockClear()
+    mockInstrumentedLLMProvider.initialize.mockReset().mockResolvedValue(undefined)
+    mockInstrumentedLLMProvider.shutdown.mockReset().mockResolvedValue(undefined)
     MockInstrumentedProfileProviderFactory.mockClear()
   })
 
@@ -288,6 +288,54 @@ describe('LLMProviderManager', () => {
 
       expect(mockInstrumentedLLMProvider.shutdown).not.toHaveBeenCalled()
     })
+
+    it('should await in-flight init and then shutdown the provider', async () => {
+      const manager = new LLMProviderManager(createDeps())
+
+      // Make initialize() hang until we release it
+      let resolveInit!: () => void
+      mockInstrumentedLLMProvider.initialize.mockImplementation(
+        () =>
+          new Promise<void>((r) => {
+            resolveInit = r
+          })
+      )
+
+      // Start init — it will be stuck in inflightInits
+      const initPromise = manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
+
+      // Shutdown while init is in flight — should await the init, then shutdown
+      const shutdownPromise = manager.shutdownSessionProvider('session-1')
+
+      // Release the init
+      resolveInit()
+
+      // Both should complete — init succeeds, then shutdown cleans it up
+      await initPromise
+      await shutdownPromise
+
+      expect(mockInstrumentedLLMProvider.shutdown).toHaveBeenCalledOnce()
+    })
+
+    it('should handle in-flight init failure gracefully during shutdown', async () => {
+      const manager = new LLMProviderManager(createDeps())
+
+      // Make initialize() fail
+      mockInstrumentedLLMProvider.initialize.mockRejectedValue(new Error('init failed'))
+
+      // Start init — it will be stuck in inflightInits until rejection
+      const initPromise = manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
+
+      // Shutdown while init is in flight
+      const shutdownPromise = manager.shutdownSessionProvider('session-1')
+
+      // Init promise rejects, shutdown should handle it gracefully
+      await expect(initPromise).rejects.toThrow('init failed')
+      await shutdownPromise // should NOT throw
+
+      // No provider was cached, so shutdown was never called on it
+      expect(mockInstrumentedLLMProvider.shutdown).not.toHaveBeenCalled()
+    })
   })
 
   // ── shutdownAll ──────────────────────────────────────────────────────
@@ -318,13 +366,28 @@ describe('LLMProviderManager', () => {
       const deps = createDeps()
       const manager = new LLMProviderManager(deps)
 
-      await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
-      mockInstrumentedLLMProvider.shutdown
-        .mockRejectedValueOnce(new Error('shutdown failed'))
-        .mockResolvedValueOnce(undefined)
+      // Create distinct mock providers so two sessions get independent instances
+      const provider1 = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        shutdown: vi.fn().mockRejectedValue(new Error('shutdown failed')),
+      }
+      const provider2 = {
+        initialize: vi.fn().mockResolvedValue(undefined),
+        shutdown: vi.fn().mockResolvedValue(undefined),
+      }
+      MockInstrumentedLLMProvider.mockImplementationOnce(function () {
+        return provider1
+      }).mockImplementationOnce(function () {
+        return provider2
+      })
+
+      await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/s1')
+      await manager.getOrCreateInstrumentedProvider('session-2', '/tmp/s2')
 
       await expect(manager.shutdownAll()).rejects.toThrow('shutdown failed')
-      expect((deps.logger.error as any)).toHaveBeenCalledWith(
+      expect(provider1.shutdown).toHaveBeenCalledOnce()
+      expect(provider2.shutdown).toHaveBeenCalledOnce()
+      expect(deps.logger.error as any).toHaveBeenCalledWith(
         'Failed to shutdown instrumented LLM provider',
         expect.objectContaining({ sessionId: 'session-1' })
       )
@@ -378,6 +441,37 @@ describe('LLMProviderManager', () => {
       // Give the fire-and-forget promise a tick to resolve
       await new Promise((r) => setImmediate(r))
       expect(mockInstrumentedLLMProvider.shutdown).toHaveBeenCalledOnce()
+    })
+
+    it('should discard provider initialized after config change', async () => {
+      const manager = new LLMProviderManager(createDeps())
+
+      // Make initialize() slow enough to interleave with config change
+      let resolveInit!: () => void
+      mockInstrumentedLLMProvider.initialize.mockImplementation(
+        () =>
+          new Promise<void>((r) => {
+            resolveInit = r
+          })
+      )
+
+      // Start init (will be awaiting initialize())
+      const initPromise = manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
+
+      // Config change while init is in flight
+      manager.onConfigChange(createMockConfigService())
+
+      // Complete the init — provider should be discarded, not cached
+      resolveInit()
+
+      // The init should throw because configGeneration changed
+      await expect(initPromise).rejects.toThrow('Config changed during provider init')
+
+      // Next call should create a NEW provider (nothing cached from the stale init)
+      MockInstrumentedLLMProvider.mockClear()
+      mockInstrumentedLLMProvider.initialize.mockResolvedValue(undefined)
+      await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
+      expect(MockInstrumentedLLMProvider).toHaveBeenCalledOnce()
     })
   })
 })
