@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeLogger } from '@sidekick/testing-fixtures'
 import { LLMProviderManager, type LLMManagerDeps } from '../daemon-llm-manager.js'
 
 // ── Hoisted mock constructors ────────────────────────────────────────────
@@ -54,18 +55,6 @@ vi.mock('@sidekick/core', () => ({
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function createMockLogger(): LLMManagerDeps['logger'] {
-  return {
-    trace: vi.fn() as any,
-    debug: vi.fn() as any,
-    info: vi.fn() as any,
-    warn: vi.fn() as any,
-    error: vi.fn() as any,
-    fatal: vi.fn() as any,
-    child: vi.fn().mockReturnThis() as any,
-  } as unknown as LLMManagerDeps['logger']
-}
-
 function createMockConfigService(): LLMManagerDeps['configService'] {
   return {
     llm: {
@@ -104,7 +93,7 @@ function createDeps(overrides?: Partial<LLMManagerDeps>): LLMManagerDeps {
   return {
     configService: createMockConfigService(),
     stateService: createMockStateService(),
-    logger: createMockLogger(),
+    logger: createFakeLogger(),
     ...overrides,
   }
 }
@@ -199,7 +188,7 @@ describe('LLMProviderManager', () => {
 
     it('should use request-scoped logger when provided', async () => {
       const deps = createDeps()
-      const requestLogger = createMockLogger()
+      const requestLogger = createFakeLogger()
       const manager = new LLMProviderManager(deps)
 
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1', requestLogger)
@@ -329,13 +318,7 @@ describe('LLMProviderManager', () => {
       const deps = createDeps()
       const manager = new LLMProviderManager(deps)
 
-      // Create two sessions (mock returns same instance, but map tracks by key)
       await manager.getOrCreateInstrumentedProvider('session-1', '/tmp/sessions/s1')
-      // The second call returns cached — we need a different session
-      MockInstrumentedLLMProvider.mockClear()
-      mockInstrumentedLLMProvider.initialize.mockClear()
-      // Clear the singleton mock so we can track shutdown calls
-      // Since all sessions share the same mock instance, we track via call count
       mockInstrumentedLLMProvider.shutdown
         .mockRejectedValueOnce(new Error('shutdown failed'))
         .mockResolvedValueOnce(undefined)
