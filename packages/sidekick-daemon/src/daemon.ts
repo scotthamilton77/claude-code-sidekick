@@ -1,12 +1,9 @@
 import {
   createAssetResolver,
   createConfigService,
-  createHookableLogger,
   createLogManager,
-  DaemonGlobalLogMetricsDescriptor,
   getDefaultAssetsDir,
   getSocketPath,
-  GlobalStateAccessor,
   HandlerRegistryImpl,
   updateDaemonHealth,
   ProjectRegistryService,
@@ -46,13 +43,10 @@ import type {
   ServiceFactory,
   HookName,
   HookEvent,
-  DaemonStatus,
   DaemonContext,
   RuntimePaths,
   ProfileProviderFactory as ProfileProviderFactoryInterface,
-  LogMetricsState,
 } from '@sidekick/types'
-import { LogMetricsStateSchema } from '@sidekick/types'
 import { ProfileProviderFactory, type LLMProvider } from '@sidekick/shared-providers'
 import { InstrumentedLLMProvider, InstrumentedProfileProviderFactory } from '@sidekick/core'
 import { homedir } from 'os'
@@ -63,11 +57,11 @@ import { ContextMetricsService, createContextMetricsService } from './context-me
 import { registerStandardTaskHandlers } from './task-handlers.js'
 import { TaskRegistry } from './task-registry.js'
 import { TaskEngine } from './task-engine.js'
-import { DaemonStatusDescriptor } from './state-descriptors.js'
 import { stagePersonaTransition } from './persona-transition.js'
 import { VERSION, diffConfigs, resolveTranscriptPath, getPersonaInjectionEnabled } from './daemon-helpers.js'
 import { writePid, writeToken, cleanup, setupErrorHandlers } from './daemon-io.js'
 import { TimerManager } from './daemon-timer-manager.js'
+import { LogMetricsManager } from './daemon-log-metrics.js'
 
 /**
  * Daemon Process Entrypoint
@@ -103,16 +97,9 @@ export class Daemon {
   private contextMetricsService: ContextMetricsService
   /** Reminder orchestrator for cross-reminder coordination rules */
   private orchestrator: ReminderOrchestrator
-  /** Per-session log counters for statusline {logs} indicator */
-  private logCounters = new Map<string, { warnings: number; errors: number }>()
+  private logMetrics: LogMetricsManager
   /** Transient cache for persona handoff across /clear boundaries */
   private lastClearedPersona: { personaId: string; timestamp: number } | null = null
-  /** Global log counters for daemon-level errors (not tied to any session) */
-  private globalLogCounters = { warnings: 0, errors: 0 }
-  /** Typed accessor for daemon status state */
-  private daemonStatusAccessor!: GlobalStateAccessor<DaemonStatus, DaemonStatus>
-  /** Typed accessor for global log metrics state */
-  private globalLogMetricsAccessor!: GlobalStateAccessor<LogMetricsState, LogMetricsState>
   private token: string = ''
   private registryService: ProjectRegistryService
   private timerManager: TimerManager
@@ -172,62 +159,14 @@ export class Daemon {
         console: { enabled: this.configService.core.logging.consoleEnabled },
       },
     })
-    // Wrap logger to count warnings/errors for statusline display
-    // Uses hookable logger pattern to extract sessionId from log metadata
-    this.logger = createHookableLogger(this.logManager.getLogger(), {
-      levels: ['warn', 'error', 'fatal'],
-      hook: (level, msg, meta) => {
-        // Extract sessionId from log metadata context
-        const sessionId =
-          (meta?.context as { sessionId?: string })?.sessionId ?? (meta as { sessionId?: string })?.sessionId
-        if (sessionId) {
-          // Session-specific counter
-          const counters = this.logCounters.get(sessionId)
-          if (counters) {
-            if (level === 'warn') counters.warnings++
-            else counters.errors++ // error and fatal
-          }
-        } else {
-          // Global counter for daemon-level logs without session context
-          if (level === 'warn') this.globalLogCounters.warnings++
-          else this.globalLogCounters.errors++ // error and fatal
-        }
-
-        // Emit structured error:occurred event for error/fatal levels
-        if (level === 'error' || level === 'fatal') {
-          const errorObj = (meta?.error ?? meta?.err) as { message?: string; stack?: string } | undefined
-          const errorMessage = errorObj?.message ?? msg
-          const errorStack = errorObj?.stack
-
-          // Extract context fields accumulated by child loggers
-          const metaContext = (meta?.context ?? {}) as {
-            sessionId?: string
-            correlationId?: string
-            traceId?: string
-            hook?: HookName
-            taskId?: string
-          }
-
-          // Log on the BASE logger to avoid infinite recursion through the hookable wrapper
-          const event = LogEvents.daemonErrorOccurred(
-            {
-              sessionId: sessionId ?? '',
-              correlationId: metaContext.correlationId,
-              traceId: metaContext.traceId,
-              hook: metaContext.hook,
-              taskId: metaContext.taskId,
-            },
-            {
-              errorMessage,
-              errorStack,
-            }
-          )
-          const baseLogger = this.logManager.getLogger()
-          const eventLogger = sessionId ? baseLogger.child({ context: { sessionId } }) : baseLogger
-          logEvent(eventLogger, event)
-        }
-      },
+    // Create log-metrics manager (owns counting logger, log counters, heartbeat writer)
+    this.logMetrics = new LogMetricsManager({
+      logManager: this.logManager,
+      getStateService: () => this.stateService,
+      getTaskEngine: () => this.taskEngine,
+      getStartTime: () => this.timerManager.startTime,
     })
+    this.logger = this.logMetrics.createCountingLogger()
 
     // Initialize Components
     // Pass config getter for hot-reload support - dev mode changes picked up dynamically
@@ -257,10 +196,6 @@ export class Daemon {
     })
     this.taskEngine = new TaskEngine(this.logger, this.getContextForTask.bind(this))
     this.taskRegistry = new TaskRegistry(this.stateService, this.logger)
-
-    // Initialize typed state accessors for daemon-specific state files
-    this.daemonStatusAccessor = new GlobalStateAccessor(this.stateService, DaemonStatusDescriptor)
-    this.globalLogMetricsAccessor = new GlobalStateAccessor(this.stateService, DaemonGlobalLogMetricsDescriptor)
 
     // Initialize Config Watcher for hot-reload (design/DAEMON.md §4.3)
     // In dev mode, also watch source assets directory for immediate feedback
@@ -308,7 +243,7 @@ export class Daemon {
       logger: this.logger,
       projectDir: this.projectDir,
       onIdle: () => this.stop(),
-      onHeartbeat: () => this.writeHeartbeat(),
+      onHeartbeat: () => this.logMetrics.writeHeartbeat(),
     })
 
     // Initialize Context Metrics Service
@@ -524,10 +459,10 @@ export class Daemon {
 
       // Restage persona reminders for active sessions if injection setting changed
       if (oldInjection !== newInjection) {
-        // logCounters tracks sessions that have sent at least one hook event
+        // logMetrics tracks sessions that have sent at least one hook event
         // since daemon startup. Sessions that haven't interacted yet will
         // pick up the new config on their next hook invocation.
-        const activeSessionIds = [...this.logCounters.keys()]
+        const activeSessionIds = this.logMetrics.getActiveSessionIds()
         this.logger.info('Persona injection config changed, restaging reminders', {
           oldValue: oldInjection,
           newValue: newInjection,
@@ -755,10 +690,9 @@ export class Daemon {
     }
 
     // Ensure log counters exist for this session (daemon may have restarted)
-    if (sessionId && !this.logCounters.has(sessionId)) {
-      const existing = await this.loadExistingLogCounts(sessionId)
-      this.logCounters.set(sessionId, existing)
-      requestLogger.debug('Log counters initialized from file for hook', { hook, existing })
+    if (sessionId && !this.logMetrics.hasSession(sessionId)) {
+      await this.logMetrics.initSessionCounters(sessionId, false)
+      requestLogger.debug('Log counters initialized from file for hook', { hook })
     }
 
     // Dispatch to registered handlers
@@ -800,22 +734,15 @@ export class Daemon {
       // Initialize log counters for new/cleared session
       // For startup: load existing counts (daemon might have restarted mid-session)
       // For clear: reset to 0 (user wants a fresh start)
-      if (startType === 'clear') {
-        this.logCounters.set(sessionId, { warnings: 0, errors: 0 })
-        log.debug('Log counters reset for cleared session')
-      } else {
-        const existing = await this.loadExistingLogCounts(sessionId)
-        this.logCounters.set(sessionId, existing)
-        log.debug('Log counters initialized from file for startup', { existing })
-      }
+      await this.logMetrics.initSessionCounters(sessionId, startType === 'clear')
+      log.debug('Log counters initialized for session start', { startType })
 
       log.info('Staging cleared on session start', { startType })
     } else {
       // For resume, load existing counts if not already tracking this session
-      if (!this.logCounters.has(sessionId)) {
-        const existing = await this.loadExistingLogCounts(sessionId)
-        this.logCounters.set(sessionId, existing)
-        log.debug('Log counters loaded from file for resumed session', { existing })
+      if (!this.logMetrics.hasSession(sessionId)) {
+        await this.logMetrics.initSessionCounters(sessionId, false)
+        log.debug('Log counters loaded from file for resumed session')
       }
     }
   }
@@ -878,7 +805,7 @@ export class Daemon {
       }
 
       // Clean up log counters for this session
-      this.logCounters.delete(sessionId)
+      this.logMetrics.deleteSessionCounters(sessionId)
 
       await this.serviceFactory.shutdownSession(sessionId)
       log.info('Session ended')
@@ -1458,118 +1385,21 @@ export class Daemon {
     ;(this.timerManager as any).startTime = v
   }
 
-  /**
-   * Write current daemon status to state file.
-   * Per design/DAEMON.md §4.6: Includes timestamp, pid, uptime, memory, queue stats.
-   */
-  private async writeHeartbeat(): Promise<void> {
-    const memUsage = process.memoryUsage()
-    const taskStatus = this.taskEngine.getStatus()
-
-    const status: DaemonStatus = {
-      timestamp: Date.now(),
-      pid: process.pid,
-      version: VERSION,
-      uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
-      memory: {
-        heapUsed: memUsage.heapUsed,
-        heapTotal: memUsage.heapTotal,
-        rss: memUsage.rss,
-      },
-      queue: {
-        pending: taskStatus.pending,
-        active: taskStatus.active,
-      },
-      activeTasks: taskStatus.activeTasks,
-    }
-
-    try {
-      await this.daemonStatusAccessor.write(status)
-    } catch (err) {
-      // Log but don't crash - heartbeat is non-critical
-      this.logger.warn('Failed to write heartbeat status', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
-
-    // Persist log metrics for each active session
-    await this.persistLogMetrics()
+  // Log-metrics delegation shims — daemon-heartbeat.test.ts type-casts to access these
+  private get logCounters(): Map<string, { warnings: number; errors: number }> {
+    return this.logMetrics.logCounters
   }
 
-  /**
-   * Load existing log counts from daemon-log-metrics.json.
-   * Used to restore counts after daemon restart mid-session.
-   */
-  private async loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
-    const logMetricsPath = this.stateService.sessionStatePath(sessionId, 'daemon-log-metrics.json')
-
-    const defaultMetrics: LogMetricsState = {
-      sessionId,
-      warningCount: 0,
-      errorCount: 0,
-      lastUpdatedAt: 0,
-    }
-
-    const result = await this.stateService.read(logMetricsPath, LogMetricsStateSchema, defaultMetrics)
-    const existing = {
-      warnings: result.data.warningCount,
-      errors: result.data.errorCount,
-    }
-
-    if (result.source !== 'default') {
-      this.logger.debug('Loaded existing daemon log counts', { sessionId, existing })
-    }
-
-    return existing
+  private get globalLogCounters(): { warnings: number; errors: number } {
+    return this.logMetrics.globalLogCounters
   }
 
-  /**
-   * Persist log metrics for all active sessions and global daemon metrics.
-   * Writes daemon-log-metrics.json to each session's state directory,
-   * and daemon-global-log-metrics.json to the daemon state directory.
-   */
-  private async persistLogMetrics(): Promise<void> {
-    const now = Date.now()
+  private writeHeartbeat(): Promise<void> {
+    return this.logMetrics.writeHeartbeat()
+  }
 
-    // Persist per-session log metrics
-    for (const [sessionId, counts] of this.logCounters) {
-      const logMetricsPath = this.stateService.sessionStatePath(sessionId, 'daemon-log-metrics.json')
-
-      const logMetrics: LogMetricsState = {
-        sessionId,
-        warningCount: counts.warnings,
-        errorCount: counts.errors,
-        lastUpdatedAt: now,
-      }
-
-      try {
-        await this.stateService.write(logMetricsPath, logMetrics, LogMetricsStateSchema)
-      } catch (err) {
-        // Log but don't crash - log metrics are non-critical
-        this.logger.warn('Failed to persist log metrics', {
-          sessionId,
-          error: err instanceof Error ? err.message : String(err),
-        })
-      }
-    }
-
-    // Persist global daemon log metrics (for logs without session context)
-    const globalMetrics: LogMetricsState = {
-      warningCount: this.globalLogCounters.warnings,
-      errorCount: this.globalLogCounters.errors,
-      lastUpdatedAt: now,
-    }
-
-    try {
-      await this.globalLogMetricsAccessor.write(globalMetrics)
-    } catch (err) {
-      // Log but don't crash - log metrics are non-critical
-      // Note: This log itself won't cause infinite recursion since the hook
-      // only increments counters, it doesn't trigger persistence
-      this.logger.warn('Failed to persist global log metrics', {
-        error: err instanceof Error ? err.message : String(err),
-      })
-    }
+  private loadExistingLogCounts(sessionId: string): Promise<{ warnings: number; errors: number }> {
+    return this.logMetrics.loadExistingLogCounts(sessionId)
   }
 
   /**
