@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react'
 import { TranscriptLineCard } from '../TranscriptLine'
 import type { TranscriptLine } from '../../../types'
 
@@ -20,6 +20,8 @@ const defaultProps = {
 }
 
 describe('TranscriptLineCard', () => {
+  afterEach(() => cleanup())
+
   describe('compaction rendering', () => {
     it('renders compaction divider with segment number', () => {
       const line = makeLine({ type: 'compaction', compactionSegment: 3 })
@@ -122,7 +124,8 @@ describe('TranscriptLineCard', () => {
       })
       render(<TranscriptLineCard line={line} {...defaultProps} />)
       expect(screen.getByText('Bash')).toBeInTheDocument()
-      expect(screen.getByText(/git status/)).toBeInTheDocument()
+      // "git status" appears in both the header preview and the collapsible JSON body
+      expect(screen.getAllByText(/git status/)).toHaveLength(2)
     })
 
     it('renders tool duration when provided', () => {
@@ -145,6 +148,39 @@ describe('TranscriptLineCard', () => {
       })
       render(<TranscriptLineCard line={line} {...defaultProps} />)
       expect(screen.getByText('sidechain')).toBeInTheDocument()
+    })
+
+    it('renders collapsible input JSON for tool-use with input', () => {
+      const line = makeLine({
+        type: 'tool-use',
+        toolName: 'Bash',
+        toolInput: { command: 'echo hello', description: 'Run echo' },
+      })
+      render(<TranscriptLineCard line={line} {...defaultProps} />)
+      // Should show "Show more input" button since JSON is multi-line
+      expect(screen.getByText(/Show more/)).toBeInTheDocument()
+    })
+
+    it('expands tool input JSON on click', () => {
+      const longCommand = 'x'.repeat(400)
+      const line = makeLine({
+        type: 'tool-use',
+        toolName: 'Bash',
+        toolInput: { command: longCommand, description: 'A very long command' },
+      })
+      render(<TranscriptLineCard line={line} {...defaultProps} />)
+      const expandButton = screen.getByText(/Show more/)
+      fireEvent.click(expandButton)
+      expect(screen.getByText(/Show less/)).toBeInTheDocument()
+    })
+
+    it('does not render collapsible input when toolInput is missing', () => {
+      const line = makeLine({
+        type: 'tool-use',
+        toolName: 'Bash',
+      })
+      render(<TranscriptLineCard line={line} {...defaultProps} />)
+      expect(screen.queryByText(/Show more/)).toBeNull()
     })
   })
 
