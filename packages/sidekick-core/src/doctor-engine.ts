@@ -219,7 +219,7 @@ export async function runDoctorCheck(
       const expectedUserStatus = buildUserApiKeyStatus(detection)
       const currentUserEntry = currentUserStatus.apiKeys[keyName]
 
-      // Normalize current status for comparison (handles old string format and new object format)
+      // User status entries may be legacy string format or new object format
       const currentStatus =
         typeof currentUserEntry === 'object' ? currentUserEntry.status : (currentUserEntry ?? 'missing')
 
@@ -242,9 +242,8 @@ export async function runDoctorCheck(
     }
   }
 
-  // Check if user setup-status file exists
-  const userStatus = await io.getUserStatus()
-  const userSetupExists = userStatus !== null
+  // Check if user setup-status file exists (reuse read from reconciliation block)
+  const userSetupExists = currentUserStatus !== null
 
   // Determine overall health
   // Statusline is healthy if configured anywhere (not 'none')

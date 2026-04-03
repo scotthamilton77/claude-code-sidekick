@@ -287,12 +287,10 @@ describe('doctor-engine', () => {
 
       // The user status file should have been updated
       const updatedUserStatus = await io.getUserStatus()
-      const userApiKey = updatedUserStatus?.apiKeys.OPENROUTER_API_KEY
-      expect(typeof userApiKey).toBe('object')
-      if (typeof userApiKey === 'object') {
-        expect(userApiKey.status).toBe('healthy')
-        expect(userApiKey.used).toBe('user')
-      }
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'healthy',
+        used: 'user',
+      })
       expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
     })
 
@@ -314,11 +312,9 @@ describe('doctor-engine', () => {
 
       // User status should be updated to missing since key is gone
       const updatedUserStatus = await io.getUserStatus()
-      const userApiKey = updatedUserStatus?.apiKeys.OPENROUTER_API_KEY
-      expect(typeof userApiKey).toBe('object')
-      if (typeof userApiKey === 'object') {
-        expect(userApiKey.status).toBe('missing')
-      }
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'missing',
+      })
       expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
     })
 
