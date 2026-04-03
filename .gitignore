@@ -72,6 +72,8 @@ export-state/
 
 # Claude stuff
 scheduled_tasks.lock
+.playwright/
+.playwright-mcp/
 
 # Dist testing backup
 packages/sidekick-dist/*.tgz
@@ -95,3 +97,6 @@ worktrees/
 
 # beads - (added by user)
 dolt*.lock
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key
