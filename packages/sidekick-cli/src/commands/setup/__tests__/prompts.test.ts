@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { PassThrough, Readable } from 'node:stream'
+import { PassThrough } from 'node:stream'
 import type { PromptContext } from '../prompts.js'
 import { printHeader, printStatus, promptSelect, promptConfirm, promptInput } from '../prompts.js'
 
@@ -16,17 +16,27 @@ import { printHeader, printStatus, promptSelect, promptConfirm, promptInput } fr
 
 import { stripAnsi } from '@sidekick/feature-statusline'
 
-function createContext(inputLines: string[] = []): { ctx: PromptContext; getOutput: () => string } {
+function createContext(inputLines: string[] = []): {
+  ctx: PromptContext
+  getOutput: () => string
+  stdin: PassThrough
+} {
   const chunks: Buffer[] = []
   const stdout = new PassThrough()
   stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
 
-  // Create a readable stream from provided lines
-  const input = inputLines.length > 0 ? Readable.from(inputLines.map((l) => l + '\n')) : new PassThrough()
+  const stdin = new PassThrough()
+  if (inputLines.length > 0) {
+    for (const line of inputLines) {
+      stdin.write(line + '\n')
+    }
+    stdin.end()
+  }
 
   return {
-    ctx: { stdin: input as NodeJS.ReadableStream, stdout },
+    ctx: { stdin: stdin as NodeJS.ReadableStream, stdout },
     getOutput: () => Buffer.concat(chunks).toString(),
+    stdin,
   }
 }
 
@@ -164,6 +174,30 @@ describe('promptSelect', () => {
     const result = await promptSelect(ctx, 'Pick:', [{ value: 'only' as const, label: 'Only Option' }])
     expect(result).toBe('only')
   })
+
+  it('returns default option when stdin closes without answer (EOF)', async () => {
+    const { ctx, stdin } = createContext()
+    const promise = promptSelect(ctx, 'Pick one:', [
+      { value: 'a' as const, label: 'Option A' },
+      { value: 'b' as const, label: 'Option B' },
+    ])
+    // Close stdin to simulate EOF
+    stdin.end()
+    expect(await promise).toBe('a')
+  })
+
+  it('handles partial input then EOF without double-resolution', async () => {
+    const { ctx, stdin } = createContext()
+    const promise = promptSelect(ctx, 'Pick:', [
+      { value: 'a' as const, label: 'Option A' },
+      { value: 'b' as const, label: 'Option B' },
+    ])
+    // Write valid selection without newline, then close
+    // readline emits 'line' with buffered data on close, then 'close' fires
+    stdin.write('2')
+    stdin.end()
+    expect(await promise).toBe('b')
+  })
 })
 
 // ============================================================================
@@ -219,14 +253,18 @@ describe('promptConfirm', () => {
   })
 
   it('returns default when stdin closes without answer (EOF)', async () => {
-    // Create a stream that immediately ends
-    const stdin = new PassThrough()
-    const chunks: Buffer[] = []
-    const stdout = new PassThrough()
-    stdout.on('data', (chunk: Buffer) => chunks.push(chunk))
-
-    const promise = promptConfirm({ stdin, stdout }, 'Continue?', true)
+    const { ctx, stdin } = createContext()
+    const promise = promptConfirm(ctx, 'Continue?', true)
     // Close stdin to simulate EOF
+    stdin.end()
+    expect(await promise).toBe(true)
+  })
+
+  it('handles partial input then EOF without double-resolution', async () => {
+    const { ctx, stdin } = createContext()
+    const promise = promptConfirm(ctx, 'Continue?')
+    // Write data without newline, then close
+    stdin.write('y')
     stdin.end()
     expect(await promise).toBe(true)
   })
@@ -253,5 +291,22 @@ describe('promptInput', () => {
     const { ctx, getOutput } = createContext(['answer'])
     await promptInput(ctx, 'What is your name')
     expect(getOutput()).toContain('What is your name')
+  })
+
+  it('returns empty string when stdin closes without answer (EOF)', async () => {
+    const { ctx, stdin } = createContext()
+    const promise = promptInput(ctx, 'Enter API key')
+    // Close stdin to simulate EOF
+    stdin.end()
+    expect(await promise).toBe('')
+  })
+
+  it('handles partial input then EOF without double-resolution', async () => {
+    const { ctx, stdin } = createContext()
+    const promise = promptInput(ctx, 'Enter key')
+    // Write data without newline, then close
+    stdin.write('my-api-key')
+    stdin.end()
+    expect(await promise).toBe('my-api-key')
   })
 })
