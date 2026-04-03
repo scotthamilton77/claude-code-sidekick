@@ -206,6 +206,42 @@ export async function runDoctorCheck(
     }
   }
 
+  // Reconcile user status file independently — the main loop above
+  // updates project status but may skip user status when project is already correct
+  const currentUserStatus = await io.getUserStatus()
+  if (currentUserStatus) {
+    let userNeedsUpdate = false
+    const updatedUserApiKeys = { ...currentUserStatus.apiKeys }
+
+    for (let i = 0; i < keysToCheck.length; i++) {
+      const keyName = keysToCheck[i]
+      const detection = detections[i]
+      const expectedUserStatus = buildUserApiKeyStatus(detection)
+      const currentUserEntry = currentUserStatus.apiKeys[keyName]
+
+      // Normalize current status for comparison (handles old string format and new object format)
+      const currentStatus =
+        typeof currentUserEntry === 'object' ? currentUserEntry.status : (currentUserEntry ?? 'missing')
+
+      // 'not-required' is a user preference (opt-out), not a detection result — preserve it
+      if (
+        currentStatus !== 'not-required' &&
+        toScopeStatus(currentStatus) !== toScopeStatus(expectedUserStatus.status)
+      ) {
+        updatedUserApiKeys[keyName] = expectedUserStatus
+        userNeedsUpdate = true
+      }
+    }
+
+    if (userNeedsUpdate) {
+      await io.updateUserStatus({
+        apiKeys: updatedUserApiKeys,
+        lastUpdatedAt: new Date().toISOString(),
+      })
+      fixes.push('Updated stale user setup-status with current API key status')
+    }
+  }
+
   // Check if user setup-status file exists
   const userStatus = await io.getUserStatus()
   const userSetupExists = userStatus !== null
