@@ -236,7 +236,6 @@ export async function runDoctorCheck(
     if (userNeedsUpdate) {
       await io.updateUserStatus({
         apiKeys: updatedUserApiKeys,
-        lastUpdatedAt: new Date().toISOString(),
       })
       fixes.push('Updated stale user setup-status with current API key status')
     }
