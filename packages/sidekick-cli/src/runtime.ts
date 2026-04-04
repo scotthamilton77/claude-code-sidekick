@@ -206,7 +206,9 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   const telemetry = logManager.getTelemetry()
 
   // Initialize per-session log writer (activated when sessionId is bound)
-  const sessionsDir = projectRoot ? join(projectRoot, '.sidekick', 'sessions') : join(homedir(), '.sidekick', 'sessions')
+  const sessionsDir = projectRoot
+    ? join(projectRoot, '.sidekick', 'sessions')
+    : join(homedir(), '.sidekick', 'sessions')
   const sessionLogWriter = new SessionLogWriter({
     sessionsDir,
     maxHandles: 2, // CLI typically has 1 session
