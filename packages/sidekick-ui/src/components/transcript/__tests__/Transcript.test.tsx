@@ -11,8 +11,8 @@ vi.mock('../TranscriptFilterBar', () => ({ TranscriptFilterBar: () => <div data-
 vi.mock('../LEDColorKey', () => ({ LEDColorKey: () => <div data-testid="led-color-key" /> }))
 vi.mock('../LEDGutter', () => ({ LEDGutter: () => <div data-testid="led-gutter" /> }))
 
-// jsdom doesn't implement scrollIntoView — store mock for cleanup
-const scrollIntoViewMock = vi.fn()
+// jsdom doesn't implement scrollIntoView — store original for restoration
+const originalScrollIntoView = Element.prototype.scrollIntoView
 
 function freshState(overrides: Partial<NavigationState> = {}): NavigationState {
   return {
@@ -47,12 +47,12 @@ function makeToolPair(): TranscriptLine[] {
   ]
 }
 
-function buildTree(state: NavigationState, dispatch: ReturnType<typeof vi.fn>) {
+function buildTree(state: NavigationState, dispatch: ReturnType<typeof vi.fn>, lines?: TranscriptLine[]) {
   const value: NavigationContextValue = { state, dispatch: dispatch as unknown as NavigationContextValue['dispatch'] }
   return (
     <NavigationContext.Provider value={value}>
       <Transcript
-        lines={makeToolPair()}
+        lines={lines ?? makeToolPair()}
         scrollToLineId={null}
       />
     </NavigationContext.Provider>
@@ -65,12 +65,12 @@ function findDispatchCall(dispatch: ReturnType<typeof vi.fn>, type: string) {
   )
 }
 
-function renderTranscript(state: NavigationState, dispatch: ReturnType<typeof vi.fn>) {
-  const result = render(buildTree(state, dispatch))
+function renderTranscript(state: NavigationState, dispatch: ReturnType<typeof vi.fn>, lines?: TranscriptLine[]) {
+  const result = render(buildTree(state, dispatch, lines))
   return {
     ...result,
     dispatch,
-    rerenderWith: (newState: NavigationState) => result.rerender(buildTree(newState, dispatch)),
+    rerenderWith: (newState: NavigationState) => result.rerender(buildTree(newState, dispatch, lines)),
   }
 }
 
@@ -79,12 +79,12 @@ describe('Transcript scrollToIndex via pair navigation', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
-    Element.prototype.scrollIntoView = scrollIntoViewMock as unknown as typeof Element.prototype.scrollIntoView
-    scrollIntoViewMock.mockClear()
+    Element.prototype.scrollIntoView = vi.fn() as unknown as typeof Element.prototype.scrollIntoView
     mockDispatch = vi.fn()
   })
 
   afterEach(() => {
+    Element.prototype.scrollIntoView = originalScrollIntoView
     cleanup()
     vi.useRealTimers()
   })
@@ -141,12 +141,14 @@ describe('Transcript scrollToIndex via pair navigation', () => {
 
   it('reads current expanded value via ref even when memo blocks row re-render (stale closure regression)', () => {
     // 1. Initial render with collapsed panel — rows capture a closure where expanded=false
+    //    Use stable lines reference so memo comparator sees prev.line === next.line
+    const stableLines = makeToolPair()
     const collapsedState = freshState({
       detailPanel: { expanded: false },
       selectedProjectId: 'proj-1',
       selectedSessionId: 'sess-1',
     })
-    const { rerenderWith } = renderTranscript(collapsedState, mockDispatch)
+    const { rerenderWith } = renderTranscript(collapsedState, mockDispatch, stableLines)
 
     // 2. Re-render with expanded panel — memo comparator blocks row re-render
     //    (none of the compared props changed: same lines, same selection, same LED, etc.)

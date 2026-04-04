@@ -149,8 +149,11 @@ export function Transcript({
 }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
   const expandedRef = useRef(state.detailPanel.expanded)
-  expandedRef.current = state.detailPanel.expanded
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  useEffect(() => {
+    expandedRef.current = state.detailPanel.expanded
+  }, [state.detailPanel.expanded])
 
   // Scroll to line when timeline syncs
   useEffect(() => {
