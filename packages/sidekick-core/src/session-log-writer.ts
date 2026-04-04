@@ -10,6 +10,7 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createWriteStream, type WriteStream } from 'node:fs'
+import { isValidPathSegment } from './staging-paths.js'
 
 export interface SessionLogWriterOptions {
   /** Base sessions directory (e.g., .sidekick/sessions) */
@@ -52,6 +53,9 @@ export class SessionLogWriter {
   async write(sessionId: string, logFile: string, line: string): Promise<void> {
     if (!sessionId) return
 
+    // Validate path segments to prevent path traversal (defense-in-depth)
+    if (!isValidPathSegment(sessionId) || !isValidPathSegment(logFile)) return
+
     const key = `${sessionId}/${logFile}`
     let entry = this.handles.get(key)
 
@@ -69,7 +73,12 @@ export class SessionLogWriter {
 
       const ready = new Promise<void>((resolve, reject) => {
         stream.once('open', () => resolve())
-        stream.once('error', (err) => reject(err))
+        stream.once('error', (err) => {
+          // Evict broken handle so next write can retry
+          this.handles.delete(key)
+          stream.destroy()
+          reject(err)
+        })
       })
 
       entry = {
@@ -81,18 +90,22 @@ export class SessionLogWriter {
       this.handles.set(key, entry)
     }
 
-    // Wait for stream to be ready
+    // Wait for stream to be ready (may reject if open failed — handle evicted above)
     await entry.ready
 
     // Update LRU timestamp and reset idle timer
     entry.lastUsed = Date.now()
     this.resetIdleTimer(key, entry)
 
-    // Write the line — callback fires when the data is flushed or an error occurs
+    // Write the line — evict handle on error so next write can retry
     return new Promise<void>((resolve, reject) => {
       entry.stream.write(line, (err) => {
-        if (err) reject(err)
-        else resolve()
+        if (err) {
+          void this.closeHandle(key)
+          reject(err)
+        } else {
+          resolve()
+        }
       })
     })
   }

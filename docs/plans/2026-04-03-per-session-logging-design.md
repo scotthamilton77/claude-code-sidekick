@@ -92,9 +92,10 @@ Timeline API (`packages/sidekick-ui/server/timeline-api.ts`):
 
 ## Error Handling
 
-- If per-session log write fails (disk full, permissions), log a warning to aggregate and continue — do not crash the daemon.
+- If per-session log write fails (disk full, permissions), continue without crashing the daemon. Per-session write errors are silently swallowed — the aggregate log still has the event.
 - If per-session directory doesn't exist at write time, create it.
-- File handle errors trigger handle eviction and lazy re-open on next event.
+- File handle errors (open or write) trigger handle eviction and lazy re-open on the next event.
+- Path traversal in sessionId or logFile is silently rejected (defense-in-depth).
 
 ## Scope Exclusions
 

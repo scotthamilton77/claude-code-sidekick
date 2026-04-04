@@ -94,6 +94,21 @@ describe('SessionLogWriter', () => {
     expect(writer.handleCount).toBe(0)
   })
 
+  it('rejects path traversal in sessionId', async () => {
+    await writer.write('../etc', 'sidekickd.log', '{"traversal":true}\n')
+    expect(writer.handleCount).toBe(0)
+  })
+
+  it('rejects path traversal in logFile', async () => {
+    await writer.write('sess-1', '../../etc/passwd', '{"traversal":true}\n')
+    expect(writer.handleCount).toBe(0)
+  })
+
+  it('rejects sessionId with slashes', async () => {
+    await writer.write('foo/bar', 'sidekickd.log', '{"traversal":true}\n')
+    expect(writer.handleCount).toBe(0)
+  })
+
   it('auto-closes handle after idle timeout', async () => {
     vi.useFakeTimers()
     const shortWriter = new SessionLogWriter({
