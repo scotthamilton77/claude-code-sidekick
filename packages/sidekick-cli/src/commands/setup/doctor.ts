@@ -35,6 +35,7 @@ import {
   getPluginStatusLabel,
   getLivenessIcon,
   getLivenessLabel,
+  isPluginPresent,
 } from './helpers.js'
 
 // ============================================================================
@@ -332,8 +333,7 @@ export async function runDoctor(
           stdout.write(`${pluginIcon} Plugin: ${pluginLabel}\n`)
         }
 
-        const isPluginPresent = status === 'plugin' || status === 'dev-mode' || status === 'both'
-        if (shouldRun('liveness') && isPluginPresent) {
+        if (shouldRun('liveness') && isPluginPresent(status)) {
           logger.info('Starting plugin liveness check')
           liveness = await setupService.detectPluginLiveness()
           const livenessIcon = getLivenessIcon(liveness)
@@ -392,7 +392,7 @@ export async function runDoctor(
 
   // --- Overall summary (only meaningful when running all checks) ---
   if (filter === null) {
-    const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
+    const isPluginOk = isPluginPresent(pluginStatus!)
     const isPluginLive = liveness === null || liveness === 'active'
     // After Promise.all with filter===null, all checks have run and populated these variables.
     // TS can't track mutations inside .then() callbacks, so we assert non-null.

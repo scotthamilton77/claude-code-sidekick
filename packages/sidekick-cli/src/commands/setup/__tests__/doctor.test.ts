@@ -361,6 +361,44 @@ describe('runDoctor', () => {
   })
 
   // --------------------------------------------------------------------------
+  // Plugin + dev-mode coexistence (info, not warning)
+  // --------------------------------------------------------------------------
+
+  describe('when both plugin and dev-mode are present', () => {
+    beforeEach(() => {
+      mockDetectPluginInstallation.mockResolvedValue('both')
+      mockDetectPluginLiveness.mockResolvedValue('active')
+    })
+
+    it('reports coexistence as info, not warning', async () => {
+      const { stdout, getOutput } = createStdout()
+      await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
+      const output = getOutput()
+      const pluginLine = output.split('\n').find((line) => line.includes('Plugin'))
+
+      expect(pluginLine).toBeDefined()
+      // Should use info icon (bullet/info), not warning or success icons
+      expect(pluginLine).toMatch(/•.*Plugin/)
+      expect(pluginLine).toContain('plugin and dev-mode')
+      expect(pluginLine).not.toMatch(/⚠/)
+      expect(pluginLine).not.toMatch(/✓/)
+    })
+
+    it('reports overall health as healthy', async () => {
+      const { stdout, getOutput } = createStdout()
+      const result = await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
+      expect(result.exitCode).toBe(0)
+      expect(getOutput()).toContain('✓ Overall: healthy')
+    })
+
+    it('does not suggest --fix', async () => {
+      const { stdout, getOutput } = createStdout()
+      await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
+      expect(getOutput()).not.toContain('sidekick doctor --fix')
+    })
+  })
+
+  // --------------------------------------------------------------------------
   // Auto-config warning
   // --------------------------------------------------------------------------
 
