@@ -1005,42 +1005,33 @@ describe('parseTranscriptLines', () => {
 
   it('agent_progress with no data field is a no-op', async () => {
     const content = [
-      JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'hi' }] }, timestamp: DEFAULT_TIMESTAMP }),
-      JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: {} }] }, timestamp: DEFAULT_TIMESTAMP }),
-      JSON.stringify({ type: 'agent_progress', timestamp: DEFAULT_TIMESTAMP }), // no data field
+      makeUserEntry('hi'),
+      makeAssistantEntry([{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: {} }]),
+      JSON.stringify({ type: 'agent_progress', timestamp: DEFAULT_TIMESTAMP }),
     ].join('\n')
     setupTranscript(content)
-    const result = await parseTranscriptLines('myproject', 'session-1')
-    // No agentId attached, no error thrown
-    const toolUse = result.find(l => l.type === 'tool-use')
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    const toolUse = lines.find((l) => l.type === 'tool-use')
     expect(toolUse?.agentId).toBeUndefined()
   })
 
   it('clamps out-of-order timestamps to preserve file order', async () => {
-    // Create two entries where the second has a LOWER timestamp than the first.
-    // The clamping pass should raise the second entry's timestamp to match the first.
-    const earlier = '2025-01-15T10:00:02.000Z'
-    const later   = '2025-01-15T10:00:01.000Z' // intentionally out of order
+    // Second entry has a LOWER timestamp than the first — clamping should raise it
+    const t2s = '2025-01-15T10:00:02.000Z'
+    const t1s = '2025-01-15T10:00:01.000Z'
 
     const content = [
-      makeUserEntry('First',  { timestamp: earlier }),
-      makeAssistantEntry([{ type: 'text', text: 'Second' }], { timestamp: later }),
+      makeUserEntry('First', { timestamp: t2s }),
+      makeAssistantEntry([{ type: 'text', text: 'Second' }], { timestamp: t1s }),
     ].join('\n')
-
     setupTranscript(content)
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(2)
-
-    const firstTs  = new Date(earlier).getTime()
-    const secondTs = new Date(later).getTime()
-
-    // The raw second timestamp is earlier than the first — clamping must fix it
-    expect(secondTs).toBeLessThan(firstTs)
-    // After clamping, the second line's timestamp must be >= the first
-    expect(lines[1].timestamp).toBeGreaterThanOrEqual(lines[0].timestamp)
-    // Specifically it should be clamped to equal the first timestamp
-    expect(lines[1].timestamp).toBe(firstTs)
+    // After clamping, the second line's timestamp should equal the first (the higher value)
+    expect(lines[1].timestamp).toBe(lines[0].timestamp)
+    expect(lines[1].timestamp).toBe(new Date(t2s).getTime())
   })
 
   it('extracts tool_result content from array of text blocks', async () => {
@@ -1113,22 +1104,23 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].type).toBe('user-message')
   })
 
-  it('maps reminder:consumed with renderedText to line.content', async () => {
-    setupTranscript(makeUserEntry('Hello'))
-
+  // Helper: set up Sidekick log events for interleaving tests
+  function setupSidekickEvents(events: Record<string, unknown>[]): void {
     mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
-    mockReadLogFile.mockResolvedValue([
+    mockReadLogFile.mockResolvedValue(events)
+  }
+
+  it('maps reminder:consumed with renderedText to line.content', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+    setupSidekickEvents([
       {
         time: new Date('2025-01-15T10:30:01.000Z').getTime(),
         type: 'reminder:consumed',
         context: { sessionId: 'session-1' },
-        payload: {
-          reminderName: 'vc-build',
-          renderedText: 'You MUST run pnpm build before completing.',
-        },
+        payload: { reminderName: 'vc-build', renderedText: 'You MUST run pnpm build before completing.' },
       },
     ])
 
@@ -1140,19 +1132,12 @@ describe('parseTranscriptLines', () => {
 
   it('maps session-summary:finish with session_title to newValue', async () => {
     setupTranscript(makeUserEntry('Hello'))
-
-    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
-      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
-      return Promise.resolve([])
-    })
-    mockReadLogFile.mockResolvedValue([
+    setupSidekickEvents([
       {
         time: new Date('2025-01-15T10:30:01.000Z').getTime(),
         type: 'session-summary:finish',
         context: { sessionId: 'session-1' },
-        payload: {
-          session_title: 'Fix auth bug in login flow',
-        },
+        payload: { session_title: 'Fix auth bug in login flow' },
       },
     ])
 
@@ -1164,14 +1149,8 @@ describe('parseTranscriptLines', () => {
 
   it('deduplicates Sidekick event IDs when two events share the same timestamp+type', async () => {
     setupTranscript(makeUserEntry('Hello'))
-
-    // Return two identical-timestamp/type events to trigger the dedup counter path
     const sharedTime = new Date('2025-01-15T10:30:01.000Z').getTime()
-    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
-      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
-      return Promise.resolve([])
-    })
-    mockReadLogFile.mockResolvedValue([
+    setupSidekickEvents([
       {
         time: sharedTime,
         type: 'reminder:staged',
@@ -1189,7 +1168,6 @@ describe('parseTranscriptLines', () => {
     const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
     const sidekickLines = lines.filter((l) => l.type === 'reminder:staged')
     expect(sidekickLines).toHaveLength(2)
-    // First occurrence keeps the base ID; second gets a -2 suffix
     const ids = sidekickLines.map((l) => l.id)
     const baseId = `sidekick-${sharedTime}-reminder:staged`
     expect(ids).toContain(baseId)
@@ -1252,7 +1230,7 @@ describe('parseSubagentTranscript', () => {
         if (metaContent !== undefined) return Promise.resolve(metaContent)
         return Promise.reject(new Error('ENOENT'))
       }
-      return Promise.reject(new Error(`Unexpected path: ${p as string}`))
+      return Promise.reject(new Error(`Unexpected path: ${p}`))
     })
   }
 
@@ -1272,13 +1250,15 @@ describe('parseSubagentTranscript', () => {
     expect(result!.meta).toEqual({})
   })
 
-  it('reads the correct path derived from projectId/sessionId/agentId', async () => {
-    setupSubagentTranscript(makeUserEntry('Hello'))
+  it('derives .jsonl and .meta.json paths from projectId/sessionId/agentId', async () => {
+    const meta = { agentType: 'subagent' }
+    setupSubagentTranscript(makeUserEntry('Hello'), JSON.stringify(meta))
 
     await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
 
-    const calls = mockReadFile.mock.calls.map((c: unknown[]) => c[0] as string)
-    expect(calls[0]).toBe(JSONL_PATH)
+    const paths = mockReadFile.mock.calls.map((c: unknown[]) => c[0] as string)
+    expect(paths).toContain(JSONL_PATH)
+    expect(paths).toContain(`${SUBAGENT_BASE}/agent-agent42.meta.json`)
   })
 
   it('parses user and assistant entries from the .jsonl file', async () => {
@@ -1326,17 +1306,6 @@ describe('parseSubagentTranscript', () => {
     const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
     expect(result).not.toBeNull()
     expect(result!.meta).toEqual({})
-  })
-
-  it('meta.json path is derived from .jsonl path by replacing extension', async () => {
-    const meta = { agentType: 'subagent' }
-    setupSubagentTranscript(makeUserEntry('Hello'), JSON.stringify(meta))
-
-    await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
-
-    const calls = mockReadFile.mock.calls.map((c: unknown[]) => c[0] as string)
-    const metaCall = calls.find((p) => p.endsWith('.meta.json'))
-    expect(metaCall).toBe(`${SUBAGENT_BASE}/agent-agent42.meta.json`)
   })
 
   it('does not interleave Sidekick events (findLogFiles not called)', async () => {
