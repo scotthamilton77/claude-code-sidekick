@@ -2,7 +2,7 @@
  * Tests for Typed State Accessors.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { z } from 'zod'
 import { MockStateService } from '@sidekick/testing-fixtures'
 import { SessionStateAccessor, GlobalStateAccessor } from '../typed-accessor.js'
@@ -308,5 +308,56 @@ describe('GlobalStateAccessor', () => {
       // Should not throw
       await expect(accessor.delete()).resolves.toBeUndefined()
     })
+  })
+})
+
+// ============================================================================
+// SessionStateAccessor Journal Integration Tests
+// ============================================================================
+
+describe('SessionStateAccessor journal integration', () => {
+  let mockStateService: MockStateService
+  const sessionId = 'test-session-123'
+
+  const mockJournal = {
+    appendIfChanged: vi.fn().mockResolvedValue(undefined),
+    appendDeletion: vi.fn().mockResolvedValue(undefined),
+  }
+
+  beforeEach(() => {
+    mockStateService = new MockStateService('/test/project')
+    mockJournal.appendIfChanged.mockClear()
+    mockJournal.appendDeletion.mockClear()
+  })
+
+  it('calls journal.appendIfChanged after write when journal is provided', async () => {
+    const descriptor = sessionState('session-summary.json', TestDataSchema, null)
+    const accessor = new SessionStateAccessor(mockStateService, descriptor, mockJournal)
+    const data: TestData = { id: 'test', value: 42 }
+
+    await accessor.write(sessionId, data)
+
+    expect(mockJournal.appendIfChanged).toHaveBeenCalledWith(sessionId, 'session-summary', data)
+  })
+
+  it('calls journal.appendDeletion after delete when journal is provided', async () => {
+    const descriptor = sessionState('session-summary.json', TestDataSchema, null)
+    const accessor = new SessionStateAccessor(mockStateService, descriptor, mockJournal)
+
+    await accessor.delete(sessionId)
+
+    expect(mockJournal.appendDeletion).toHaveBeenCalledWith(sessionId, 'session-summary')
+  })
+
+  it('does not call journal when journal is not provided', async () => {
+    const descriptor = sessionState('session-summary.json', TestDataSchema, null)
+    const accessor = new SessionStateAccessor(mockStateService, descriptor) // no journal
+    const data: TestData = { id: 'test', value: 42 }
+
+    await accessor.write(sessionId, data)
+    await accessor.delete(sessionId)
+
+    expect(mockJournal.appendIfChanged).not.toHaveBeenCalled()
+    expect(mockJournal.appendDeletion).not.toHaveBeenCalled()
   })
 })
