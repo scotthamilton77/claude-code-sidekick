@@ -1118,9 +1118,14 @@ describe('SetupStatusService', () => {
         expect(apiKeyStatus.scopes.project).toBe('healthy')
       }
 
-      // User status should remain unchanged
+      // User status: legacy string 'missing' gets migrated to object format
+      // (key is only in project .env, so user-level detection is still 'missing')
       const userStatus = await service.getUserStatus()
-      expect(userStatus?.apiKeys.OPENROUTER_API_KEY).toBe('missing')
+      expect(userStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'missing',
+        used: null,
+        scopes: { user: 'missing', env: 'missing' },
+      })
     })
 
     it('updates user cache when API key found in user .env', async () => {
