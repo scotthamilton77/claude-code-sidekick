@@ -37,6 +37,7 @@ import {
   setupGlobalErrorHandlers,
   StateService,
   type LogLevel,
+  toErrorMessage,
   type ProjectRootInput,
 } from '@sidekick/core'
 import { LogMetricsStateSchema, type MinimalStateService } from '@sidekick/types'
@@ -129,7 +130,7 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     })
   } catch (err) {
     loggerFacade.error('Failed to load configuration', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     throw err
   }

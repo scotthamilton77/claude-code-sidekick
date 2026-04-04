@@ -26,6 +26,7 @@ import {
   configSet,
   configGet,
   configUnset,
+  toErrorMessage,
 } from '@sidekick/core'
 import type { AssetResolver } from '@sidekick/core'
 import type { PersonaDefinition } from '@sidekick/types'
@@ -222,7 +223,7 @@ async function handlePersonaSet(
 
     return writeJsonResponse(stdout, { success: true, personaId, previousPersonaId }, 0)
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    const errorMsg = toErrorMessage(err)
     logger.error('Failed to set persona', { error: errorMsg })
     return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }
@@ -268,7 +269,7 @@ async function handlePersonaClear(
 
     return writeJsonResponse(stdout, { success: true, personaId: null, previousPersonaId }, 0)
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    const errorMsg = toErrorMessage(err)
     logger.error('Failed to clear persona', { error: errorMsg })
     return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }
@@ -348,7 +349,7 @@ async function handlePersonaTest(
       return writeJsonResponse(stdout, { error: `Failed to read generated file: ${statePath}` }, 1)
     }
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    const errorMsg = toErrorMessage(err)
     logger.error('Persona test failed', { error: errorMsg })
     return writeJsonResponse(stdout, { error: errorMsg }, 1)
   } finally {
@@ -398,7 +399,7 @@ function handlePersonaPin(
       0
     )
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    const errorMsg = toErrorMessage(err)
     logger.error('Failed to pin persona', { error: errorMsg })
     return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }
@@ -444,7 +445,7 @@ function handlePersonaUnpin(
       0
     )
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    const errorMsg = toErrorMessage(err)
     logger.error('Failed to unpin persona', { error: errorMsg })
     return writeJsonResponse(stdout, { success: false, error: errorMsg }, 1)
   }

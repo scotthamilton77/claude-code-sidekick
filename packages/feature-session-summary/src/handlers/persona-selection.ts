@@ -7,7 +7,7 @@
  * @see docs/design/PERSONA-PROFILES-DESIGN.md - Selection Algorithm
  */
 
-import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents, toErrorMessage } from '@sidekick/core'
 import type { DaemonContext, SessionPersonaState, PersonaDefinition } from '@sidekick/types'
 import { createSessionSummaryState } from '../state.js'
 import type { SessionSummaryConfig } from '../types.js'
@@ -320,7 +320,7 @@ export async function ensurePersonaForSession(sessionId: string, ctx: DaemonCont
   } catch (err) {
     ctx.logger.warn('Failed to ensure persona for session', {
       sessionId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
   }
 }

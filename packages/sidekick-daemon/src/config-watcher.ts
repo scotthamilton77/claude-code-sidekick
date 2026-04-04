@@ -25,7 +25,7 @@
  * @see docs/design/CONFIG-SYSTEM.md
  */
 
-import { Logger } from '@sidekick/core'
+import { Logger, toErrorMessage } from '@sidekick/core'
 import { watch, type FSWatcher } from 'chokidar'
 import { homedir } from 'os'
 import path from 'path'
@@ -231,7 +231,7 @@ export class ConfigWatcher {
       } catch (err) {
         this.logger.error('Error in config change handler', {
           file: filename,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }, this.debounceMs)

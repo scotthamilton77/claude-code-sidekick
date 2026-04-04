@@ -13,7 +13,7 @@
  * @see docs/plans/2026-01-18-reminder-orchestrator-design.md
  */
 
-import { logEvent } from '@sidekick/core'
+import { logEvent, toErrorMessage } from '@sidekick/core'
 import type {
   Logger,
   MinimalStateService,
@@ -102,7 +102,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       } catch (err) {
         this.deps.logger.warn('Failed to unstage VC reminders after P&R staged', {
           sessionId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }
@@ -128,7 +128,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       } catch (err) {
         this.deps.logger.warn('Failed to reset P&R baseline after VC consumed', {
           sessionId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
 
@@ -154,7 +154,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       } catch (err) {
         this.deps.logger.warn('Failed to unstage P&R after VC consumed', {
           sessionId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }
@@ -175,7 +175,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
     } catch (err) {
       this.deps.logger.warn('Failed to clear P&R baseline on UserPromptSubmit', {
         sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
 

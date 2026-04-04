@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process'
 import type { Logger } from '@sidekick/types'
 import type { StatuslineStatus } from '@sidekick/types'
 import { DOCTOR_TIMEOUTS, getDoctorTimeout } from './api-key-detector.js'
+import { toErrorMessage } from './error-utils.js'
 
 /**
  * Plugin installation status for doctor display.
@@ -248,7 +249,7 @@ async function detectPluginFromCLI(
     return result
   } catch (err) {
     logger?.warn('Failed to parse plugin list JSON', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     logger?.info('Plugin detection completed', { result: 'error' })
     return 'error'

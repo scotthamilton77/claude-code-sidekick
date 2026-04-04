@@ -10,7 +10,7 @@
  */
 
 import type { RuntimeContext } from '@sidekick/core'
-import { logEvent } from '@sidekick/core'
+import { logEvent, toErrorMessage } from '@sidekick/core'
 import { ReminderEvents } from '../../events.js'
 import type {
   DaemonContext,
@@ -226,7 +226,7 @@ export async function stageToolsForFiles(
           toolName,
           reminderId,
           sessionId,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         })
       }
     }

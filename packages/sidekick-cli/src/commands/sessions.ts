@@ -11,7 +11,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import type { Writable } from 'node:stream'
 import type { Logger } from '@sidekick/core'
-import { StateService } from '@sidekick/core'
+import { StateService, toErrorMessage } from '@sidekick/core'
 import type { SessionSummaryState, SessionPersonaState } from '@sidekick/types'
 import { renderTable, renderEmptyTable } from './table.js'
 
@@ -200,7 +200,7 @@ export async function handleSessionsCommand(
     logger.info('Listed sessions', { count: sessions.length })
     return { exitCode: 0, output: JSON.stringify({ count: sessions.length }) }
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
+    const errorMsg = toErrorMessage(err)
     logger.error('Failed to list sessions', { error: errorMsg })
     stdout.write(JSON.stringify({ error: errorMsg }, null, 2) + '\n')
     return { exitCode: 1, output: errorMsg }

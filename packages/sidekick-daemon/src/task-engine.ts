@@ -1,4 +1,4 @@
-import { Logger } from '@sidekick/core'
+import { Logger, toErrorMessage } from '@sidekick/core'
 import type { DaemonContext, TaskContext } from '@sidekick/types'
 import crypto from 'crypto'
 
@@ -204,7 +204,7 @@ export class TaskEngine {
         this.logger.error('Task failed', {
           type: task.type,
           id: task.id,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
           stack: err instanceof Error ? err.stack : undefined,
           durationMs,
         })

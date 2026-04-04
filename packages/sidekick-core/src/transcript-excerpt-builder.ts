@@ -9,6 +9,7 @@
 
 import { isExcludedBuiltinCommand, type BufferedEntry } from './transcript-helpers.js'
 import type { ExcerptOptions, TranscriptExcerpt, Logger } from '@sidekick/types'
+import { toErrorMessage } from './error-utils.js'
 
 // ============================================================================
 // Excerpt Options (filter configuration)
@@ -142,7 +143,7 @@ export function buildExcerpt(
     }
   } catch (err) {
     logger.error('Failed to extract transcript excerpt from buffer', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     return {
       content: '',

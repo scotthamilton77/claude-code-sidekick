@@ -13,6 +13,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import YAML from 'yaml'
 import type { AssetResolver } from './assets'
+import { toErrorMessage } from './error-utils.js'
 import type { Logger } from '@sidekick/types'
 import {
   coerceValue,
@@ -326,7 +327,7 @@ export function configSet(dotPath: string, rawValue: string, options: ConfigSetO
       }
     }
 
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toErrorMessage(err)
     throw new Error(`Configuration validation failed after setting "${dotPath}": ${message}`, { cause: err })
   }
 

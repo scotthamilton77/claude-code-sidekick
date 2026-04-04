@@ -10,7 +10,7 @@ import {
   EVICTION_INTERVAL_MS,
   REGISTRY_HEARTBEAT_INTERVAL_MS,
 } from './daemon-helpers.js'
-import { LogEvents, logEvent } from '@sidekick/core'
+import { LogEvents, logEvent, toErrorMessage } from '@sidekick/core'
 
 export interface TimerManagerDeps {
   configService: ConfigService
@@ -104,7 +104,7 @@ export class TimerManager {
       this.deps.logger.info('Project registered for UI discovery', { projectDir: this.deps.projectDir })
     } catch (err) {
       this.deps.logger.warn('Failed to register project', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }

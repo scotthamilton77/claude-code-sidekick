@@ -42,8 +42,10 @@ const {
   mockConfigUnset: vi.fn(),
 }))
 
-vi.mock('@sidekick/core', () => {
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
   return {
+    toErrorMessage: actual.toErrorMessage,
     DaemonClient: vi.fn().mockImplementation(function () {
       return { start: mockDaemonStart }
     }),

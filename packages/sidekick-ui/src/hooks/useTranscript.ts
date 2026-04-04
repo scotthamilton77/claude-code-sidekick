@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toErrorMessage } from '../utils/toErrorMessage'
 import type { TranscriptLine } from '../types'
 
 export interface UseTranscriptResult {
@@ -42,7 +43,7 @@ export function useTranscript(
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err))
+          setError(toErrorMessage(err))
           setLines([])
           setLoading(false)
         }

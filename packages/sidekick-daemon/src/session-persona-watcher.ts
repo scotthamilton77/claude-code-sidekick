@@ -12,7 +12,7 @@
  * @see docs/design/DAEMON.md
  */
 
-import { Logger } from '@sidekick/core'
+import { Logger, toErrorMessage } from '@sidekick/core'
 import { watch, type FSWatcher } from 'chokidar'
 import path from 'path'
 
@@ -204,7 +204,7 @@ export class SessionPersonaWatcher {
       } catch (err) {
         this.logger.error('Error in persona change handler', {
           sessionId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }, this.debounceMs)

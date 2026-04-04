@@ -24,6 +24,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { parse as parseYaml } from 'yaml'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { toErrorMessage } from './error-utils.js'
 
 // =============================================================================
 // Cascading Resolver (Generic)
@@ -145,10 +146,7 @@ export function createCascadingResolver(options: CascadingResolverOptions): Casc
       try {
         return parseYaml(content) as T
       } catch (error) {
-        throw new Error(
-          `Failed to parse YAML file ${relativePath}: ${error instanceof Error ? error.message : String(error)}`,
-          { cause: error }
-        )
+        throw new Error(`Failed to parse YAML file ${relativePath}: ${toErrorMessage(error)}`, { cause: error })
       }
     },
 

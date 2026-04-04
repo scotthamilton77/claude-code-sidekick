@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { UserProfileSchema, type UserProfile } from '@sidekick/types'
 import type { Logger } from '@sidekick/types'
+import { toErrorMessage } from './error-utils.js'
 
 export interface LoadUserProfileOptions {
   /** Override home directory (for testing) */
@@ -47,7 +48,7 @@ export function loadUserProfile(options?: LoadUserProfileOptions): UserProfile |
   } catch (err) {
     options?.logger?.warn('Failed to read user profile', {
       path: filePath,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     return null
   }

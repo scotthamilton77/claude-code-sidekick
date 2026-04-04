@@ -44,7 +44,7 @@ Example: { "command": "pnpm sidekick daemon status", "dangerouslyDisableSandbox"
 `
 import { LogMetricsStateSchema } from '@sidekick/types'
 import type { Logger } from '@sidekick/core'
-import { isInSandbox } from '@sidekick/core'
+import { isInSandbox, toErrorMessage } from '@sidekick/core'
 import { bootstrapRuntime, type RuntimeShell } from './runtime'
 
 interface ParsedArgs {
@@ -687,7 +687,7 @@ async function persistCliLogMetrics(
     // Non-critical - log and continue
     logger.warn('Failed to persist CLI log metrics', {
       sessionId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
   }
 }

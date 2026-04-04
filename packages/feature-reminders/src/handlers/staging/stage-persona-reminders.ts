@@ -10,7 +10,7 @@
  * @see docs/plans/2026-02-16-persona-injection.md
  */
 import type { RuntimeContext } from '@sidekick/core'
-import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents } from '@sidekick/core'
+import { createPersonaLoader, getDefaultPersonasDir, logEvent, LogEvents, toErrorMessage } from '@sidekick/core'
 import { ReminderEvents } from '../../events.js'
 import type { DaemonContext, HookName, Logger, PersonaDefinition, SidekickEvent, HandlerContext } from '@sidekick/types'
 import {
@@ -43,7 +43,7 @@ export async function restagePersonaRemindersForActiveSessions(
     } catch (err) {
       logger.error('Failed to restage persona reminders', {
         sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }

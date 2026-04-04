@@ -21,6 +21,7 @@ import {
 } from './ipc/transport.js'
 import { Logger } from './logger.js'
 import { isInSandbox } from './sandbox.js'
+import { toErrorMessage } from './error-utils.js'
 
 /**
  * Lockfile timeout and retry settings for daemon startup serialization.
@@ -52,13 +53,6 @@ interface HandshakeResponse {
 // Read version from root package.json (single source of truth for monorepo)
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
 const CLIENT_VERSION: string = require('../../../package.json').version
-
-/**
- * Extract a human-readable message from an unknown error value.
- */
-function toErrorMsg(err: unknown): string {
-  return err instanceof Error ? err.message : String(err)
-}
 
 export class DaemonClient {
   private projectDir: string
@@ -559,7 +553,7 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
         } catch (err) {
           logger.debug('Graceful stop failed, falling back to SIGKILL', {
             pid: info.pid,
-            error: toErrorMsg(err),
+            error: toErrorMessage(err),
           })
         }
       }
@@ -570,7 +564,7 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
         logger.info('Killed daemon', { pid: info.pid, projectDir: info.projectDir })
         results.push({ projectDir: info.projectDir, pid: info.pid, killed: true })
       } catch (err) {
-        const msg = toErrorMsg(err)
+        const msg = toErrorMessage(err)
         logger.warn('Failed to kill daemon', { pid: info.pid, error: msg })
         results.push({ projectDir: info.projectDir, pid: info.pid, killed: false, error: msg })
       }
@@ -585,7 +579,7 @@ export async function killAllDaemons(logger: Logger, options: KillAllOptions = {
       }
     } catch (err) {
       // Invalid JSON or read error - clean up the bad file
-      logger.warn('Invalid PID file, removing', { pidFile, error: toErrorMsg(err) })
+      logger.warn('Invalid PID file, removing', { pidFile, error: toErrorMessage(err) })
       await fs.unlink(pidPath).catch(() => {})
     }
   }
@@ -618,7 +612,7 @@ export async function findZombieDaemons(logger: Logger): Promise<ZombieProcess[]
     })
   } catch (err) {
     logger.warn('Failed to run ps — cannot detect zombie daemons', {
-      error: toErrorMsg(err),
+      error: toErrorMessage(err),
     })
     return []
   }
@@ -712,7 +706,7 @@ export async function killZombieDaemons(logger: Logger, knownZombies?: ZombiePro
       logger.info('Killed zombie daemon', { pid: zombie.pid, command: zombie.command })
       results.push({ projectDir: 'unknown', pid: zombie.pid, killed: true })
     } catch (err) {
-      const msg = toErrorMsg(err)
+      const msg = toErrorMessage(err)
       logger.warn('Failed to kill zombie daemon', { pid: zombie.pid, error: msg })
       results.push({ projectDir: 'unknown', pid: zombie.pid, killed: false, error: msg })
     }

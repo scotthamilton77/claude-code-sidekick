@@ -12,7 +12,7 @@
 
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { SessionStateAccessor, type StateService } from '@sidekick/core'
+import { SessionStateAccessor, toErrorMessage, type StateService } from '@sidekick/core'
 import { ResumeMessageDescriptor } from '@sidekick/feature-session-summary'
 import type { Logger } from '@sidekick/types'
 
@@ -113,7 +113,7 @@ export async function discoverPreviousResumeMessage(
     // Unexpected errors: log as warn to aid debugging without crashing the statusline
     config.logger?.warn('Failed to discover previous resume message', {
       sessionsDir: config.sessionsDir,
-      error: error instanceof Error ? error.message : String(error),
+      error: toErrorMessage(error),
     })
     return NOT_FOUND
   }
