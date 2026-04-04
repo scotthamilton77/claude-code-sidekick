@@ -64,25 +64,27 @@ useStateSnapshots hook (frontend) ──► StateTab component (already built)
 ### Change Detection
 
 - Maintain an in-memory `Map<string, string>` of `file` to last-written JSON string (per session)
-- Before appending, `JSON.stringify(newData)` and compare against last entry for that file key
+- Before appending, `JSON.stringify(newData)` (no pretty-printing — single-line output required for NDJSON integrity) and compare against last entry for that file key
 - Skip write if identical
-- On service startup, prime the map by reading the last entry per file from the existing journal (or start empty)
+- The map is daemon-scoped and created lazily for the active session only — not preloaded for all historical sessions
+- On first write to a session's journal, prime the map by reading the last entry per file from the existing journal (or start empty)
 
 ### Integration Point
 
-Hook into the existing state persistence path. After a state file is written to disk, call the journal appender. The journal appender is a thin function — `appendIfChanged(sessionId, fileKey, data)` — that handles dedup and append.
+Hook into `StateService.write()` itself. After the atomic rename (`rename(tmpPath, path)`) succeeds, check whether the target path falls under a session state directory and call the journal appender. This captures ALL writes regardless of caller (there are 6+ write sites across 4 packages), avoids instrumenting each one individually, and respects the Single Writer principle — only the daemon calls `StateService.write()` for session state.
 
-The specific integration point depends on whether state writes go through `StateService.write()` or are scattered across individual handlers. The implementation plan should trace the exact write sites.
+The journal appender is a thin function — `appendIfChanged(sessionId, fileKey, data)` — that handles dedup and append.
 
 ### Write Safety
 
 - Use `appendFile` (not write-then-rename) since we're appending a single line
+- This is safe because the daemon is the single writer — no concurrent `appendFile` calls from other processes
 - Newline-terminate each entry to handle crash recovery (partial last line is discarded on read)
 
 ## Layer 2: State Snapshots API
 
 **Package**: `sidekick-ui`
-**New files**: `server/state-api.ts`, `server/handlers/state.ts`
+**New files**: `server/state-snapshots-api.ts`, `server/handlers/state-snapshots.ts`
 
 ### Endpoint
 
@@ -116,11 +118,13 @@ interface StateSnapshot {
 ### Reconstruction Algorithm
 
 1. Read `state-history.jsonl` from `.sidekick/sessions/{sessionId}/`
-2. Parse entries, discard malformed lines
+2. Parse entries, discard malformed lines (including partial last line from crash recovery)
 3. Sort by `ts` ascending
 4. Walk entries chronologically, maintaining a cumulative accumulator (`Map<string, object>`)
-5. At each timestamp where state changed, emit a `StateSnapshot` with all accumulated values
+5. At each timestamp where state changed, emit a `StateSnapshot` with all accumulated values. Entries sharing the same `ts` value are collapsed into a single snapshot.
 6. Map `file` keys to `StateSnapshot` property names (e.g., `session-summary` to `sessionSummary`)
+
+**Response size**: No pagination. Worst case is ~100 state changes at <2KB each = ~200KB JSON. Acceptable for session-scoped data. Revisit if sessions grow significantly larger.
 
 ### File Key to Property Name Mapping
 
@@ -134,7 +138,7 @@ interface StateSnapshot {
 | `llm-metrics` | `llmMetrics` |
 | `summary-countdown` | `summaryCountdown` |
 
-Unknown file keys are included using their camelCase conversion — this allows future state files to appear in the State tab without code changes.
+Adding new state files requires updating both the `StateSnapshot` interface in `types.ts` and the `STATE_FILE_LABELS` map in `StateTab.tsx`.
 
 ### Fallback for Pre-Existing Sessions
 
@@ -187,8 +191,8 @@ Pass `stateSnapshots` to `DetailPanel` instead of `selectedSession.stateSnapshot
 
 | Package | Modified | Created |
 |---|---|---|
-| `sidekick-core` | State write path (TBD in implementation plan) | `src/state/state-journal.ts` |
-| `sidekick-ui/server` | `router.ts` (add route) | `state-api.ts`, `handlers/state.ts` |
+| `sidekick-core` | `src/state/state-service.ts` (add journal hook in `write()`) | `src/state/state-journal.ts` |
+| `sidekick-ui/server` | `router.ts` (add route) | `state-snapshots-api.ts`, `handlers/state-snapshots.ts` |
 | `sidekick-ui/src` | `App.tsx` (wire hook) | `hooks/useStateSnapshots.ts` |
 
 ## Testing Strategy
