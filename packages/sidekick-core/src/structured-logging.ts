@@ -48,6 +48,9 @@ import type { Logger, Telemetry, LogLevel, LogSource } from '@sidekick/types'
 // Re-export event factories and logEvent from log-events.ts for backward compatibility
 export { LogEvents, logEvent, type EventLogContext } from './log-events'
 
+// Re-export SessionLogWriter for per-session log file management
+export { SessionLogWriter, type SessionLogWriterOptions } from './session-log-writer'
+
 export const LOG_LEVELS = {
   trace: 10,
   debug: 20,
