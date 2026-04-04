@@ -216,12 +216,15 @@ export function Transcript({
         const el = lineRefs.current.get(targetLine.id)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          if (state.detailPanel.expanded) {
+            dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: targetLine.id })
+          }
           dispatch({ type: 'SYNC_TO_TIMELINE_EVENT', lineId: targetLine.id })
           setTimeout(() => dispatch({ type: 'CLEAR_SYNC' }), 1500)
         }
       }
     },
-    [filteredLines, dispatch]
+    [filteredLines, dispatch, state.detailPanel.expanded]
   )
 
   return (
