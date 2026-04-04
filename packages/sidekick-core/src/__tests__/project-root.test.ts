@@ -8,7 +8,6 @@ describe('resolveProjectRoot', () => {
   })
 
   it('returns { projectRoot: undefined } when projectDir is empty string', () => {
-    // Empty string is falsy — treated the same as omitted
     expect(resolveProjectRoot({ projectDir: '' })).toEqual({ projectRoot: undefined })
   })
 
@@ -19,8 +18,8 @@ describe('resolveProjectRoot', () => {
   })
 
   it('returns an absolute resolved path when projectDir is a relative path', () => {
-    const relPath = './foo/bar'
-    const result = resolveProjectRoot({ projectDir: relPath })
-    expect(result.projectRoot).toBe(path.resolve(relPath))
+    expect(resolveProjectRoot({ projectDir: './foo/bar' })).toEqual({
+      projectRoot: path.resolve('./foo/bar'),
+    })
   })
 })
