@@ -9,6 +9,7 @@
  * - status: Show current dev-mode state
  * - clean: Truncate logs, kill daemon, clean state folders
  * - clean-all: Full cleanup including sessions and stale sockets
+ * - clean-all-projects: Clean all registered projects in ~/.sidekick/projects/
  */
 import { readFile, writeFile, mkdir, readdir, stat, unlink, rm, truncate, cp } from 'node:fs/promises'
 import { constants } from 'node:fs'
@@ -26,6 +27,7 @@ import {
   findZombieDaemons,
   killZombieDaemons,
   PROJECT_STATUS_FILENAME,
+  ProjectRegistryService,
 } from '@sidekick/core'
 import { fileExists } from '../utils/fs.js'
 import { promptConfirm } from '../utils/prompt.js'
@@ -655,14 +657,77 @@ async function doCleanAll(
   return { exitCode: 0 }
 }
 
+/**
+ * Clean all registered projects in ~/.sidekick/projects/.
+ *
+ * Iterates over the project registry, prompting for confirmation per project
+ * unless --force is passed. For each confirmed project, runs the same clean
+ * operation that `doClean` performs.
+ */
+async function doCleanAllProjects(
+  logger: Logger,
+  stdout: NodeJS.WritableStream,
+  options: DevModeOptions = {}
+): Promise<DevModeCommandResult> {
+  const { force = false, stdin = process.stdin } = options
+
+  const registryRoot = path.join(os.homedir(), '.sidekick', 'projects')
+  const registry = new ProjectRegistryService(registryRoot)
+  const projects = await registry.list()
+
+  if (projects.length === 0) {
+    log(stdout, 'info', 'No registered projects found in ~/.sidekick/projects/')
+    return { exitCode: 0 }
+  }
+
+  log(stdout, 'step', `Found ${projects.length} registered project(s):`)
+  for (const project of projects) {
+    stdout.write(`  - ${project.displayName} (${project.path})\n`)
+  }
+  stdout.write('\n')
+
+  let cleanedCount = 0
+  let skippedCount = 0
+
+  for (const project of projects) {
+    // Check if the project directory still exists
+    if (!(await fileExists(project.path))) {
+      log(stdout, 'warn', `${project.displayName}: directory not found at ${project.path}, skipping`)
+      skippedCount++
+      continue
+    }
+
+    // Prompt for confirmation unless --force
+    if (!force) {
+      const shouldClean = await promptConfirm({ stdin, stdout }, `Clean ${project.displayName} (${project.path})?`)
+      if (!shouldClean) {
+        log(stdout, 'info', `Skipping ${project.displayName}`)
+        skippedCount++
+        continue
+      }
+    }
+
+    stdout.write('\n')
+    log(stdout, 'step', `Cleaning ${project.displayName}...`)
+    await doClean(project.path, logger, stdout, { force: true })
+    cleanedCount++
+  }
+
+  stdout.write('\n')
+  log(stdout, 'info', `Clean-all-projects complete: cleaned ${cleanedCount} project(s), skipped ${skippedCount}.`)
+
+  return { exitCode: 0 }
+}
+
 const USAGE_TEXT = `Usage: sidekick dev-mode <command> [options]
 
 Commands:
-  enable     Add dev-sidekick to .claude/settings.local.json
-  disable    Remove dev-sidekick from settings.local.json
-  status     Show current dev-mode state
-  clean      Truncate logs, kill daemon, clean state folders
-  clean-all  Full cleanup: clean + remove logs/sessions/state dirs
+  enable              Add dev-sidekick to .claude/settings.local.json
+  disable             Remove dev-sidekick from settings.local.json
+  status              Show current dev-mode state
+  clean               Truncate logs, kill daemon, clean state folders
+  clean-all           Full cleanup: clean + remove logs/sessions/state dirs
+  clean-all-projects  Clean all registered projects in ~/.sidekick/projects/
 
 Options:
   --force    Skip confirmation prompts for destructive operations
@@ -689,6 +754,8 @@ export async function handleDevModeCommand(
       return doClean(projectDir, logger, stdout, options)
     case 'clean-all':
       return doCleanAll(projectDir, logger, stdout, options)
+    case 'clean-all-projects':
+      return doCleanAllProjects(logger, stdout, options)
     case 'help':
     case '--help':
     case '-h':
