@@ -59,10 +59,10 @@ export class StateJournal {
   // --------------------------------------------------------------------------
 
   /**
-   * Append a state change entry for an allowlisted file.
+   * Append a state change entry for an allowlisted file if the data has changed.
    * Skips the write when `data` serialises identically to the last written value.
    */
-  async append(sessionId: string, file: string, data: Record<string, unknown>): Promise<void> {
+  async appendIfChanged(sessionId: string, file: string, data: Record<string, unknown>): Promise<void> {
     if (!ALLOWLIST.has(file)) return
 
     await this.ensurePrimed(sessionId)

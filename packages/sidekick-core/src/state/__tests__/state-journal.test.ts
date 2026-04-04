@@ -50,12 +50,12 @@ function captureWrittenEntry(callIndex = 0): Record<string, unknown> {
 // append()
 // ============================================================================
 
-describe('StateJournal.append()', () => {
+describe('StateJournal.appendIfChanged()', () => {
   it('appends entry for allowlisted file with new data', async () => {
     const journal = makeJournal()
     const data = { summary: 'hello world' }
 
-    await journal.append('sess-1', 'session-summary', data)
+    await journal.appendIfChanged('sess-1', 'session-summary', data)
 
     expect(mockAppendFile).toHaveBeenCalledOnce()
 
@@ -73,24 +73,24 @@ describe('StateJournal.append()', () => {
     const journal = makeJournal()
     const data = { summary: 'same data' }
 
-    await journal.append('sess-1', 'session-summary', data)
+    await journal.appendIfChanged('sess-1', 'session-summary', data)
     expect(mockAppendFile).toHaveBeenCalledOnce()
 
     mockAppendFile.mockClear()
 
-    await journal.append('sess-1', 'session-summary', data)
+    await journal.appendIfChanged('sess-1', 'session-summary', data)
     expect(mockAppendFile).not.toHaveBeenCalled()
   })
 
   it('writes when data changes after previous write', async () => {
     const journal = makeJournal()
 
-    await journal.append('sess-1', 'session-summary', { value: 1 })
+    await journal.appendIfChanged('sess-1', 'session-summary', { value: 1 })
     expect(mockAppendFile).toHaveBeenCalledOnce()
 
     mockAppendFile.mockClear()
 
-    await journal.append('sess-1', 'session-summary', { value: 2 })
+    await journal.appendIfChanged('sess-1', 'session-summary', { value: 2 })
     expect(mockAppendFile).toHaveBeenCalledOnce()
 
     const entry = captureWrittenEntry()
@@ -100,7 +100,7 @@ describe('StateJournal.append()', () => {
   it('silently skips files not in the allowlist', async () => {
     const journal = makeJournal()
 
-    await journal.append('sess-1', 'not-an-allowed-file', { foo: 'bar' })
+    await journal.appendIfChanged('sess-1', 'not-an-allowed-file', { foo: 'bar' })
 
     expect(mockAppendFile).not.toHaveBeenCalled()
   })
@@ -110,15 +110,15 @@ describe('StateJournal.append()', () => {
     const summaryData = { summary: 'hello' }
     const personaData = { personaId: 'terse' }
 
-    await journal.append('sess-1', 'session-summary', summaryData)
-    await journal.append('sess-1', 'session-persona', personaData)
+    await journal.appendIfChanged('sess-1', 'session-summary', summaryData)
+    await journal.appendIfChanged('sess-1', 'session-persona', personaData)
 
     expect(mockAppendFile).toHaveBeenCalledTimes(2)
 
     // Both identical re-writes should be skipped
     mockAppendFile.mockClear()
-    await journal.append('sess-1', 'session-summary', summaryData)
-    await journal.append('sess-1', 'session-persona', personaData)
+    await journal.appendIfChanged('sess-1', 'session-summary', summaryData)
+    await journal.appendIfChanged('sess-1', 'session-persona', personaData)
     expect(mockAppendFile).not.toHaveBeenCalled()
   })
 })
@@ -131,7 +131,7 @@ describe('StateJournal.appendDeletion()', () => {
   it('writes entry with null data', async () => {
     const journal = makeJournal()
     // Prime with an initial write so dedup cache is populated
-    await journal.append('sess-1', 'session-summary', { x: 1 })
+    await journal.appendIfChanged('sess-1', 'session-summary', { x: 1 })
     mockAppendFile.mockClear()
 
     await journal.appendDeletion('sess-1', 'session-summary')
@@ -146,13 +146,13 @@ describe('StateJournal.appendDeletion()', () => {
     const journal = makeJournal()
     const data = { x: 1 }
 
-    await journal.append('sess-1', 'session-summary', data)
+    await journal.appendIfChanged('sess-1', 'session-summary', data)
     await journal.appendDeletion('sess-1', 'session-summary')
 
     mockAppendFile.mockClear()
 
     // Same data as original write — should go through because deletion cleared cache
-    await journal.append('sess-1', 'session-summary', data)
+    await journal.appendIfChanged('sess-1', 'session-summary', data)
     expect(mockAppendFile).toHaveBeenCalledOnce()
   })
 
@@ -181,7 +181,7 @@ describe('StateJournal dedup priming', () => {
     const journal = makeJournal()
 
     // Same data as on disk — should be skipped
-    await journal.append('sess-1', 'session-summary', { summary: 'existing' })
+    await journal.appendIfChanged('sess-1', 'session-summary', { summary: 'existing' })
 
     expect(mockAppendFile).not.toHaveBeenCalled()
   })
@@ -196,11 +196,36 @@ describe('StateJournal dedup priming', () => {
 
     const journal = makeJournal()
 
-    await journal.append('sess-1', 'session-summary', { summary: 'new' })
+    await journal.appendIfChanged('sess-1', 'session-summary', { summary: 'new' })
 
     expect(mockAppendFile).toHaveBeenCalledOnce()
     const entry = captureWrittenEntry()
     expect(entry.data).toEqual({ summary: 'new' })
+  })
+
+  it('primes from journal containing a deletion entry — write goes through', async () => {
+    // Journal: write summary, then delete it
+    const writeLine = JSON.stringify({
+      ts: 1000,
+      file: 'session-summary',
+      data: { summary: 'old' },
+    })
+    const deletionLine = JSON.stringify({
+      ts: 2000,
+      file: 'session-summary',
+      data: null,
+    })
+    mockReadFile.mockResolvedValue(writeLine + '\n' + deletionLine + '\n')
+
+    const journal = makeJournal()
+
+    // The deletion cleared the dedup cache during priming, so even the
+    // same data that was written before the deletion should go through.
+    await journal.appendIfChanged('sess-1', 'session-summary', { summary: 'old' })
+
+    expect(mockAppendFile).toHaveBeenCalledOnce()
+    const entry = captureWrittenEntry()
+    expect(entry.data).toEqual({ summary: 'old' })
   })
 
   it('handles corrupt journal gracefully and starts fresh', async () => {
@@ -210,7 +235,7 @@ describe('StateJournal dedup priming', () => {
     const journal = makeJournal()
 
     // Should not throw, and should write successfully
-    await journal.append('sess-1', 'session-summary', { summary: 'fresh' })
+    await journal.appendIfChanged('sess-1', 'session-summary', { summary: 'fresh' })
 
     expect(mockAppendFile).toHaveBeenCalledOnce()
     const entry = captureWrittenEntry()
