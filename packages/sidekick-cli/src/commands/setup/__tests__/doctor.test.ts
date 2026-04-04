@@ -374,9 +374,14 @@ describe('runDoctor', () => {
       const { stdout, getOutput } = createStdout()
       await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
       const output = getOutput()
-      expect(output).not.toMatch(/⚠.*Plugin/)
-      expect(output).toContain('Plugin')
-      expect(output).toContain('plugin and dev-mode')
+      const pluginLine = output.split('\n').find((line) => line.includes('Plugin'))
+
+      expect(pluginLine).toBeDefined()
+      // Should use info icon (bullet/info), not warning or success icons
+      expect(pluginLine).toMatch(/•.*Plugin/)
+      expect(pluginLine).toContain('plugin and dev-mode')
+      expect(pluginLine).not.toMatch(/⚠/)
+      expect(pluginLine).not.toMatch(/✓/)
     })
 
     it('reports overall health as healthy', async () => {
