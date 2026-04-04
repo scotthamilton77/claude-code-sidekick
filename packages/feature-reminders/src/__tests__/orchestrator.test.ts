@@ -170,8 +170,8 @@ describe('ReminderOrchestrator', () => {
       expect(getStagingService).toHaveBeenCalledWith('session-123')
       expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
       expect(logger.debug).toHaveBeenCalledWith(
-        'VC unstage: P&R cascade from VC consumed',
-        expect.objectContaining({ sessionId: 'session-123', deleted: true })
+        'P&R unstaged',
+        expect.objectContaining({ sessionId: 'session-123', deleted: true, reason: 'vc_consumed_cascade' })
       )
     })
 
@@ -233,8 +233,8 @@ describe('ReminderOrchestrator', () => {
       )
 
       expect(logger.warn).toHaveBeenCalledWith(
-        'Failed to unstage P&R after VC consumed',
-        expect.objectContaining({ error: 'Delete failed' })
+        'Failed to unstage P&R',
+        expect.objectContaining({ reason: 'vc_consumed_cascade', error: 'Delete failed' })
       )
     })
   })
@@ -271,8 +271,8 @@ describe('ReminderOrchestrator', () => {
       expect(getStagingService).toHaveBeenCalledWith('session-123')
       expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
       expect(logger.debug).toHaveBeenCalledWith(
-        'P&R cleanup on Stop',
-        expect.objectContaining({ sessionId: 'session-123', deleted: true })
+        'P&R unstaged',
+        expect.objectContaining({ sessionId: 'session-123', deleted: true, reason: 'agent_stopping' })
       )
     })
 
@@ -293,8 +293,8 @@ describe('ReminderOrchestrator', () => {
 
       expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
       expect(logger.debug).toHaveBeenCalledWith(
-        'P&R cleanup on Stop',
-        expect.objectContaining({ sessionId: 'session-123', deleted: false })
+        'P&R unstaged',
+        expect.objectContaining({ sessionId: 'session-123', deleted: false, reason: 'agent_stopping' })
       )
     })
 
@@ -306,8 +306,8 @@ describe('ReminderOrchestrator', () => {
       await orchestrator.onStop('session-123')
 
       expect(logger.warn).toHaveBeenCalledWith(
-        'Failed to unstage P&R on Stop',
-        expect.objectContaining({ error: 'Staging service unavailable' })
+        'Failed to unstage P&R',
+        expect.objectContaining({ reason: 'agent_stopping', error: 'Staging service unavailable' })
       )
     })
   })

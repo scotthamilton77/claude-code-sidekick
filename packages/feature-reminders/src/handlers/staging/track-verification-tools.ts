@@ -40,6 +40,9 @@ const FILE_EDIT_TOOLS = ['Write', 'Edit', 'MultiEdit']
 
 const VC_TOOL_NAME_SET = new Set<string>(VC_TOOL_REMINDER_IDS)
 
+/** Cap pending tool calls to prevent unbounded memory growth from blocked tools */
+const MAX_PENDING_TOOL_CALLS = 100
+
 export function registerTrackVerificationTools(context: RuntimeContext): void {
   if (!isDaemonContext(context)) return
 
@@ -69,6 +72,12 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
 
         const entry = event.payload.entry as Record<string, unknown>
         const input = (entry?.input as Record<string, unknown>) ?? {}
+
+        // Cap pending entries to prevent unbounded memory growth
+        if (pendingToolCalls.size >= MAX_PENDING_TOOL_CALLS) {
+          const oldest = pendingToolCalls.keys().next().value
+          if (oldest) pendingToolCalls.delete(oldest)
+        }
         pendingToolCalls.set(`${sessionId}:${toolUseId}`, { toolName, input })
         return
       }
@@ -107,10 +116,10 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
     id: 'reminders:track-verification-tools-cleanup',
     priority: 60,
     filter: { kind: 'hook', hooks: ['UserPromptSubmit', 'Stop'] },
-    handler: (event: SidekickEvent, _ctx: HandlerContext): Promise<void> => {
-      if (!isHookEvent(event)) return Promise.resolve()
+    handler: (event: SidekickEvent, _ctx: HandlerContext) => {
+      if (!isHookEvent(event)) return
       const sessionId = event.context?.sessionId
-      if (!sessionId) return Promise.resolve()
+      if (!sessionId) return
 
       // Clear all pending entries for this session
       for (const key of pendingToolCalls.keys()) {
@@ -118,7 +127,6 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
           pendingToolCalls.delete(key)
         }
       }
-      return Promise.resolve()
     },
   })
 }

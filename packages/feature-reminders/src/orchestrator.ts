@@ -133,30 +133,7 @@ export class ReminderOrchestrator implements ReminderCoordinator {
       }
 
       // VC consumed → unstage P&R (prevent double block)
-      try {
-        const staging = this.deps.getStagingService(sessionId)
-        const deleted = await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
-        if (deleted) {
-          logEvent(
-            this.deps.logger.child({ context: { sessionId } }),
-            ReminderEvents.reminderUnstaged(
-              { sessionId },
-              {
-                reminderName: ReminderIds.PAUSE_AND_REFLECT,
-                hookName: 'PreToolUse',
-                reason: 'vc_consumed_cascade',
-                triggeredBy: 'cascade_from_verify_completion',
-              }
-            )
-          )
-        }
-        this.deps.logger.debug('VC unstage: P&R cascade from VC consumed', { sessionId, deleted })
-      } catch (err) {
-        this.deps.logger.warn('Failed to unstage P&R after VC consumed', {
-          sessionId,
-          error: toErrorMessage(err),
-        })
-      }
+      await this.unstagePauseAndReflect(sessionId, 'vc_consumed_cascade', 'cascade_from_verify_completion')
     }
   }
 
@@ -192,6 +169,14 @@ export class ReminderOrchestrator implements ReminderCoordinator {
    * otherwise linger on PreToolUse.
    */
   async onStop(sessionId: string): Promise<void> {
+    await this.unstagePauseAndReflect(sessionId, 'agent_stopping', 'stop_hook')
+  }
+
+  /**
+   * Delete P&R from PreToolUse staging and log the event.
+   * Shared by Rule 4 (VC consumed → unstage P&R) and onStop (agent stopping).
+   */
+  private async unstagePauseAndReflect(sessionId: string, reason: string, triggeredBy: string): Promise<void> {
     try {
       const staging = this.deps.getStagingService(sessionId)
       const deleted = await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
@@ -203,16 +188,17 @@ export class ReminderOrchestrator implements ReminderCoordinator {
             {
               reminderName: ReminderIds.PAUSE_AND_REFLECT,
               hookName: 'PreToolUse',
-              reason: 'agent_stopping',
-              triggeredBy: 'stop_hook',
+              reason,
+              triggeredBy,
             }
           )
         )
       }
-      this.deps.logger.debug('P&R cleanup on Stop', { sessionId, deleted })
+      this.deps.logger.debug('P&R unstaged', { sessionId, deleted, reason })
     } catch (err) {
-      this.deps.logger.warn('Failed to unstage P&R on Stop', {
+      this.deps.logger.warn('Failed to unstage P&R', {
         sessionId,
+        reason,
         error: toErrorMessage(err),
       })
     }

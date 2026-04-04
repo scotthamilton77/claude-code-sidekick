@@ -208,7 +208,8 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     await simulateFileEdit(
       trackHandler,
       ctx,
-      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/src/index.ts'
     )
     snapshotStaging(staging, 'Step 2: After file edit')
     expect(hasWrapper(staging)).toBe(true)
@@ -218,8 +219,8 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     await simulateBashCommand(
       trackHandler,
       ctx,
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
     )
     snapshotStaging(staging, 'Step 3: After all verification commands')
     expect(getPerToolNames(staging)).toHaveLength(0)
@@ -306,7 +307,8 @@ describe('Orphaned VC wrapper — Scenario B: unverified re-stage without per-to
     await simulateFileEdit(
       trackHandler,
       ctx,
-      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/src/index.ts'
     )
     snapshotStaging(staging, 'Step 1: After file edit')
     expect(hasWrapper(staging)).toBe(true)
@@ -316,8 +318,8 @@ describe('Orphaned VC wrapper — Scenario B: unverified re-stage without per-to
     await simulateBashCommand(
       trackHandler,
       ctx,
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
     )
     snapshotStaging(staging, 'Step 2: After all verified')
     expect(hasWrapper(staging)).toBe(false)
