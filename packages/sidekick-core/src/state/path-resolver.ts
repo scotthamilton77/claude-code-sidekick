@@ -47,6 +47,10 @@ export class PathResolver {
     return join(this.sessionRootDir(sessionId), 'stage')
   }
 
+  sessionLogsDir(sessionId: string): string {
+    return join(this.sessionRootDir(sessionId), 'logs')
+  }
+
   hookStagingDir(sessionId: string, hookName: string): string {
     return join(this.sessionStagingDir(sessionId), hookName)
   }

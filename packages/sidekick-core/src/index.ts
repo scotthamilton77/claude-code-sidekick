@@ -113,6 +113,8 @@ export {
   DEFAULT_MAX_FILES,
   LogEvents,
   logEvent,
+  setSessionLogWriter,
+  SessionLogWriter,
   type EventLogContext,
   type LogContext,
   type LogManager,
@@ -120,6 +122,7 @@ export {
   type LoggerFacade,
   type LoggerFacadeOptions,
   type UpgradeOptions,
+  type SessionLogWriterOptions,
 } from './structured-logging'
 
 export {

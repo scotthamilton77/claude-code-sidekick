@@ -32,6 +32,8 @@ import {
   createLogManager,
   getDefaultAssetsDir,
   resolveProjectRoot,
+  SessionLogWriter,
+  setSessionLogWriter,
   setupGlobalErrorHandlers,
   StateService,
   type LogLevel,
@@ -152,8 +154,8 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   const fileDestination = enableFileLogging
     ? {
         path: logFilePath,
-        maxSizeBytes: rotation?.maxSizeBytes ?? 10_485_760,
-        maxFiles: rotation?.maxFiles ?? 5,
+        maxSizeBytes: rotation?.maxSizeBytes ?? 2_097_152, // 2MB (ephemeral debug window)
+        maxFiles: rotation?.maxFiles ?? 2,
       }
     : undefined
 
@@ -203,6 +205,17 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
   })
   const telemetry = logManager.getTelemetry()
 
+  // Initialize per-session log writer (activated when sessionId is bound)
+  const sessionsDir = projectRoot
+    ? join(projectRoot, '.sidekick', 'sessions')
+    : join(homedir(), '.sidekick', 'sessions')
+  const sessionLogWriter = new SessionLogWriter({
+    sessionsDir,
+    maxHandles: 2, // CLI typically has 1 session
+    idleTimeoutMs: 10 * 60 * 1000,
+  })
+  setSessionLogWriter(sessionLogWriter)
+
   // Set up global error handlers
   const cleanupErrorHandlers = setupGlobalErrorHandlers(logger)
 
@@ -235,6 +248,8 @@ export function bootstrapRuntime(options: BootstrapOptions): RuntimeShell {
     stateService,
     correlationId,
     cleanup: () => {
+      setSessionLogWriter(null)
+      void sessionLogWriter.closeAll()
       cleanupErrorHandlers()
     },
     bindSessionId: (sessionId: string) => {

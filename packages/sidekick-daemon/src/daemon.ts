@@ -15,6 +15,8 @@ import {
   StateService,
   LogEvents,
   logEvent,
+  SessionLogWriter,
+  setSessionLogWriter,
   type AssetResolver,
   type ConfigService,
 } from '@sidekick/core'
@@ -101,6 +103,7 @@ export class Daemon {
   private token: string = ''
   private registryService: ProjectRegistryService
   private timerManager: TimerManager
+  private sessionLogWriter: SessionLogWriter
 
   /** Cache persona for handoff on clear. */
   private cachePersonaForClear(personaId: string): void {
@@ -152,8 +155,8 @@ export class Daemon {
       destinations: {
         file: {
           path: path.join(logDir, 'sidekickd.log'),
-          maxSizeBytes: this.configService.core.logging.rotation?.maxSizeBytes ?? 10_485_760,
-          maxFiles: this.configService.core.logging.rotation?.maxFiles ?? 5,
+          maxSizeBytes: this.configService.core.logging.rotation?.maxSizeBytes ?? 2_097_152, // 2MB (ephemeral debug window)
+          maxFiles: this.configService.core.logging.rotation?.maxFiles ?? 2,
         },
         console: { enabled: this.configService.core.logging.consoleEnabled },
       },
@@ -166,6 +169,15 @@ export class Daemon {
       getStartTime: () => this.timerManager.startTime,
     })
     this.logger = this.logMetrics.createCountingLogger()
+
+    // Initialize per-session log writer for session-scoped log files
+    const sessionsDir = path.join(projectDir, '.sidekick', 'sessions')
+    this.sessionLogWriter = new SessionLogWriter({
+      sessionsDir,
+      maxHandles: 10,
+      idleTimeoutMs: 30 * 60 * 1000,
+    })
+    setSessionLogWriter(this.sessionLogWriter)
 
     // Initialize Components
     // Pass config getter for hot-reload support - dev mode changes picked up dynamically
@@ -352,6 +364,10 @@ export class Daemon {
 
   async stop(): Promise<void> {
     this.logger.info('Daemon stopping')
+
+    // Close all per-session log handles
+    setSessionLogWriter(null)
+    await this.sessionLogWriter.closeAll()
 
     // Stop all periodic timers (idle, heartbeat, eviction, registry)
     this.timerManager.stopAll()
@@ -789,6 +805,10 @@ export class Daemon {
       this.logMetrics.deleteSessionCounters(sessionId)
 
       await this.serviceFactory.shutdownSession(sessionId)
+
+      // Close per-session log handles
+      await this.sessionLogWriter.closeSession(sessionId)
+
       log.info('Session ended')
     }
   }

@@ -246,30 +246,47 @@ export async function findLogFiles(logsDir: string, prefix: string): Promise<str
 /**
  * Parse timeline events from sidekick log files for a given session.
  *
- * Reads all sidekick*.log and sidekickd*.log files (including rotated),
- * filters by session ID and UI-visible event types, merges, and sorts
- * by timestamp ascending.
+ * Reads per-session logs first (.sidekick/sessions/{sessionId}/logs/).
+ * Falls back to aggregate logs (.sidekick/logs/) for pre-migration sessions
+ * that don't have per-session log files.
  */
 export async function parseTimelineEvents(
   projectDir: string,
   sessionId: string
 ): Promise<TimelineEvent[]> {
-  const logsDir = join(projectDir, '.sidekick', 'logs')
-
-  const [cliFiles, daemonFiles] = await Promise.all([
-    findLogFiles(logsDir, 'sidekick.'),
-    findLogFiles(logsDir, 'sidekickd.'),
+  // Try per-session logs first (source of truth for new sessions)
+  const sessionLogsDir = join(projectDir, '.sidekick', 'sessions', sessionId, 'logs')
+  const [sessionCliFiles, sessionDaemonFiles] = await Promise.all([
+    findLogFiles(sessionLogsDir, 'sidekick.'),
+    findLogFiles(sessionLogsDir, 'sidekickd.'),
   ])
 
-  const allFiles = [...cliFiles, ...daemonFiles]
-  const fileResults = await Promise.all(allFiles.map(readLogFile))
-  const allEntries = fileResults.flat()
+  const hasSessionLogs = sessionCliFiles.length > 0 || sessionDaemonFiles.length > 0
 
-  // Filter by sessionId, then by timeline-visible event types
+  let allEntries: RawLogEntry[]
+
+  if (hasSessionLogs) {
+    // Per-session path: read only this session's files (no sessionId filter needed)
+    const allFiles = [...sessionCliFiles, ...sessionDaemonFiles]
+    const fileResults = await Promise.all(allFiles.map(readLogFile))
+    allEntries = fileResults.flat()
+  } else {
+    // Fallback: scan aggregate logs and filter by sessionId (pre-migration sessions)
+    const aggregateLogsDir = join(projectDir, '.sidekick', 'logs')
+    const [cliFiles, daemonFiles] = await Promise.all([
+      findLogFiles(aggregateLogsDir, 'sidekick.'),
+      findLogFiles(aggregateLogsDir, 'sidekickd.'),
+    ])
+    const allFiles = [...cliFiles, ...daemonFiles]
+    const fileResults = await Promise.all(allFiles.map(readLogFile))
+    allEntries = fileResults.flat().filter(
+      (entry) => entry.context?.sessionId === sessionId
+    )
+  }
+
+  // Filter by timeline-visible event types
   const filtered = allEntries.filter(
-    (entry) =>
-      entry.context?.sessionId === sessionId &&
-      TIMELINE_EVENT_TYPES.has(entry.type)
+    (entry) => TIMELINE_EVENT_TYPES.has(entry.type)
   )
 
   // Sort by timestamp ascending

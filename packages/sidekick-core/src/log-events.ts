@@ -12,6 +12,18 @@
  */
 
 import type { Logger } from '@sidekick/types'
+import type { SessionLogWriter } from './session-log-writer'
+
+/** Module-level reference to the session log writer. Set by daemon/CLI during init. */
+let sessionLogWriter: SessionLogWriter | null = null
+
+/**
+ * Set the SessionLogWriter instance for per-session log routing.
+ * Call with null to disable.
+ */
+export function setSessionLogWriter(writer: SessionLogWriter | null): void {
+  sessionLogWriter = writer
+}
 
 import type {
   HookReceivedEvent,
@@ -610,4 +622,21 @@ export function logEvent(logger: Logger, event: LoggingEventBase): void {
     source: event.source,
     ...meta,
   })
+
+  // Write to per-session log file (fire-and-forget)
+  if (sessionLogWriter && event.context.sessionId) {
+    // cli → sidekick.log, daemon/transcript → sidekickd.log
+    const logFile = event.source === 'cli' ? 'sidekick.log' : 'sidekickd.log'
+    const line =
+      JSON.stringify({
+        time: event.time,
+        type: event.type,
+        source: event.source,
+        context: event.context,
+        ...meta,
+      }) + '\n'
+    sessionLogWriter.write(event.context.sessionId, logFile, line).catch(() => {
+      // Silently ignore per-session write failures — aggregate log is the fallback
+    })
+  }
 }
