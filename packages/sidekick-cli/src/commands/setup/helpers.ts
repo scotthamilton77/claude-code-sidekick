@@ -222,6 +222,14 @@ export function getPluginStatusIcon(status: PluginInstallationStatus): string {
 }
 
 /**
+ * Whether the plugin installation status represents a working state
+ * (as opposed to 'none', 'timeout', or 'error').
+ */
+export function isPluginPresent(status: PluginInstallationStatus): boolean {
+  return status === 'plugin' || status === 'dev-mode' || status === 'both'
+}
+
+/**
  * Map plugin liveness status to display icon.
  */
 export function getLivenessIcon(status: PluginLivenessStatus): string {

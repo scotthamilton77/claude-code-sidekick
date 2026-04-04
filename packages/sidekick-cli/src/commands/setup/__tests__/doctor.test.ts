@@ -364,38 +364,33 @@ describe('runDoctor', () => {
   // Plugin + dev-mode coexistence (info, not warning)
   // --------------------------------------------------------------------------
 
-  it('reports plugin+dev-mode coexistence as info, not warning', async () => {
-    mockDetectPluginInstallation.mockResolvedValue('both')
-    mockDetectPluginLiveness.mockResolvedValue('active')
+  describe('when both plugin and dev-mode are present', () => {
+    beforeEach(() => {
+      mockDetectPluginInstallation.mockResolvedValue('both')
+      mockDetectPluginLiveness.mockResolvedValue('active')
+    })
 
-    const { stdout, getOutput } = createStdout()
-    await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
-    const output = getOutput()
-    // Should use info icon (bullet/info), NOT warning icon
-    expect(output).not.toMatch(/⚠.*Plugin/)
-    // Should still mention both are present
-    expect(output).toContain('Plugin')
-    expect(output).toContain('plugin and dev-mode')
-  })
+    it('reports coexistence as info, not warning', async () => {
+      const { stdout, getOutput } = createStdout()
+      await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
+      const output = getOutput()
+      expect(output).not.toMatch(/⚠.*Plugin/)
+      expect(output).toContain('Plugin')
+      expect(output).toContain('plugin and dev-mode')
+    })
 
-  it('does not trigger unhealthy status when both plugin and dev-mode present', async () => {
-    mockDetectPluginInstallation.mockResolvedValue('both')
-    mockDetectPluginLiveness.mockResolvedValue('active')
+    it('reports overall health as healthy', async () => {
+      const { stdout, getOutput } = createStdout()
+      const result = await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
+      expect(result.exitCode).toBe(0)
+      expect(getOutput()).toContain('✓ Overall: healthy')
+    })
 
-    const { stdout, getOutput } = createStdout()
-    const result = await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
-    expect(result.exitCode).toBe(0)
-    const output = getOutput()
-    expect(output).toContain('✓ Overall: healthy')
-  })
-
-  it('does not suggest --fix when both plugin and dev-mode present', async () => {
-    mockDetectPluginInstallation.mockResolvedValue('both')
-    mockDetectPluginLiveness.mockResolvedValue('active')
-
-    const { stdout, getOutput } = createStdout()
-    await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
-    expect(getOutput()).not.toContain('sidekick doctor --fix')
+    it('does not suggest --fix', async () => {
+      const { stdout, getOutput } = createStdout()
+      await runDoctor(projectDir, logger as Logger, stdout, { homeDir })
+      expect(getOutput()).not.toContain('sidekick doctor --fix')
+    })
   })
 
   // --------------------------------------------------------------------------
