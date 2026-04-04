@@ -35,6 +35,9 @@ export interface StateJournalLike {
  * const result = await accessor.read(sessionId)
  */
 export class SessionStateAccessor<T, D = undefined> {
+  /** Descriptor filename without .json extension — used as journal file key */
+  private readonly fileKey: string
+
   constructor(
     private readonly stateService: MinimalStateService,
     private readonly descriptor: StateDescriptor<T, D>,
@@ -43,6 +46,7 @@ export class SessionStateAccessor<T, D = undefined> {
     if (descriptor.scope !== 'session') {
       throw new Error(`SessionStateAccessor requires a session-scoped descriptor, got: ${descriptor.scope}`)
     }
+    this.fileKey = descriptor.filename.replace(/\.json$/, '')
   }
 
   /**
@@ -68,8 +72,7 @@ export class SessionStateAccessor<T, D = undefined> {
     })
     // Journal the state change (no-op if journal not configured)
     if (this.journal) {
-      const fileKey = this.descriptor.filename.replace(/\.json$/, '')
-      await this.journal.appendIfChanged(sessionId, fileKey, data as Record<string, unknown>)
+      await this.journal.appendIfChanged(sessionId, this.fileKey, data as Record<string, unknown>)
     }
   }
 
@@ -81,8 +84,7 @@ export class SessionStateAccessor<T, D = undefined> {
     await this.stateService.delete(path)
     // Journal the deletion (no-op if journal not configured)
     if (this.journal) {
-      const fileKey = this.descriptor.filename.replace(/\.json$/, '')
-      await this.journal.appendDeletion(sessionId, fileKey)
+      await this.journal.appendDeletion(sessionId, this.fileKey)
     }
   }
 

@@ -5,6 +5,11 @@ import { join } from 'node:path'
 // Types
 // ============================================================================
 
+/**
+ * Intentionally a subset of frontend StateSnapshot — transcriptMetrics and
+ * llmMetrics are omitted because those writers bypass SessionStateAccessor
+ * and are not yet journaled. See spec "Not journaled" section.
+ */
 export interface ApiStateSnapshot {
   timestamp: number
   sessionSummary?: Record<string, unknown>
@@ -24,6 +29,7 @@ interface JournalEntry {
 // Constants
 // ============================================================================
 
+/** Must stay in sync with StateJournal ALLOWLIST in @sidekick/core */
 const FILE_KEY_TO_PROP: Record<string, keyof Omit<ApiStateSnapshot, 'timestamp'>> = {
   'session-summary': 'sessionSummary',
   'session-persona': 'sessionPersona',
