@@ -41,11 +41,8 @@ const ALLOWLIST = new Set([
 export class StateJournal {
   private readonly projectRoot: string
 
-  /**
-   * Per-session dedup map: sessionId → (file → last JSON.stringify(data))
-   * Null sentinel stored for deletion entries.
-   */
-  private readonly dedupMaps = new Map<string, Map<string, string | null>>()
+  /** Per-session dedup map: sessionId → (file → last JSON.stringify(data)). Keys are absent for files with no last-known value (new session or after deletion). */
+  private readonly dedupMaps = new Map<string, Map<string, string>>()
 
   /** Sessions whose dedup map has been primed from the existing journal. */
   private readonly primedSessions = new Set<string>()
@@ -99,7 +96,7 @@ export class StateJournal {
   // Path helpers
   // --------------------------------------------------------------------------
 
-  journalPath(sessionId: string): string {
+  public journalPath(sessionId: string): string {
     return join(this.projectRoot, '.sidekick', 'sessions', sessionId, 'state-history.jsonl')
   }
 
@@ -107,7 +104,7 @@ export class StateJournal {
   // Private
   // --------------------------------------------------------------------------
 
-  private getOrCreateDedupMap(sessionId: string): Map<string, string | null> {
+  private getOrCreateDedupMap(sessionId: string): Map<string, string> {
     let map = this.dedupMaps.get(sessionId)
     if (!map) {
       map = new Map()
@@ -160,6 +157,6 @@ export class StateJournal {
   private async appendEntry(sessionId: string, entry: JournalEntry): Promise<void> {
     const path = this.journalPath(sessionId)
     await mkdir(dirname(path), { recursive: true })
-    await appendFile(path, JSON.stringify(entry) + '\n')
+    await appendFile(path, JSON.stringify(entry) + '\n', 'utf-8')
   }
 }
