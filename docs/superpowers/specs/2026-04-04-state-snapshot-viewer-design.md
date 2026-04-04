@@ -79,7 +79,7 @@ The journal appender is a thin function — `appendIfChanged(sessionId, fileKey,
 
 ### Journaled State Files (Allowlist)
 
-Only the following session state files are journaled. Other session state files (e.g., `daemon-log-metrics.json`, `cli-log-metrics.json`, `context-metrics.json`) update too frequently and are not meaningful in the State tab context.
+Only the following session state files are journaled — these are written through `SessionStateAccessor.write()` and represent user-visible session state:
 
 | File | Journal Key |
 |---|---|
@@ -87,11 +87,16 @@ Only the following session state files are journaled. Other session state files 
 | `session-persona.json` | `session-persona` |
 | `snarky-message.json` | `snarky-message` |
 | `resume-message.json` | `resume-message` |
-| `transcript-metrics.json` | `transcript-metrics` |
-| `llm-metrics.json` | `llm-metrics` |
 | `summary-countdown.json` | `summary-countdown` |
 
 The allowlist is checked in the journal appender before dedup or append. Files not in the list are silently skipped.
+
+**Not journaled** (bypass `SessionStateAccessor`, calling `stateService.write()` directly):
+- `transcript-metrics.json` — written by `transcript-persistence.ts`
+- `llm-metrics.json` — written by `InstrumentedLLMProvider.persist()`
+- `daemon-log-metrics.json`, `cli-log-metrics.json`, `context-metrics.json` — high-frequency operational metrics
+
+These writers can be migrated to `SessionStateAccessor` in a follow-up to enable journaling. For now, the `transcriptMetrics` and `llmMetrics` fields on `StateSnapshot` will remain empty.
 
 ### Write Safety
 
@@ -152,9 +157,9 @@ interface StateSnapshot {
 | `session-persona` | `sessionPersona` |
 | `snarky-message` | `snarkyMessage` |
 | `resume-message` | `resumeMessage` |
-| `transcript-metrics` | `transcriptMetrics` |
-| `llm-metrics` | `llmMetrics` |
 | `summary-countdown` | `summaryCountdown` |
+
+The `transcriptMetrics` and `llmMetrics` properties on `StateSnapshot` exist but will remain empty until those writers are migrated to `SessionStateAccessor` (see Allowlist section above).
 
 Adding new state files requires updating both the `StateSnapshot` interface in `types.ts` and the `STATE_FILE_LABELS` map in `StateTab.tsx`.
 
@@ -197,7 +202,7 @@ const { snapshots: stateSnapshots } = useStateSnapshots(
 )
 ```
 
-Pass `stateSnapshots` to `DetailPanel` instead of `selectedSession.stateSnapshots`.
+In the `<DetailPanel>` JSX, change the prop from `stateSnapshots={selectedSession.stateSnapshots}` to `stateSnapshots={stateSnapshots}` (the hook's output).
 
 ### No Changes to Existing Components
 
