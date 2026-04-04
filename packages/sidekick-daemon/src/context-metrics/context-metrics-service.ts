@@ -10,7 +10,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Logger, HandlerRegistry, TranscriptEvent } from '@sidekick/core'
-import { isTranscriptEvent } from '@sidekick/core'
+import { isTranscriptEvent, toErrorMessage } from '@sidekick/core'
 import type { MinimalStateService } from '@sidekick/types'
 import { spawnClaudeCli } from '@sidekick/shared-providers'
 import {
@@ -148,7 +148,7 @@ export class ContextMetricsService {
       this.logger.info('Triggering async CLI capture for base metrics')
       void this.captureBaseMetrics().catch((err) => {
         this.logger.warn('Failed to capture base metrics via CLI', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
           stack: err instanceof Error ? err.stack : undefined,
         })
       })
@@ -296,7 +296,7 @@ export class ContextMetricsService {
         sessionId,
       })
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : String(err)
+      const errorMessage = toErrorMessage(err)
       this.logger.warn('CLI capture failed', {
         error: errorMessage,
         stack: err instanceof Error ? err.stack : undefined,

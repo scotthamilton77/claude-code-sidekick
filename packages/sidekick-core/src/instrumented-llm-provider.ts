@@ -36,6 +36,7 @@ import {
   type LLMModelMetrics,
   type LLMProviderMetrics,
 } from '@sidekick/types'
+import { toErrorMessage } from './error-utils.js'
 
 const STATE_FILE = 'llm-metrics.json'
 const DEFAULT_DEBOUNCE_MS = 500
@@ -145,7 +146,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
       }
     } catch (err) {
       this.config.logger.warn('Failed to load LLM metrics, starting fresh', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }
@@ -270,7 +271,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
     } catch (dumpError) {
       // Don't fail the request if dump fails
       this.config.logger.warn('Failed to write debug dump', {
-        error: dumpError instanceof Error ? dumpError.message : String(dumpError),
+        error: toErrorMessage(dumpError),
       })
     }
   }
@@ -581,7 +582,7 @@ export class InstrumentedLLMProvider implements LLMProvider {
       })
     } catch (err) {
       this.config.logger.warn('Failed to persist LLM metrics', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }

@@ -18,6 +18,7 @@ import type { ZodType } from 'zod'
 import type { Logger } from '@sidekick/types'
 import { PathResolver } from './path-resolver.js'
 import { StateNotFoundError, StateCorruptError } from './errors.js'
+import { toErrorMessage } from '../error-utils.js'
 
 /**
  * Minimal config interface for StateService.
@@ -219,7 +220,7 @@ export class StateService {
         // Log cleanup errors for observability
         this.logger?.trace('Failed to cleanup temp file', {
           tmpPath,
-          error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr),
+          error: toErrorMessage(cleanupErr),
         })
       }
       throw err
@@ -373,7 +374,7 @@ export class StateService {
       } catch (err) {
         this.logger?.warn('Failed to preload state file', {
           file,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }
@@ -412,7 +413,7 @@ export class StateService {
     this.logger?.warn('Corrupt state file detected', {
       path,
       reason,
-      error: error instanceof Error ? error.message : String(error),
+      error: toErrorMessage(error),
     })
 
     try {
@@ -455,7 +456,7 @@ export class StateService {
       // Best effort - don't fail the write if backup fails
       this.logger?.warn('Failed to create dev mode backup', {
         path,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }

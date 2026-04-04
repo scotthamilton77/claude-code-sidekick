@@ -22,6 +22,7 @@ import type {
   MinimalAssetResolver,
 } from '@sidekick/types'
 import type { TemplateContext } from './types'
+import { toErrorMessage } from '@sidekick/core'
 
 /**
  * Zod schema for runtime validation of YAML reminder definitions.
@@ -116,7 +117,7 @@ export function resolveReminder(reminderId: string, options: ResolveReminderOpti
     if (logger) {
       logger.error('Failed to load reminder', {
         reminderId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     } else {
       // Fallback for test/CLI callers without a logger

@@ -10,14 +10,18 @@ import { checkDevModeConflict } from '../../utils/dev-mode-guard.js'
 const mockGetDevMode = vi.fn()
 const mockSetDevMode = vi.fn()
 
-vi.mock('@sidekick/core', () => ({
-  SetupStatusService: vi.fn().mockImplementation(function () {
-    return {
-      getDevMode: mockGetDevMode,
-      setDevMode: mockSetDevMode,
-    }
-  }),
-}))
+vi.mock('@sidekick/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@sidekick/core')>()
+  return {
+    toErrorMessage: actual.toErrorMessage,
+    SetupStatusService: vi.fn().mockImplementation(function () {
+      return {
+        getDevMode: mockGetDevMode,
+        setDevMode: mockSetDevMode,
+      }
+    }),
+  }
+})
 
 describe('checkDevModeConflict', () => {
   let logger: Logger

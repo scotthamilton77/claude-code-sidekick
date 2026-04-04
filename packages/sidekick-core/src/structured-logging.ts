@@ -44,6 +44,7 @@ import { Writable } from 'node:stream'
 // Re-export core types from @sidekick/types for backward compatibility
 export type { Logger, Telemetry, LogLevel, LogSource } from '@sidekick/types'
 import type { Logger, Telemetry, LogLevel, LogSource } from '@sidekick/types'
+import { toErrorMessage } from './error-utils.js'
 
 // Re-export event factories and logEvent from log-events.ts for backward compatibility
 export { LogEvents, logEvent, setSessionLogWriter, type EventLogContext } from './log-events'
@@ -714,7 +715,7 @@ export function createLoggerFacade(options: LoggerFacadeOptions = {}): LoggerFac
         }
         // Log the error to bootstrap logger
         activeLogger.error('Failed to upgrade to Pino logger', {
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     },
@@ -737,7 +738,7 @@ export function setupGlobalErrorHandlers(logger: Logger): () => void {
 
   const rejectionHandler = (reason: unknown): void => {
     logger.fatal('Unhandled promise rejection', {
-      reason: reason instanceof Error ? reason.message : String(reason),
+      reason: toErrorMessage(reason),
     })
   }
 

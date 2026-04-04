@@ -16,6 +16,7 @@ import * as fs from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { DaemonHealthSchema } from '@sidekick/types'
 import type { DaemonHealth, DaemonHealthStatus, Logger } from '@sidekick/types'
+import { toErrorMessage } from './error-utils.js'
 
 /** Path to the daemon health state file within a project directory. */
 function healthFilePath(projectDir: string): string {
@@ -132,7 +133,7 @@ export async function updateDaemonHealth(
     logger.warn('Failed to write daemon health', {
       from,
       to,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     return false
   }

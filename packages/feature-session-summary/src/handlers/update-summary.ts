@@ -10,7 +10,7 @@
  */
 
 import type { TranscriptEvent } from '@sidekick/core'
-import { logEvent, LogEvents, CoalescingGuard } from '@sidekick/core'
+import { logEvent, LogEvents, CoalescingGuard, toErrorMessage } from '@sidekick/core'
 import { SessionSummaryEvents } from '../events.js'
 import { DecisionEvents } from '@sidekick/types'
 import type { DaemonContext, EventContext, SummaryCountdownState } from '@sidekick/types'
@@ -618,7 +618,7 @@ async function performAnalysis(
     ctx.logger.error('performAnalysis failed', {
       sessionId,
       reason,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
   }
 }

@@ -248,6 +248,7 @@ export {
 export { encodeProjectDir, ProjectRegistryService, type PruneOptions, type PruneResult } from './project-registry'
 export { readDaemonHealth, updateDaemonHealth } from './daemon-health'
 export { isInSandbox } from './sandbox'
+export { toErrorMessage } from './error-utils'
 export { getGitFileStatus, parseGitStatusOutput } from './git-status'
 export { loadUserProfile, type LoadUserProfileOptions } from './user-profile-loader'
 export { CoalescingGuard } from './coalescing-guard'

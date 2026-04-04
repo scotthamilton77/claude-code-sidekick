@@ -14,7 +14,7 @@
 import { existsSync } from 'node:fs'
 import * as path from 'node:path'
 import type { Logger, ConfigService, AssetResolver } from '@sidekick/core'
-import { LogEvents, logEvent, StateService, type EventLogContext } from '@sidekick/core'
+import { LogEvents, logEvent, StateService, toErrorMessage, type EventLogContext } from '@sidekick/core'
 import { checkDevModeConflict } from '../utils/dev-mode-guard.js'
 // Re-export for use by CLI
 export type { ClaudeCodeStatusInput } from '@sidekick/feature-statusline'
@@ -332,7 +332,7 @@ export async function handleStatuslineCommand(
     // Emit structured StatuslineError event
     const event = LogEvents.statuslineError(eventContext, 'unknown', {
       fallbackUsed: true,
-      error: error instanceof Error ? error.message : String(error),
+      error: toErrorMessage(error),
     })
     logEvent(logger, event)
 

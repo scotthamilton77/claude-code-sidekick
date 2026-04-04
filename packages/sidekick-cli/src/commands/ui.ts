@@ -17,6 +17,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve, join } from 'node:path'
 import type { Logger } from '@sidekick/core'
+import { toErrorMessage } from '@sidekick/core'
 
 export interface UiCommandOptions {
   port?: number
@@ -70,7 +71,7 @@ function openBrowser(url: string, logger: Logger): void {
   } catch (err) {
     // Best-effort - don't fail if browser opening fails
     logger.warn('Failed to open browser', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
   }
 }

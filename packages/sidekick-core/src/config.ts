@@ -36,6 +36,7 @@ import { parse as parseYaml } from 'yaml'
 import { z } from 'zod/v4'
 import type { AssetResolver } from './assets'
 import type { Logger } from '@sidekick/types'
+import { toErrorMessage } from './error-utils.js'
 
 // =============================================================================
 // Deep Freeze Utility
@@ -395,7 +396,7 @@ export function tryReadYaml(filePath: string): Record<string, unknown> | null {
     // YAML.parse returns undefined/null for empty files
     return parsed ?? {}
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toErrorMessage(err)
     throw new Error(`Failed to parse YAML at ${filePath}: ${message}`, { cause: err })
   }
 }

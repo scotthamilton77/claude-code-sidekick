@@ -20,6 +20,7 @@ import { basename, extname, join } from 'node:path'
 import { PersonaDefinitionSchema, type PersonaDefinition } from '@sidekick/types'
 import type { Logger } from '@sidekick/types'
 import { createCascadingResolver, type CascadingResolver } from './assets.js'
+import { toErrorMessage } from './error-utils.js'
 
 // =============================================================================
 // Types
@@ -131,7 +132,7 @@ function loadPersonaFromResolver(
 
     return result.data
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    const message = toErrorMessage(error)
     logger?.warn(`Failed to load persona file ${filename}: ${message}`)
     return null
   }

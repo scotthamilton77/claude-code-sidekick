@@ -1,6 +1,7 @@
 import { readdir, readFile, stat, access } from 'node:fs/promises'
 import { join, basename } from 'node:path'
 import type { Logger } from '@sidekick/types'
+import { toErrorMessage } from '@sidekick/core'
 import { getGitBranch } from './git-branch-cache.js'
 
 /** Heartbeat recency threshold (matches daemon's 5s interval) */
@@ -22,13 +23,13 @@ function parseJsonResult<T>(
     } catch (err) {
       logger?.debug(failureMsg, {
         sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   } else {
     logger?.debug(failureMsg, {
       sessionId,
-      error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      error: toErrorMessage(result.reason),
     })
   }
   return undefined
@@ -62,7 +63,7 @@ export async function listProjects(registryRoot: string, logger?: Logger): Promi
   } catch (err) {
     logger?.warn('Failed to read registry directory', {
       registryRoot,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     return []
   }
@@ -87,7 +88,7 @@ export async function listProjects(registryRoot: string, logger?: Logger): Promi
       } catch (err) {
         logger?.debug('Project directory not accessible', {
           projectDir: entry.path,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
         continue // skip projects whose directory is gone
       }
@@ -110,7 +111,7 @@ export async function listProjects(registryRoot: string, logger?: Logger): Promi
     } catch (err) {
       logger?.warn('Failed to parse registry entry', {
         registryFile,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }
@@ -133,7 +134,7 @@ export async function getProjectById(registryRoot: string, projectId: string, lo
     } catch (err) {
       logger?.debug('Project directory not accessible', {
         projectDir: entry.path,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
       return null
     }
@@ -154,7 +155,7 @@ export async function getProjectById(registryRoot: string, projectId: string, lo
   } catch (err) {
     logger?.warn('Failed to read project registry', {
       projectId,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     return null
   }
@@ -172,7 +173,7 @@ export async function listSessions(projectDir: string, isProjectActive = false, 
   } catch (err) {
     logger?.debug('Sessions directory not readable', {
       sessionsDir,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
     return []
   }
@@ -189,7 +190,7 @@ export async function listSessions(projectDir: string, isProjectActive = false, 
       } catch (err) {
         logger?.debug('Session directory disappeared during scan', {
           sessionDir,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
         return null
       }

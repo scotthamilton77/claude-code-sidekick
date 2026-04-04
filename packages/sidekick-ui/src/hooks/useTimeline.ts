@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { toErrorMessage } from '../utils/toErrorMessage'
 import type { SidekickEvent } from '../types'
 
 export interface UseTimelineResult {
@@ -42,7 +43,7 @@ export function useTimeline(
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err))
+          setError(toErrorMessage(err))
           setEvents([])
           setLoading(false)
         }

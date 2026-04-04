@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { toErrorMessage } from '../utils/toErrorMessage'
 import type { Project, Session } from '../types'
 
 interface ApiProject {
@@ -126,7 +127,7 @@ export function useSessions(): UseSessionsResult {
                 })
               )
             } catch (sessionErr) {
-              const errorMsg = sessionErr instanceof Error ? sessionErr.message : String(sessionErr)
+              const errorMsg = toErrorMessage(sessionErr)
               return {
                 id: apiProject.id,
                 name: apiProject.name,
@@ -155,7 +156,7 @@ export function useSessions(): UseSessionsResult {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err))
+          setError(toErrorMessage(err))
           setLoading(false)
         }
       }

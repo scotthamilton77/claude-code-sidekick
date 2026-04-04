@@ -21,6 +21,7 @@ import {
   USER_STATUS_FILENAME,
   type ApiKeySource,
   type PluginInstallationStatus,
+  toErrorMessage,
   type PluginLivenessStatus,
 } from '@sidekick/core'
 import { ensurePluginInstalled } from './plugin-installer.js'
@@ -165,7 +166,7 @@ async function runDoctorFixes(
         fixedCount++
       }
     } catch (err) {
-      stdout.write(`  ⚠ Plugin installation failed: ${err instanceof Error ? err.message : String(err)}\n`)
+      stdout.write(`  ⚠ Plugin installation failed: ${toErrorMessage(err)}\n`)
     }
   }
 
@@ -254,7 +255,7 @@ export async function runDoctor(
   try {
     filter = parseDoctorOnly(options?.only)
   } catch (err) {
-    stdout.write(`${err instanceof Error ? err.message : String(err)}\n`)
+    stdout.write(`${toErrorMessage(err)}\n`)
     return { exitCode: 1 }
   }
   const shouldRun = (check: DoctorCheckName): boolean => filter === null || filter.has(check)

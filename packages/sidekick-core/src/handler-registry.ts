@@ -31,6 +31,7 @@ import type {
 } from '@sidekick/types'
 import { extractContentPreview } from './transcript-content.js'
 import { LogEvents, logEvent } from './structured-logging.js'
+import { toErrorMessage } from './error-utils.js'
 
 // ============================================================================
 // Types
@@ -202,7 +203,7 @@ export class HandlerRegistryImpl implements HandlerRegistry {
         log.error('Handler execution failed', {
           handlerId: handler.id,
           hook,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }
@@ -278,7 +279,7 @@ export class HandlerRegistryImpl implements HandlerRegistry {
       )
     } catch (err) {
       const durationMs = Date.now() - startTime
-      const errorMsg = err instanceof Error ? err.message : String(err)
+      const errorMsg = toErrorMessage(err)
 
       // Log EventProcessed for failed handler execution
       logEvent(

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import type { Plugin, ViteDevServer } from 'vite'
 import { createRouter } from './router.js'
 import type { ApiContext } from './types.js'
+import { toErrorMessage } from '@sidekick/core'
 import { toRequest, writeResponse } from './utils.js'
 
 export function sidekickApiPlugin(): Plugin {
@@ -20,7 +21,7 @@ export function sidekickApiPlugin(): Plugin {
             next()
           })
           .catch((err: unknown) => {
-            const msg = err instanceof Error ? err.message : String(err)
+            const msg = toErrorMessage(err)
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: `Internal error: ${msg}` }))

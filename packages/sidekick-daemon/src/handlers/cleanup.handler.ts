@@ -6,7 +6,7 @@
  * @see docs/design/DAEMON.md §4.3
  */
 
-import { CleanupPayloadSchema, Logger } from '@sidekick/core'
+import { CleanupPayloadSchema, Logger, toErrorMessage } from '@sidekick/core'
 import type { MinimalStateService, TaskContext } from '@sidekick/types'
 import fs from 'fs/promises'
 import path from 'path'
@@ -84,7 +84,7 @@ export function createCleanupHandler(deps: CleanupHandlerDeps): TaskHandler {
         } catch (statErr) {
           ctx.logger.warn('Failed to stat session directory', {
             session: entry.name,
-            error: statErr instanceof Error ? statErr.message : String(statErr),
+            error: toErrorMessage(statErr),
           })
         }
       }
@@ -106,7 +106,7 @@ export function createCleanupHandler(deps: CleanupHandlerDeps): TaskHandler {
         return
       }
       ctx.logger.error('Cleanup task failed', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
       throw err
     }

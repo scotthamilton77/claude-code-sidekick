@@ -21,6 +21,7 @@ import {
   createAssetResolver,
   getDefaultAssetsDir,
   isInSandbox,
+  toErrorMessage,
   updateDaemonHealth,
 } from '@sidekick/core'
 import { checkDevModeConflict } from '../utils/dev-mode-guard.js'
@@ -87,7 +88,7 @@ function loadSafeWordContext(safeWord: string, projectRoot: string | undefined, 
     return undefined
   } catch (err) {
     logger.error('Failed to load safe-word-liveness.yaml', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
       projectRoot,
     })
     return undefined
@@ -277,7 +278,7 @@ async function maybeAutoConfigureProject(projectRoot: string, logger: Logger): P
     return configured
   } catch (err) {
     logger.warn('Failed to auto-configure project', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
       projectRoot,
     })
     return false
@@ -296,7 +297,7 @@ async function checkSetupState(projectRoot: string, hookName: HookName, logger: 
   } catch (err) {
     // If we can't check setup state, assume healthy and proceed
     logger.warn('Failed to check setup state, assuming healthy', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
       hookName,
       projectRoot,
     })
@@ -357,7 +358,7 @@ async function ensureDaemonForHook(projectRoot: string, logger: Logger): Promise
   } catch (err) {
     // If we can't check setup status, proceed with daemon start attempt
     logger.warn('Failed to check setup status for daemon start, proceeding anyway', {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     })
   }
 
@@ -368,7 +369,7 @@ async function ensureDaemonForHook(projectRoot: string, logger: Logger): Promise
     await updateDaemonHealth(projectRoot, 'healthy', logger)
     return true
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err)
+    const errorMessage = toErrorMessage(err)
     await updateDaemonHealth(projectRoot, 'failed', logger, errorMessage)
     return false
   }
@@ -390,7 +391,7 @@ function parseInternalResponse(output: string, hookName: HookName, logger: Logge
   } catch (err) {
     logger.warn('Failed to parse internal hook response', {
       hookName,
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
       output,
     })
     return {}

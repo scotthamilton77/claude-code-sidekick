@@ -34,6 +34,7 @@ import {
   filterActiveReminderFiles,
   extractConsumedTimestamp,
 } from './staging-paths.js'
+import { toErrorMessage } from './error-utils.js'
 
 // ============================================================================
 // Types
@@ -197,7 +198,7 @@ export class StagingServiceCore {
         hookName,
         reminderName,
         path: reminderPath,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
       return null
     }
@@ -236,7 +237,7 @@ export class StagingServiceCore {
         // StateCorruptError or other validation/parse errors
         this.options.logger.warn('Skipping invalid reminder file', {
           path: reminderPath,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }
@@ -315,7 +316,7 @@ export class StagingServiceCore {
         // StateCorruptError or other validation/parse errors
         this.options.logger.warn('Skipping invalid consumed reminder file', {
           path: reminderPath,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }

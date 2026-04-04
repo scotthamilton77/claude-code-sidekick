@@ -12,7 +12,7 @@
 
 import type { Writable } from 'node:stream'
 import type { Logger, AssetResolver, ConfigScope } from '@sidekick/core'
-import { configGet, configSet, configUnset, configList } from '@sidekick/core'
+import { configGet, configSet, configUnset, configList, toErrorMessage } from '@sidekick/core'
 
 export interface ConfigCommandOptions {
   format?: 'json' | 'text'
@@ -56,7 +56,7 @@ function handleGet(
       logger,
     })
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toErrorMessage(err)
     const error = `Error: ${message}`
     stdout.write(error + '\n')
     return { exitCode: 1, output: error }
@@ -123,7 +123,7 @@ function handleSet(
     stdout.write(output + '\n')
     return { exitCode: 0, output }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toErrorMessage(err)
     const error = `Error: ${message}`
     stdout.write(error + '\n')
     return { exitCode: 1, output: error }
@@ -168,7 +168,7 @@ function handleUnset(
     stdout.write(output + '\n')
     return { exitCode: 0, output }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toErrorMessage(err)
     const error = `Error: ${message}`
     stdout.write(error + '\n')
     return { exitCode: 1, output: error }
@@ -213,7 +213,7 @@ function handleList(
     stdout.write(output + '\n')
     return { exitCode: 0, output }
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
+    const message = toErrorMessage(err)
     const error = `Error: ${message}`
     stdout.write(error + '\n')
     return { exitCode: 1, output: error }

@@ -17,6 +17,7 @@ import {
   logEvent,
   SessionLogWriter,
   setSessionLogWriter,
+  toErrorMessage,
   type AssetResolver,
   type ConfigService,
 } from '@sidekick/core'
@@ -477,7 +478,7 @@ export class Daemon {
       this.logger.info('Configuration reloaded successfully')
     } catch (err) {
       this.logger.error('Failed to reload configuration', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }
@@ -530,7 +531,7 @@ export class Daemon {
     } catch (err) {
       this.logger.error('Failed to stage persona reminders on change', {
         sessionId: event.sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }
@@ -573,7 +574,7 @@ export class Daemon {
     } catch (err) {
       this.logger.error('Failed to regenerate messages after persona change', {
         sessionId,
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }
@@ -789,7 +790,7 @@ export class Daemon {
           }
         } catch (err) {
           log.warn('Failed to cache persona for clear handoff', {
-            error: err instanceof Error ? err.message : String(err),
+            error: toErrorMessage(err),
           })
         }
       } else {

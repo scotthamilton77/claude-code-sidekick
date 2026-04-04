@@ -7,7 +7,7 @@
  * passed but the devMode flag is off, auto-correct it.
  */
 import type { Logger } from '@sidekick/core'
-import { SetupStatusService } from '@sidekick/core'
+import { SetupStatusService, toErrorMessage } from '@sidekick/core'
 
 /**
  * Result of dev-mode conflict check.
@@ -47,7 +47,7 @@ export async function checkDevModeConflict(
       }
     } catch (err) {
       logger.warn(`Failed to auto-correct devMode flag for ${callerLabel}`, {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
         caller: callerLabel,
       })
     }
@@ -67,7 +67,7 @@ export async function checkDevModeConflict(
   } catch (err) {
     // Fail open: if we can't check status, proceed normally
     logger.warn(`Failed to check plugin/dev-mode status for ${callerLabel}, proceeding normally`, {
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
       caller: callerLabel,
     })
   }

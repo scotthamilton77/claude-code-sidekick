@@ -10,6 +10,7 @@ import {
   logEvent,
   type Logger,
   type LogManager,
+  toErrorMessage,
   type StateService,
 } from '@sidekick/core'
 import type { DaemonStatus, HookName, LogMetricsState } from '@sidekick/types'
@@ -171,7 +172,7 @@ export class LogMetricsManager {
       await this.daemonStatusAccessor.write(status)
     } catch (err) {
       this.logger?.warn('Failed to write heartbeat status', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
 
@@ -223,7 +224,7 @@ export class LogMetricsManager {
       } catch (err) {
         this.logger?.warn('Failed to persist log metrics', {
           sessionId,
-          error: err instanceof Error ? err.message : String(err),
+          error: toErrorMessage(err),
         })
       }
     }
@@ -238,7 +239,7 @@ export class LogMetricsManager {
       await this.globalLogMetricsAccessor.write(globalMetrics)
     } catch (err) {
       this.logger?.warn('Failed to persist global log metrics', {
-        error: err instanceof Error ? err.message : String(err),
+        error: toErrorMessage(err),
       })
     }
   }
