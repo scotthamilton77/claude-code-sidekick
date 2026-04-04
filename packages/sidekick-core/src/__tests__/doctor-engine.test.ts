@@ -318,6 +318,81 @@ describe('doctor-engine', () => {
       expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
     })
 
+    it('migrates legacy string "pending-validation" to object format even when status normalizes to same value', async () => {
+      // Scenario: user status has legacy string 'pending-validation' which toScopeStatus() maps to 'missing'
+      // Detected status is also 'missing' — but the format should still be upgraded to object
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'user' },
+        })
+      )
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'pending-validation' as never, OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      const updatedUserStatus = await io.getUserStatus()
+      // Should be migrated to object format even though normalized status matches
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'missing',
+      })
+      expect(typeof updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toBe('object')
+      expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
+    })
+
+    it('migrates legacy string "healthy" to object format even when status matches', async () => {
+      // Scenario: user status has legacy string 'healthy' and key actually exists (also healthy)
+      // Status matches but format is still legacy string — should be upgraded to object
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'user', OPENAI_API_KEY: 'user' },
+        })
+      )
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'healthy', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      const updatedUserStatus = await io.getUserStatus()
+      // Should be migrated to object format
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'healthy',
+        used: 'user',
+      })
+      expect(typeof updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toBe('object')
+      expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
+    })
+
+    it('does not migrate legacy string "not-required" — it is a user preference', async () => {
+      // Scenario: user explicitly opted out with 'not-required' string — should be preserved
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'user' },
+        })
+      )
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'not-required', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      const updatedUserStatus = await io.getUserStatus()
+      // 'not-required' should be preserved as-is (it's a user preference, not a detection result)
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toBe('not-required')
+    })
+
     it('does not update user status when it already matches detected state', async () => {
       // Scenario: both project and user status are accurate
       await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')

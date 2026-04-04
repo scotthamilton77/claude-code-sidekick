@@ -226,7 +226,14 @@ export async function runDoctorCheck(
       // 'not-required' is a user preference (opt-out), not a detection result — preserve it
       if (currentStatus === 'not-required') continue
 
-      if (toScopeStatus(currentStatus) !== toScopeStatus(expectedUserStatus.status)) {
+      // Legacy string entries should always be migrated to object format,
+      // even when the normalized status matches — the format itself needs upgrading.
+      const isLegacyString = typeof currentUserEntry === 'string'
+
+      if (isLegacyString) {
+        updatedUserApiKeys[keyName] = expectedUserStatus
+        userNeedsUpdate = true
+      } else if (toScopeStatus(currentStatus) !== toScopeStatus(expectedUserStatus.status)) {
         // Status changed (e.g. healthy → missing)
         updatedUserApiKeys[keyName] = expectedUserStatus
         userNeedsUpdate = true
