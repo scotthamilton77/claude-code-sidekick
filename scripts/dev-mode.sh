@@ -7,6 +7,7 @@
 #   dev-mode.sh status     # Show current state
 #   dev-mode.sh clean      # Truncate logs, kill daemon, clean state
 #   dev-mode.sh clean-all  # Full cleanup including sessions
+#   dev-mode.sh clean-all-projects  # Clean all registered projects
 #
 # This script delegates to: pnpm sidekick dev-mode
 # See: packages/sidekick-cli/src/commands/dev-mode.ts
