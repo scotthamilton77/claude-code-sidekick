@@ -726,7 +726,7 @@ describe('parseTranscriptLines', () => {
   it('maps hook:received with input to hookInput', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
@@ -755,7 +755,7 @@ describe('parseTranscriptLines', () => {
   it('maps hook:completed with returnValue to hookReturnValue', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
@@ -783,7 +783,7 @@ describe('parseTranscriptLines', () => {
   it('maps hook:completed without returnValue to undefined hookReturnValue', async () => {
     setupTranscript(makeUserEntry('Hello'))
 
-    mockFindLogFiles.mockImplementation((dir: string, prefix: string) => {
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
       if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
       return Promise.resolve([])
     })
