@@ -3,6 +3,7 @@ import { NavigationContext, initialState, navigationReducer } from './hooks/useN
 import { useSessions } from './hooks/useSessions'
 import { useTimeline } from './hooks/useTimeline'
 import { useTranscript } from './hooks/useTranscript'
+import { useStateSnapshots } from './hooks/useStateSnapshots'
 import { SessionSelector } from './components/SessionSelector'
 import { SummaryStrip } from './components/SummaryStrip'
 import { Timeline } from './components/timeline/Timeline'
@@ -14,19 +15,23 @@ function App() {
   const [state, dispatch] = useReducer(navigationReducer, initialState)
   const { projects, loading, error } = useSessions()
 
-  const { events: timelineEvents, loading: timelineLoading, error: timelineError } = useTimeline(
-    state.selectedProjectId,
-    state.selectedSessionId
-  )
+  const {
+    events: timelineEvents,
+    loading: timelineLoading,
+    error: timelineError,
+  } = useTimeline(state.selectedProjectId, state.selectedSessionId)
 
-  const { lines: transcriptLines, loading: transcriptLoading, error: transcriptError } = useTranscript(
-    state.selectedProjectId,
-    state.selectedSessionId
-  )
+  const {
+    lines: transcriptLines,
+    loading: transcriptLoading,
+    error: transcriptError,
+  } = useTranscript(state.selectedProjectId, state.selectedSessionId)
 
-  const selectedProject = projects.find(p => p.id === state.selectedProjectId)
-  const selectedSession = selectedProject?.sessions.find(s => s.id === state.selectedSessionId)
-  const selectedLine = transcriptLines.find(l => l.id === state.selectedTranscriptLineId)
+  const { snapshots: stateSnapshots } = useStateSnapshots(state.selectedProjectId, state.selectedSessionId)
+
+  const selectedProject = projects.find((p) => p.id === state.selectedProjectId)
+  const selectedSession = selectedProject?.sessions.find((s) => s.id === state.selectedSessionId)
+  const selectedLine = transcriptLines.find((l) => l.id === state.selectedTranscriptLineId)
 
   // Derive session default model (most common model across transcript lines)
   const defaultModel = useMemo(() => {
@@ -37,7 +42,10 @@ function App() {
     let best = ''
     let bestCount = 0
     for (const [m, c] of counts) {
-      if (c > bestCount) { best = m; bestCount = c }
+      if (c > bestCount) {
+        best = m
+        bestCount = c
+      }
     }
     return best || undefined
   }, [transcriptLines])
@@ -54,7 +62,7 @@ function App() {
         }
       }
       if (detailOpen && transcriptLines.length > 0) {
-        const idx = transcriptLines.findIndex(l => l.id === state.selectedTranscriptLineId)
+        const idx = transcriptLines.findIndex((l) => l.id === state.selectedTranscriptLineId)
         if (e.key === 'ArrowUp' && idx > 0) {
           dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: transcriptLines[idx - 1].id })
         }
@@ -74,15 +82,13 @@ function App() {
       <div className={state.darkMode ? 'dark' : ''}>
         <div className="h-screen w-screen bg-slate-50 dark:bg-slate-950 flex overflow-hidden">
           {/* Session Selector — compresses to label */}
-          <div className={`panel-transition ${selectorWidth} border-r border-slate-200 dark:border-slate-800 overflow-hidden`}>
+          <div
+            className={`panel-transition ${selectorWidth} border-r border-slate-200 dark:border-slate-800 overflow-hidden`}
+          >
             {loading ? (
-              <div className="flex items-center justify-center h-full text-slate-400">
-                Loading sessions...
-              </div>
+              <div className="flex items-center justify-center h-full text-slate-400">Loading sessions...</div>
             ) : error ? (
-              <div className="flex items-center justify-center h-full text-red-500 px-4 text-center">
-                {error}
-              </div>
+              <div className="flex items-center justify-center h-full text-red-500 px-4 text-center">{error}</div>
             ) : (
               <SessionSelector projects={projects} />
             )}
@@ -100,7 +106,9 @@ function App() {
                 </div>
 
                 {/* Transcript — shrinks when subagents or detail open */}
-                <div className={`${state.subagentChain.length > 0 || detailOpen ? 'flex-[2]' : 'flex-[3]'} border-r border-slate-200 dark:border-slate-700 overflow-hidden min-w-0 panel-transition`}>
+                <div
+                  className={`${state.subagentChain.length > 0 || detailOpen ? 'flex-[2]' : 'flex-[3]'} border-r border-slate-200 dark:border-slate-700 overflow-hidden min-w-0 panel-transition`}
+                >
                   <Transcript
                     lines={transcriptLines}
                     loading={transcriptLoading}
@@ -131,11 +139,7 @@ function App() {
                 {/* Detail Panel — slides in on transcript click */}
                 {detailOpen && selectedLine && (
                   <div className="flex-[2] overflow-hidden panel-transition">
-                    <DetailPanel
-                      line={selectedLine}
-                      lines={transcriptLines}
-                      stateSnapshots={selectedSession.stateSnapshots}
-                    />
+                    <DetailPanel line={selectedLine} lines={transcriptLines} stateSnapshots={stateSnapshots} />
                   </div>
                 )}
               </div>
