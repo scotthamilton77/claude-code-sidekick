@@ -19,7 +19,7 @@ import path from 'node:path'
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { Logger } from '@sidekick/types'
 import { createFakeLogger } from '@sidekick/testing-fixtures'
-import { USER_STATUS_FILENAME, LEGACY_USER_STATUS_FILENAME, PROJECT_STATUS_FILENAME } from '@sidekick/core'
+import { USER_STATUS_FILENAME, PROJECT_STATUS_FILENAME } from '@sidekick/core'
 
 // CollectingWritable to capture stdout output
 class CollectingWritable extends Writable {

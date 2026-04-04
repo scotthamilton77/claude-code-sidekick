@@ -153,7 +153,6 @@ export {
   type AllScopesDetectionResult,
   USER_STATUS_FILENAME,
   PROJECT_STATUS_FILENAME,
-  LEGACY_USER_STATUS_FILENAME,
 } from './setup-status-service'
 // Extracted modules — direct access to detection and reconciliation functions
 export {
