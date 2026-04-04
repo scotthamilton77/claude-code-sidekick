@@ -73,13 +73,18 @@ describe('parseTimelineEvents', () => {
     })
   })
 
-  it('filters events by sessionId', async () => {
+  it('filters events by sessionId (via aggregate fallback path)', async () => {
     const lines = [
       makeLogLine({ time: 1000, context: { sessionId: 'session-1' } }),
       makeLogLine({ time: 2000, context: { sessionId: 'session-2' } }),
       makeLogLine({ time: 3000, context: { sessionId: 'session-1' } }),
     ].join('\n')
 
+    // Force per-session dir to be empty so we fall back to aggregate (which filters by sessionId)
+    mockReaddir.mockImplementation((dir: string) => {
+      if (dir.includes('sessions/')) return Promise.reject(new Error('ENOENT'))
+      return Promise.resolve(['sidekick.1.log', 'sidekickd.1.log'])
+    })
     mockReadFile.mockImplementation((path: string) => {
       if (path.includes('sidekick.1.log')) return Promise.resolve(lines)
       return Promise.resolve('')
@@ -350,5 +355,91 @@ describe('generateLabel', () => {
   it('falls back to operation name for resume-message:finish with empty payload', () => {
     const result = generateLabel('resume-message:finish', {})
     expect(result).toEqual({ label: 'Resume Message Finish' })
+  })
+})
+
+describe('parseTimelineEvents — per-session logs', () => {
+  it('reads from per-session logs when they exist', async () => {
+    const sessionLine = makeLogLine({
+      time: 1000,
+      type: 'reminder:staged',
+      context: { sessionId: 'session-1' },
+    })
+
+    mockReaddir.mockImplementation((dir: string) => {
+      if (dir.includes('sessions/session-1/logs')) {
+        // Only one file in the session dir (sidekick.1.log only)
+        return Promise.resolve(['sidekick.1.log'])
+      }
+      // Aggregate dir — should NOT be read when per-session exists
+      return Promise.resolve(['sidekick.1.log', 'sidekickd.1.log'])
+    })
+
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sessions/session-1/logs')) {
+        return Promise.resolve(sessionLine)
+      }
+      // Aggregate file — should NOT be read when per-session exists
+      return Promise.resolve(makeLogLine({ time: 9999, type: 'error:occurred', errorMessage: 'should not appear' }))
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'session-1')
+    expect(events).toHaveLength(1)
+    expect(events[0].timestamp).toBe(1000)
+    expect(events[0].type).toBe('reminder:staged')
+  })
+
+  it('falls back to aggregate logs when per-session logs do not exist', async () => {
+    const aggregateLine = makeLogLine({
+      time: 2000,
+      type: 'decision:recorded',
+      decision: 'old-session',
+      reason: 'fallback',
+      context: { sessionId: 'old-session' },
+    })
+
+    mockReaddir.mockImplementation((dir: string) => {
+      if (dir.includes('sessions/old-session/logs')) {
+        return Promise.reject(new Error('ENOENT'))
+      }
+      return Promise.resolve(['sidekick.1.log', 'sidekickd.1.log'])
+    })
+
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sessions/')) {
+        return Promise.reject(new Error('ENOENT'))
+      }
+      // Only sidekick.1.log has content; sidekickd.1.log is empty
+      if (path.includes('sidekick.1.log')) return Promise.resolve(aggregateLine)
+      return Promise.resolve('')
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'old-session')
+    expect(events).toHaveLength(1)
+    expect(events[0].timestamp).toBe(2000)
+  })
+
+  it('does not filter by sessionId when reading per-session logs', async () => {
+    const lines = [
+      makeLogLine({ time: 1000, type: 'reminder:staged', context: { sessionId: 'session-1' } }),
+      makeLogLine({ time: 2000, type: 'daemon:started', context: { sessionId: 'session-1' } }),
+    ].join('\n')
+
+    mockReaddir.mockImplementation((dir: string) => {
+      if (dir.includes('sessions/session-1/logs')) {
+        return Promise.resolve(['sidekickd.1.log'])
+      }
+      return Promise.resolve([])
+    })
+
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sessions/session-1/logs')) return Promise.resolve(lines)
+      return Promise.resolve('')
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'session-1')
+    // daemon:started is not in TIMELINE_EVENT_TYPES, so filtered by type only
+    expect(events).toHaveLength(1)
+    expect(events[0].type).toBe('reminder:staged')
   })
 })
