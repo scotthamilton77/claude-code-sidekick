@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
 import type { TranscriptLine } from '../../types'
+import { Collapsible } from '../Collapsible'
 
 interface HookDetailProps {
   line: TranscriptLine
@@ -64,27 +64,6 @@ function KeyValueRows({ data }: { data: Record<string, unknown> }) {
           </div>
         )
       })}
-    </div>
-  )
-}
-
-function Collapsible({ label, open, onToggle, children }: { label: string; open: boolean; onToggle: () => void; children: ReactNode }) {
-  return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex items-center gap-1 w-full px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
-      >
-        {open ? <ChevronDown size={12} className="text-slate-400" /> : <ChevronRight size={12} className="text-slate-400" />}
-        <span className="text-[10px] font-medium text-slate-500">{label}</span>
-      </button>
-      {open && (
-        <div className="px-2 py-1.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-auto max-h-[300px]">
-          {children}
-        </div>
-      )}
     </div>
   )
 }

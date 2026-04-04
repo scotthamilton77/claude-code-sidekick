@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { StateSnapshot } from '../../types'
+import { Collapsible } from '../Collapsible'
 
 interface StateTabProps {
   snapshots: StateSnapshot[]
@@ -43,7 +42,11 @@ export function StateTab({ snapshots, currentTimestamp }: StateTabProps) {
         const data = snapshot[key as keyof StateSnapshot]
         if (key === 'timestamp' || data == null) return null
         return (
-          <CollapsibleSection key={key} label={label} data={data as Record<string, unknown>} />
+          <Collapsible key={key} label={label} labelClassName="font-mono" defaultOpen>
+            <pre className="text-[11px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </Collapsible>
         )
       })}
     </div>
@@ -62,25 +65,3 @@ function findSnapshotAtTime(snapshots: StateSnapshot[], timestamp: number): Stat
   return best
 }
 
-function CollapsibleSection({ label, data }: { label: string; data: Record<string, unknown> }) {
-  const [open, setOpen] = useState(true)
-
-  return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 w-full px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
-      >
-        {open ? <ChevronDown size={12} className="text-slate-400" /> : <ChevronRight size={12} className="text-slate-400" />}
-        <span className="text-[10px] font-medium font-mono text-slate-500">{label}</span>
-      </button>
-      {open && (
-        <div className="px-2 py-1.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-auto max-h-[300px]">
-          <pre className="text-[11px] font-mono text-slate-700 dark:text-slate-300 leading-relaxed">
-            {JSON.stringify(data, null, 2)}
-          </pre>
-        </div>
-      )}
-    </div>
-  )
-}
