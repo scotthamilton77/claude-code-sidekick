@@ -179,7 +179,7 @@ export function getPluginStatusLabel(status: PluginInstallationStatus): string {
     case 'dev-mode':
       return 'dev-mode (local)'
     case 'both':
-      return 'conflict (both plugin and dev-mode detected!)'
+      return 'plugin and dev-mode both active'
     case 'none':
       return 'not installed'
     case 'timeout':
@@ -212,6 +212,7 @@ export function getPluginStatusIcon(status: PluginInstallationStatus): string {
     case 'dev-mode':
       return '✓'
     case 'both':
+      return '•'
     case 'timeout':
     case 'error':
       return '⚠'

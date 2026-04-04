@@ -392,7 +392,7 @@ export async function runDoctor(
 
   // --- Overall summary (only meaningful when running all checks) ---
   if (filter === null) {
-    const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode'
+    const isPluginOk = pluginStatus === 'plugin' || pluginStatus === 'dev-mode' || pluginStatus === 'both'
     const isPluginLive = liveness === null || liveness === 'active'
     // After Promise.all with filter===null, all checks have run and populated these variables.
     // TS can't track mutations inside .then() callbacks, so we assert non-null.
