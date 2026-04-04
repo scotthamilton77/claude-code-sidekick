@@ -1003,7 +1003,20 @@ describe('parseTranscriptLines', () => {
     expect(toolUseLine!.agentId).toBe('agent-z')
   })
 
-  it('clamps out-of-order timestamps to preserve file order (line 598)', async () => {
+  it('agent_progress with no data field is a no-op', async () => {
+    const content = [
+      JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'text', text: 'hi' }] }, timestamp: DEFAULT_TIMESTAMP }),
+      JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'tool-1', name: 'Bash', input: {} }] }, timestamp: DEFAULT_TIMESTAMP }),
+      JSON.stringify({ type: 'agent_progress', timestamp: DEFAULT_TIMESTAMP }), // no data field
+    ].join('\n')
+    setupTranscript(content)
+    const result = await parseTranscriptLines('myproject', 'session-1')
+    // No agentId attached, no error thrown
+    const toolUse = result.find(l => l.type === 'tool-use')
+    expect(toolUse?.agentId).toBeUndefined()
+  })
+
+  it('clamps out-of-order timestamps to preserve file order', async () => {
     // Create two entries where the second has a LOWER timestamp than the first.
     // The clamping pass should raise the second entry's timestamp to match the first.
     const earlier = '2025-01-15T10:00:02.000Z'
@@ -1014,13 +1027,7 @@ describe('parseTranscriptLines', () => {
       makeAssistantEntry([{ type: 'text', text: 'Second' }], { timestamp: later }),
     ].join('\n')
 
-    mockStat.mockImplementation((p: string) => {
-      if (p.endsWith('session-1.jsonl') && !p.includes('session-1/session-1')) {
-        return Promise.resolve({ isFile: () => true })
-      }
-      return Promise.reject(new Error('ENOENT'))
-    })
-    mockReadFile.mockResolvedValue(content)
+    setupTranscript(content)
 
     const lines = await parseTranscriptLines('myproject', 'session-1')
     expect(lines).toHaveLength(2)
