@@ -264,6 +264,54 @@ describe('ReminderOrchestrator', () => {
     })
   })
 
+  describe('onStop', () => {
+    it('unstages P&R from PreToolUse when staged', async () => {
+      await orchestrator.onStop('session-123')
+
+      expect(getStagingService).toHaveBeenCalledWith('session-123')
+      expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
+      expect(logger.debug).toHaveBeenCalledWith(
+        'P&R cleanup on Stop',
+        expect.objectContaining({ sessionId: 'session-123', deleted: true })
+      )
+    })
+
+    it('logs reminder:unstaged event via session-scoped child logger when P&R was staged', async () => {
+      const childLogger = createMockLogger()
+      vi.mocked(logger.child).mockReturnValue(childLogger)
+
+      await orchestrator.onStop('session-456')
+
+      expect(logger.child).toHaveBeenCalledWith({ context: { sessionId: 'session-456' } })
+      expect(childLogger.info).toHaveBeenCalled()
+    })
+
+    it('no-op when P&R not staged (no error)', async () => {
+      vi.mocked(staging.deleteReminder).mockResolvedValueOnce(false)
+
+      await orchestrator.onStop('session-123')
+
+      expect(staging.deleteReminder).toHaveBeenCalledWith('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
+      expect(logger.debug).toHaveBeenCalledWith(
+        'P&R cleanup on Stop',
+        expect.objectContaining({ sessionId: 'session-123', deleted: false })
+      )
+    })
+
+    it('logs warning on staging service error (does not throw)', async () => {
+      const error = new Error('Staging service unavailable')
+      vi.mocked(staging.deleteReminder).mockRejectedValueOnce(error)
+
+      // Should not throw
+      await orchestrator.onStop('session-123')
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Failed to unstage P&R on Stop',
+        expect.objectContaining({ error: 'Staging service unavailable' })
+      )
+    })
+  })
+
   describe('readPRBaseline', () => {
     it('returns baseline data when file exists', async () => {
       vi.mocked(stateService.read).mockResolvedValueOnce({

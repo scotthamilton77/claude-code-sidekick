@@ -184,6 +184,41 @@ export class ReminderOrchestrator implements ReminderCoordinator {
   }
 
   /**
+   * Called when Stop hook fires.
+   *
+   * P&R is designed to interrupt runaway execution — once the agent stops,
+   * it's irrelevant. This is defensive: Rule 4 (VC consumed → unstage P&R)
+   * covers the VC case, but this handles the no-VC case where P&R would
+   * otherwise linger on PreToolUse.
+   */
+  async onStop(sessionId: string): Promise<void> {
+    try {
+      const staging = this.deps.getStagingService(sessionId)
+      const deleted = await staging.deleteReminder('PreToolUse', ReminderIds.PAUSE_AND_REFLECT)
+      if (deleted) {
+        logEvent(
+          this.deps.logger.child({ context: { sessionId } }),
+          ReminderEvents.reminderUnstaged(
+            { sessionId },
+            {
+              reminderName: ReminderIds.PAUSE_AND_REFLECT,
+              hookName: 'PreToolUse',
+              reason: 'agent_stopping',
+              triggeredBy: 'stop_hook',
+            }
+          )
+        )
+      }
+      this.deps.logger.debug('P&R cleanup on Stop', { sessionId, deleted })
+    } catch (err) {
+      this.deps.logger.warn('Failed to unstage P&R on Stop', {
+        sessionId,
+        error: toErrorMessage(err),
+      })
+    }
+  }
+
+  /**
    * Read P&R baseline state for a session.
    * Returns null if no baseline exists.
    *

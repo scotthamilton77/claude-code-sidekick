@@ -50,4 +50,10 @@ export interface ReminderCoordinator {
    * Clears coordination state for new user prompt.
    */
   onUserPromptSubmit(sessionId: string): Promise<void>
+
+  /**
+   * Called when Stop hook fires. Cleans up reminders that are moot when agent stops.
+   * P&R is designed to interrupt runaway execution — once the agent stops, it's irrelevant.
+   */
+  onStop(sessionId: string): Promise<void>
 }

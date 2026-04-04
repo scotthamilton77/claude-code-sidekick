@@ -65,7 +65,7 @@ function createTestTranscriptEvent(
 ): TranscriptEvent {
   return {
     kind: 'transcript',
-    eventType: 'ToolCall',
+    eventType: 'ToolResult',
     context: {
       sessionId: 'test-session',
       timestamp: Date.now(),
@@ -197,7 +197,7 @@ additionalContext: "Lint needed"
       expect(registrations).toHaveLength(1)
       expect(registrations[0].filter).toEqual({
         kind: 'transcript',
-        eventTypes: ['ToolCall'],
+        eventTypes: ['ToolResult'],
       })
     })
 
@@ -259,6 +259,7 @@ additionalContext: "Lint needed"
         onReminderStaged: vi.fn().mockResolvedValue(undefined),
         onReminderConsumed: vi.fn().mockResolvedValue(undefined),
         onUserPromptSubmit: vi.fn().mockResolvedValue(undefined),
+        onStop: vi.fn().mockResolvedValue(undefined),
       }
 
       const ctxWithOrchestrator = createMockDaemonContext({
@@ -286,10 +287,10 @@ additionalContext: "Lint needed"
   })
 
   describe('registerStagePauseAndReflect', () => {
-    it('registers with transcript filter for ToolCall events', () => {
+    it('registers with transcript filter for ToolResult events', () => {
       registerStagePauseAndReflect(ctx)
 
-      const registrations = handlers.getHandlersForTranscriptEvent('ToolCall')
+      const registrations = handlers.getHandlersForTranscriptEvent('ToolResult')
       expect(registrations).toHaveLength(1)
       expect(registrations[0].id).toBe('reminders:stage-pause-and-reflect')
     })
@@ -385,7 +386,7 @@ additionalContext: "Lint needed"
       function createEventWithSession(metrics: Partial<TranscriptMetrics>, toolName?: string): TranscriptEvent {
         return {
           kind: 'transcript',
-          eventType: 'ToolCall',
+          eventType: 'ToolResult',
           context: {
             sessionId,
             timestamp: Date.now(),
@@ -658,7 +659,7 @@ additionalContext: "Lint needed"
         function createEventWithSession(metrics: Partial<TranscriptMetrics>): TranscriptEvent {
           return {
             kind: 'transcript',
-            eventType: 'ToolCall',
+            eventType: 'ToolResult',
             context: { sessionId, timestamp: Date.now() },
             payload: { lineNumber: 1, entry: {} },
             metadata: {
