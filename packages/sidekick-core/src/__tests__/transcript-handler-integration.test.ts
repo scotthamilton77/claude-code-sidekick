@@ -603,6 +603,178 @@ describe('TranscriptService to Handler Integration', () => {
       expect(reminders[0].userMessage).toBe('Consider providing a progress update.')
     })
   })
+
+  // --------------------------------------------------------------------------
+  // Two-Phase Staging: ToolCall → ToolResult Correlation
+  // --------------------------------------------------------------------------
+
+  describe('two-phase staging via ToolCall/ToolResult correlation', () => {
+    it('ToolCall events carry entry.id and ToolResult events carry entry.tool_use_id for correlation', async () => {
+      const toolCallEntries: TranscriptEntry[] = []
+      const toolResultEntries: TranscriptEntry[] = []
+
+      handlerRegistry.register({
+        id: 'test:capture-entries',
+        priority: 100,
+        filter: { kind: 'transcript', eventTypes: ['ToolCall', 'ToolResult'] },
+        handler: (event) => {
+          if (isTranscriptEvent(event)) {
+            if (event.eventType === 'ToolCall') toolCallEntries.push(event.payload.entry)
+            if (event.eventType === 'ToolResult') toolResultEntries.push(event.payload.entry)
+          }
+          return Promise.resolve()
+        },
+      })
+
+      const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'toolu_abc123', name: 'Edit', input: { file_path: '/src/app.ts' } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'toolu_abc123', content: 'Edit applied' }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
+      await new Promise((resolve) => setTimeout(resolve, 150))
+
+      // ToolCall entry has id (from tool_use block)
+      expect(toolCallEntries).toHaveLength(1)
+      expect((toolCallEntries[0] as { id?: string }).id).toBe('toolu_abc123')
+      expect((toolCallEntries[0] as { input?: unknown }).input).toEqual({ file_path: '/src/app.ts' })
+
+      // ToolResult entry has tool_use_id (from tool_result block)
+      expect(toolResultEntries).toHaveLength(1)
+      expect((toolResultEntries[0] as { tool_use_id?: string }).tool_use_id).toBe('toolu_abc123')
+    })
+
+    it('two-phase handler only stages on ToolResult, not ToolCall', async () => {
+      // Simulate the two-phase pattern our handlers use:
+      // ToolCall captures intent, ToolResult confirms and stages
+      const pendingMap = new Map<string, { toolName: string; filePath: string }>()
+      const stagedFiles: string[] = []
+
+      handlerRegistry.register({
+        id: 'test:two-phase-handler',
+        priority: 60,
+        filter: { kind: 'transcript', eventTypes: ['ToolCall', 'ToolResult'] },
+        handler: (event) => {
+          if (!isTranscriptEvent(event)) return Promise.resolve()
+
+          if (event.eventType === 'ToolCall') {
+            const entry = event.payload.entry as { id?: string; name?: string; input?: { file_path?: string } }
+            if (entry.id && entry.name === 'Edit' && entry.input?.file_path) {
+              pendingMap.set(entry.id, { toolName: entry.name, filePath: entry.input.file_path })
+            }
+            return Promise.resolve()
+          }
+
+          if (event.eventType === 'ToolResult') {
+            const entry = event.payload.entry as { tool_use_id?: string }
+            const pending = entry.tool_use_id ? pendingMap.get(entry.tool_use_id) : undefined
+            if (pending) {
+              stagedFiles.push(pending.filePath)
+              pendingMap.delete(entry.tool_use_id!)
+            }
+            return Promise.resolve()
+          }
+
+          return Promise.resolve()
+        },
+      })
+
+      const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'toolu_edit1', name: 'Edit', input: { file_path: '/src/main.ts' } },
+            ],
+          },
+        }),
+        JSON.stringify({
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [{ type: 'tool_result', tool_use_id: 'toolu_edit1', content: 'Applied' }],
+          },
+        }),
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
+      await new Promise((resolve) => setTimeout(resolve, 150))
+
+      // Staging only happened on ToolResult, not ToolCall
+      expect(stagedFiles).toEqual(['/src/main.ts'])
+      expect(pendingMap.size).toBe(0) // Pending entry was consumed
+    })
+
+    it('ToolCall without matching ToolResult leaves pending entry (blocked tool scenario)', async () => {
+      const pendingMap = new Map<string, string>()
+      const stagedCount = { value: 0 }
+
+      handlerRegistry.register({
+        id: 'test:blocked-tool-handler',
+        priority: 60,
+        filter: { kind: 'transcript', eventTypes: ['ToolCall', 'ToolResult'] },
+        handler: (event) => {
+          if (!isTranscriptEvent(event)) return Promise.resolve()
+
+          if (event.eventType === 'ToolCall') {
+            const entry = event.payload.entry as { id?: string; name?: string }
+            if (entry.id) pendingMap.set(entry.id, entry.name ?? 'unknown')
+          }
+          if (event.eventType === 'ToolResult') {
+            const entry = event.payload.entry as { tool_use_id?: string }
+            if (entry.tool_use_id && pendingMap.has(entry.tool_use_id)) {
+              pendingMap.delete(entry.tool_use_id)
+              stagedCount.value++
+            }
+          }
+          return Promise.resolve()
+        },
+      })
+
+      // Transcript with tool_use but NO tool_result (simulates blocked tool)
+      const transcript = [
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'tool_use', id: 'toolu_blocked', name: 'Write', input: { file_path: '/src/blocked.ts' } },
+            ],
+          },
+        }),
+        // No tool_result entry — tool was blocked by PreToolUse
+      ].join('\n')
+      writeFileSync(transcriptPath, transcript)
+
+      await transcriptService.prepare('test-session', transcriptPath)
+      await transcriptService.start()
+      await new Promise((resolve) => setTimeout(resolve, 150))
+
+      // ToolCall captured intent, but no ToolResult means no staging
+      expect(pendingMap.size).toBe(1) // Orphaned entry
+      expect(pendingMap.get('toolu_blocked')).toBe('Write')
+      expect(stagedCount.value).toBe(0) // Nothing staged
+    })
+  })
 })
 
 describe('RuntimeContext Wiring Verification', () => {

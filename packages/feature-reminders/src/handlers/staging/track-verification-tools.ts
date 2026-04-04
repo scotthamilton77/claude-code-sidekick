@@ -47,8 +47,9 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
   if (!isDaemonContext(context)) return
 
   // Closure-scoped pending map: tracks ToolCall intents awaiting ToolResult confirmation.
-  // Key: `${sessionId}:${toolUseId}`, value: captured tool name + input.
-  const pendingToolCalls = new Map<string, { toolName: string; input: Record<string, unknown> }>()
+  // Nested by sessionId → toolUseId to avoid composite key collisions and enable O(1) session cleanup.
+  type PendingEntry = { toolName: string; input: Record<string, unknown> }
+  const pendingBySession = new Map<string, Map<string, PendingEntry>>()
 
   // Handler A: Two-phase staging — ToolCall captures intent, ToolResult executes staging
   context.handlers.register({
@@ -73,12 +74,17 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
         const entry = event.payload.entry as Record<string, unknown>
         const input = (entry?.input as Record<string, unknown>) ?? {}
 
-        // Cap pending entries to prevent unbounded memory growth
-        if (pendingToolCalls.size >= MAX_PENDING_TOOL_CALLS) {
-          const oldest = pendingToolCalls.keys().next().value
-          if (oldest) pendingToolCalls.delete(oldest)
+        let sessionMap = pendingBySession.get(sessionId)
+        if (!sessionMap) {
+          sessionMap = new Map()
+          pendingBySession.set(sessionId, sessionMap)
         }
-        pendingToolCalls.set(`${sessionId}:${toolUseId}`, { toolName, input })
+        // Cap pending entries to prevent unbounded memory growth
+        if (sessionMap.size >= MAX_PENDING_TOOL_CALLS) {
+          const oldest = sessionMap.keys().next().value
+          if (oldest) sessionMap.delete(oldest)
+        }
+        sessionMap.set(toolUseId, { toolName, input })
         return
       }
 
@@ -87,10 +93,11 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
         const toolUseId = (event.payload.entry as { tool_use_id?: string }).tool_use_id
         if (!toolUseId) return
 
-        const key = `${sessionId}:${toolUseId}`
-        const pending = pendingToolCalls.get(key)
+        const sessionMap = pendingBySession.get(sessionId)
+        const pending = sessionMap?.get(toolUseId)
         if (!pending) return
-        pendingToolCalls.delete(key)
+        sessionMap!.delete(toolUseId)
+        if (sessionMap!.size === 0) pendingBySession.delete(sessionId)
 
         const { toolName, input } = pending
 
@@ -116,17 +123,14 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
     id: 'reminders:track-verification-tools-cleanup',
     priority: 60,
     filter: { kind: 'hook', hooks: ['UserPromptSubmit', 'Stop'] },
-    handler: (event: SidekickEvent, _ctx: HandlerContext) => {
+    // eslint-disable-next-line @typescript-eslint/require-await -- sync cleanup, async required by EventHandler type
+    handler: async (event: SidekickEvent, _ctx: HandlerContext) => {
       if (!isHookEvent(event)) return
       const sessionId = event.context?.sessionId
       if (!sessionId) return
 
-      // Clear all pending entries for this session
-      for (const key of pendingToolCalls.keys()) {
-        if (key.startsWith(`${sessionId}:`)) {
-          pendingToolCalls.delete(key)
-        }
-      }
+      // Clear all pending entries for this session (O(1) with nested map)
+      pendingBySession.delete(sessionId)
     },
   })
 }
