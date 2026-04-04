@@ -224,10 +224,18 @@ export async function runDoctorCheck(
         typeof currentUserEntry === 'object' ? currentUserEntry.status : (currentUserEntry ?? 'missing')
 
       // 'not-required' is a user preference (opt-out), not a detection result — preserve it
-      if (
-        currentStatus !== 'not-required' &&
-        toScopeStatus(currentStatus) !== toScopeStatus(expectedUserStatus.status)
+      if (currentStatus === 'not-required') continue
+
+      if (toScopeStatus(currentStatus) !== toScopeStatus(expectedUserStatus.status)) {
+        // Status changed (e.g. healthy → missing)
+        updatedUserApiKeys[keyName] = expectedUserStatus
+        userNeedsUpdate = true
+      } else if (
+        typeof currentUserEntry === 'object' &&
+        (currentUserEntry.used !== expectedUserStatus.used ||
+          JSON.stringify(currentUserEntry.scopes) !== JSON.stringify(expectedUserStatus.scopes))
       ) {
+        // Status matches but metadata (used/scopes) is stale
         updatedUserApiKeys[keyName] = expectedUserStatus
         userNeedsUpdate = true
       }

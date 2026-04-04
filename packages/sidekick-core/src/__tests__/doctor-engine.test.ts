@@ -352,5 +352,48 @@ describe('doctor-engine', () => {
       // No stale user status fix should be reported
       expect(result.fixes).not.toContain('Updated stale user setup-status with current API key status')
     })
+
+    it('reconciles user status when status matches but used/scopes metadata differs', async () => {
+      // Scenario: key moved from env scope to user scope — status is still 'healthy'
+      // but `used` and `scopes` are stale
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              status: 'healthy',
+              scopes: { project: 'missing', user: 'healthy', env: 'missing' },
+              used: 'user',
+            },
+            OPENAI_API_KEY: 'user',
+          },
+        })
+      )
+      // User status says key is healthy via env, but actually it's now healthy via user
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              used: 'env',
+              status: 'healthy',
+              scopes: { user: 'missing', env: 'healthy' },
+            },
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      // Metadata should be reconciled even though status was already 'healthy'
+      const updatedUserStatus = await io.getUserStatus()
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'healthy',
+        used: 'user',
+        scopes: { user: 'healthy', env: 'missing' },
+      })
+      expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
+    })
   })
 })
