@@ -328,7 +328,7 @@ describe('doctor-engine', () => {
       )
       await writeUserStatus(
         createUserStatus({
-          apiKeys: { OPENROUTER_API_KEY: 'pending-validation' as never, OPENAI_API_KEY: 'not-required' },
+          apiKeys: { OPENROUTER_API_KEY: 'pending-validation', OPENAI_API_KEY: 'not-required' },
         })
       )
 
@@ -339,8 +339,9 @@ describe('doctor-engine', () => {
       // Should be migrated to object format even though normalized status matches
       expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
         status: 'missing',
+        used: null,
+        scopes: { user: 'missing', env: 'missing' },
       })
-      expect(typeof updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toBe('object')
       expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
     })
 

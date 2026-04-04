@@ -1124,6 +1124,7 @@ describe('SetupStatusService', () => {
       expect(userStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
         status: 'missing',
         used: null,
+        scopes: { user: 'missing', env: 'missing' },
       })
     })
 
