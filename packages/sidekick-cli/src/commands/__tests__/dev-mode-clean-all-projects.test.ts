@@ -174,6 +174,28 @@ describe('handleDevModeCommand clean-all-projects', () => {
     expect(stdout.data).toContain('project-a')
   })
 
+  test('skips registry entries that point at a regular file instead of a directory', async () => {
+    // Create a regular file where a project directory is expected
+    const filePath = path.join(tempDir, 'not-a-dir')
+    await writeFile(filePath, 'I am a file, not a directory')
+
+    vi.mocked(ProjectRegistryService).mockImplementation(function () {
+      return {
+        list: vi.fn().mockResolvedValue([
+          { path: filePath, displayName: 'not-a-dir', lastActive: new Date().toISOString() },
+          { path: projectADir, displayName: 'project-a', lastActive: new Date().toISOString() },
+        ]),
+      } as any
+    })
+
+    const result = await handleDevModeCommand('clean-all-projects', tempDir, logger, stdout, { force: true })
+
+    expect(result.exitCode).toBe(0)
+    expect(stdout.data).toMatch(/not-a-dir.*not a directory/i)
+    // Should still clean the valid project
+    expect(stdout.data).toContain('project-a')
+  })
+
   test('uses ~/.sidekick/projects/ as registry root', async () => {
     vi.mocked(ProjectRegistryService).mockImplementation(function () {
       return { list: vi.fn().mockResolvedValue([]) } as any

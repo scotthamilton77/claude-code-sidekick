@@ -676,7 +676,7 @@ async function doCleanAllProjects(
   const projects = await registry.list()
 
   if (projects.length === 0) {
-    log(stdout, 'info', 'No registered projects found in ~/.sidekick/projects/')
+    log(stdout, 'info', `No registered projects found in ${registryRoot}`)
     return { exitCode: 0 }
   }
 
@@ -690,9 +690,18 @@ async function doCleanAllProjects(
   let skippedCount = 0
 
   for (const project of projects) {
-    // Check if the project directory still exists
-    if (!(await fileExists(project.path))) {
+    // Check if the project directory still exists and is actually a directory
+    let projectStats
+    try {
+      projectStats = await stat(project.path)
+    } catch {
       log(stdout, 'warn', `${project.displayName}: directory not found at ${project.path}, skipping`)
+      skippedCount++
+      continue
+    }
+
+    if (!projectStats.isDirectory()) {
+      log(stdout, 'warn', `${project.displayName}: path is not a directory at ${project.path}, skipping`)
       skippedCount++
       continue
     }
@@ -709,7 +718,7 @@ async function doCleanAllProjects(
 
     stdout.write('\n')
     log(stdout, 'step', `Cleaning ${project.displayName}...`)
-    await doClean(project.path, logger, stdout, { force: true })
+    await doClean(project.path, logger, stdout, { force, stdin })
     cleanedCount++
   }
 
