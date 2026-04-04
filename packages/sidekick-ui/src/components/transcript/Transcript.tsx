@@ -148,6 +148,8 @@ export function Transcript({
   timelineEvents,
 }: TranscriptProps) {
   const { state, dispatch } = useNavigation()
+  const expandedRef = useRef(state.detailPanel.expanded)
+  expandedRef.current = state.detailPanel.expanded
   const lineRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Scroll to line when timeline syncs
@@ -216,7 +218,7 @@ export function Transcript({
         const el = lineRefs.current.get(targetLine.id)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          if (state.detailPanel.expanded) {
+          if (expandedRef.current) {
             dispatch({ type: 'SELECT_TRANSCRIPT_LINE', lineId: targetLine.id })
           }
           dispatch({ type: 'SYNC_TO_TIMELINE_EVENT', lineId: targetLine.id })
@@ -224,7 +226,7 @@ export function Transcript({
         }
       }
     },
-    [filteredLines, dispatch, state.detailPanel.expanded]
+    [filteredLines, dispatch]
   )
 
   return (
