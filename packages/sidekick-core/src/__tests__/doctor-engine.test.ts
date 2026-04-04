@@ -259,5 +259,98 @@ describe('doctor-engine', () => {
       const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
       expect(result.apiKeys.OPENROUTER_API_KEY.used).toBeNull()
     })
+
+    it('reconciles stale user status when project status is already correct', async () => {
+      // Scenario: key exists at user scope, project status already says "healthy",
+      // but user status still says "missing" (stale)
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              status: 'healthy',
+              scopes: { project: 'missing', user: 'healthy', env: 'missing' },
+              used: 'user',
+            },
+            OPENAI_API_KEY: 'user',
+          },
+        })
+      )
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      // The user status file should have been updated
+      const updatedUserStatus = await io.getUserStatus()
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'healthy',
+        used: 'user',
+      })
+      expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
+    })
+
+    it('reconciles stale user status with old string format entries', async () => {
+      // Scenario: user status has old string format "healthy" but key was removed
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'missing', OPENAI_API_KEY: 'user' },
+        })
+      )
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: { OPENROUTER_API_KEY: 'healthy', OPENAI_API_KEY: 'not-required' },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      // User status should be updated to missing since key is gone
+      const updatedUserStatus = await io.getUserStatus()
+      expect(updatedUserStatus?.apiKeys.OPENROUTER_API_KEY).toMatchObject({
+        status: 'missing',
+      })
+      expect(result.fixes).toContain('Updated stale user setup-status with current API key status')
+    })
+
+    it('does not update user status when it already matches detected state', async () => {
+      // Scenario: both project and user status are accurate
+      await writeEnvFile('user', 'OPENROUTER_API_KEY=sk-test-key\n')
+      await writeProjectStatus(
+        createProjectStatus({
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              status: 'healthy',
+              scopes: { project: 'missing', user: 'healthy', env: 'missing' },
+              used: 'user',
+            },
+            OPENAI_API_KEY: 'user',
+          },
+        })
+      )
+      await writeUserStatus(
+        createUserStatus({
+          apiKeys: {
+            OPENROUTER_API_KEY: {
+              used: 'user',
+              status: 'healthy',
+              scopes: { user: 'healthy', env: 'missing' },
+            },
+            OPENAI_API_KEY: 'not-required',
+          },
+        })
+      )
+
+      const io = createFileIO()
+      const result = await runDoctorCheck(projectDir, homeDir, io, { skipValidation: true })
+
+      // No stale user status fix should be reported
+      expect(result.fixes).not.toContain('Updated stale user setup-status with current API key status')
+    })
   })
 })
