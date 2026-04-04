@@ -59,7 +59,7 @@ useStateSnapshots hook (frontend) ──► StateTab component (already built)
 |-------|------|-------------|
 | `ts` | `number` | Unix timestamp in milliseconds (`Date.now()`) |
 | `file` | `string` | State file basename without extension (e.g., `session-summary`) |
-| `data` | `object` | Full contents of the state file at this point in time |
+| `data` | `object \| null` | Full contents of the state file, or `null` if the file was deleted |
 
 ### Change Detection
 
@@ -75,7 +75,9 @@ Hook into `SessionStateAccessor.write()` (in `packages/sidekick-core/src/state/t
 
 This captures ALL session state writes regardless of which service initiated them (there are 6+ write sites across 4 packages), avoids instrumenting each caller individually, and keeps `StateService` generic (unaware of journal concerns).
 
-The journal appender is a thin function — `appendIfChanged(sessionId, fileKey, data)` — that handles dedup and append.
+The journal appender is a thin function — `appendIfChanged(sessionId, fileKey, data)` — that handles dedup and append. It also supports deletion entries — `appendDeletion(sessionId, fileKey)` — for state files that are removed (see Deletion Handling below).
+
+**Graceful degradation**: The hook must be a no-op when no journal appender is configured. The CLI creates standalone `SessionStateAccessor` instances (e.g., `persona set`/`persona clear` commands) that are not daemon-scoped. The hook checks for the presence of an injected appender and silently skips if absent.
 
 ### Journaled State Files (Allowlist)
 
@@ -97,6 +99,24 @@ The allowlist is checked in the journal appender before dedup or append. Files n
 - `daemon-log-metrics.json`, `cli-log-metrics.json`, `context-metrics.json` — high-frequency operational metrics
 
 These writers can be migrated to `SessionStateAccessor` in a follow-up to enable journaling. For now, the `transcriptMetrics` and `llmMetrics` fields on `StateSnapshot` will remain empty.
+
+### Deletion Handling
+
+State files can be deleted (e.g., `persona-transition.ts` calls `stateService.delete()` to remove `resume-message.json` during persona changes). The journal must capture these to prevent stale data in the reconstruction:
+
+```jsonl
+{"ts":1712234580000,"file":"resume-message","data":null}
+```
+
+A `null` data value means "this file was removed at this timestamp." The reconstruction algorithm (Layer 2) must clear the accumulator entry for that file key rather than setting it, so subsequent snapshots no longer show the deleted state.
+
+**Integration**: Hook `SessionStateAccessor.delete()` (if it exists) or add a `delete()` method that wraps `stateService.delete()` and appends the deletion journal entry.
+
+### Known Bypass: `persona-transition.ts`
+
+`persona-transition.ts` writes `snarky-message.json` and deletes `resume-message.json` directly through `stateService.write()` / `stateService.delete()`, bypassing `SessionStateAccessor`. These writes/deletes will NOT be journaled.
+
+This is acceptable because persona transitions trigger a full session-summary re-analysis cycle, which re-writes the snarky and resume messages through `SessionStateAccessor` shortly after. The transient gap (persona transition → next summary cycle) means the State tab may briefly show stale snarky/resume values for transcript lines in that window. A future refactor of `persona-transition.ts` to use `SessionStateAccessor` would close this gap.
 
 ### Write Safety
 
@@ -144,6 +164,8 @@ interface StateSnapshot {
 2. Parse entries, discard malformed lines (including partial last line from crash recovery)
 3. Sort by `ts` ascending
 4. Walk entries chronologically, maintaining a cumulative accumulator (`Map<string, object>`)
+   - If `data` is an object, set the accumulator entry for that file key
+   - If `data` is `null`, delete the accumulator entry for that file key (state file was removed)
 5. At each timestamp where state changed, emit a `StateSnapshot` with all accumulated values. Entries sharing the same `ts` value are collapsed into a single snapshot.
 6. Map `file` keys to `StateSnapshot` property names (e.g., `session-summary` to `sessionSummary`)
 
