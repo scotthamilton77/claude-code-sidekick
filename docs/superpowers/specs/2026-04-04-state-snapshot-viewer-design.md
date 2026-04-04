@@ -67,13 +67,31 @@ useStateSnapshots hook (frontend) ──► StateTab component (already built)
 - Before appending, `JSON.stringify(newData)` (no pretty-printing — single-line output required for NDJSON integrity) and compare against last entry for that file key
 - Skip write if identical
 - The map is daemon-scoped and created lazily for the active session only — not preloaded for all historical sessions
-- On first write to a session's journal, prime the map by reading the last entry per file from the existing journal (or start empty)
+- On first write to a session's journal, prime the map asynchronously by reading the last entry per file from the existing journal (or start empty). The first append after daemon restart incurs IO latency to read the journal.
 
 ### Integration Point
 
-Hook into `StateService.write()` itself. After the atomic rename (`rename(tmpPath, path)`) succeeds, check whether the target path falls under a session state directory and call the journal appender. This captures ALL writes regardless of caller (there are 6+ write sites across 4 packages), avoids instrumenting each one individually, and respects the Single Writer principle — only the daemon calls `StateService.write()` for session state.
+Hook into `SessionStateAccessor.write()` (in `packages/sidekick-core/src/state/typed-accessor.ts`). This method already has direct access to `sessionId` (parameter) and `this.descriptor.filename` — no fragile path parsing required. After the underlying `StateService.write()` completes, call the journal appender with the sessionId, file key, and data.
+
+This captures ALL session state writes regardless of which service initiated them (there are 6+ write sites across 4 packages), avoids instrumenting each caller individually, and keeps `StateService` generic (unaware of journal concerns).
 
 The journal appender is a thin function — `appendIfChanged(sessionId, fileKey, data)` — that handles dedup and append.
+
+### Journaled State Files (Allowlist)
+
+Only the following session state files are journaled. Other session state files (e.g., `daemon-log-metrics.json`, `cli-log-metrics.json`, `context-metrics.json`) update too frequently and are not meaningful in the State tab context.
+
+| File | Journal Key |
+|---|---|
+| `session-summary.json` | `session-summary` |
+| `session-persona.json` | `session-persona` |
+| `snarky-message.json` | `snarky-message` |
+| `resume-message.json` | `resume-message` |
+| `transcript-metrics.json` | `transcript-metrics` |
+| `llm-metrics.json` | `llm-metrics` |
+| `summary-countdown.json` | `summary-countdown` |
+
+The allowlist is checked in the journal appender before dedup or append. Files not in the list are silently skipped.
 
 ### Write Safety
 
@@ -147,7 +165,7 @@ If `state-history.jsonl` does not exist (sessions created before this feature):
 2. Use the most recent file mtime as the snapshot timestamp
 3. Return a single `StateSnapshot` with current values
 
-This provides graceful degradation — old sessions show current state, new sessions show full history.
+This provides graceful degradation — old sessions show current state, new sessions show full history. Note: file mtimes may be unreliable (backup tools, git operations); the fallback is a best-effort convenience, not a precision feature.
 
 ## Layer 3: Frontend
 
@@ -187,11 +205,17 @@ Pass `stateSnapshots` to `DetailPanel` instead of `selectedSession.stateSnapshot
 - `DetailPanel.tsx` — already accepts and passes `stateSnapshots`
 - `types.ts` — `StateSnapshot` interface already sufficient
 
+**Cleanup**: After wiring the hook in `App.tsx`, the `stateSnapshots: []` initialization in `useSessions.ts` (line 126) becomes dead code for that field. The `Session.stateSnapshots` property on the type remains (other code may reference it), but the `useSessions` initialization can be noted for eventual cleanup.
+
+### API Error Handling
+
+The handler should use the existing `requireProject` and `requireSession` patterns from `server/utils.ts`, matching the approach in `handlers/timeline.ts`. Return 404 for missing project or session.
+
 ## Files Changed
 
 | Package | Modified | Created |
 |---|---|---|
-| `sidekick-core` | `src/state/state-service.ts` (add journal hook in `write()`) | `src/state/state-journal.ts` |
+| `sidekick-core` | `src/state/typed-accessor.ts` (add journal hook in `SessionStateAccessor.write()`) | `src/state/state-journal.ts` |
 | `sidekick-ui/server` | `router.ts` (add route) | `state-snapshots-api.ts`, `handlers/state-snapshots.ts` |
 | `sidekick-ui/src` | `App.tsx` (wire hook) | `hooks/useStateSnapshots.ts` |
 
