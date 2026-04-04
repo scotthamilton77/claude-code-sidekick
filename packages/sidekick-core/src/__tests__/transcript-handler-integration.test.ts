@@ -631,9 +631,7 @@ describe('TranscriptService to Handler Integration', () => {
           type: 'assistant',
           message: {
             role: 'assistant',
-            content: [
-              { type: 'tool_use', id: 'toolu_abc123', name: 'Edit', input: { file_path: '/src/app.ts' } },
-            ],
+            content: [{ type: 'tool_use', id: 'toolu_abc123', name: 'Edit', input: { file_path: '/src/app.ts' } }],
           },
         }),
         JSON.stringify({
@@ -700,9 +698,7 @@ describe('TranscriptService to Handler Integration', () => {
           type: 'assistant',
           message: {
             role: 'assistant',
-            content: [
-              { type: 'tool_use', id: 'toolu_edit1', name: 'Edit', input: { file_path: '/src/main.ts' } },
-            ],
+            content: [{ type: 'tool_use', id: 'toolu_edit1', name: 'Edit', input: { file_path: '/src/main.ts' } }],
           },
         }),
         JSON.stringify({
