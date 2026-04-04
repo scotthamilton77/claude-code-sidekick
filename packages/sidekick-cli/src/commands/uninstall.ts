@@ -18,7 +18,6 @@ import {
   removeGitignoreSection,
   SetupStatusService,
   USER_STATUS_FILENAME,
-  LEGACY_USER_STATUS_FILENAME,
   PROJECT_STATUS_FILENAME,
 } from '@sidekick/core'
 import type { KillResult } from '@sidekick/core'
@@ -172,18 +171,10 @@ export async function handleUninstallCommand(
     }
   }
   if (userDetected) {
-    // Remove new user status file
+    // Remove user status file
     await removeFile(path.join(userHome, '.sidekick', USER_STATUS_FILENAME), 'user', USER_STATUS_FILENAME, actions, {
       dryRun,
     })
-    // Also remove legacy user status file if it still exists (pre-migration)
-    await removeFile(
-      path.join(userHome, '.sidekick', LEGACY_USER_STATUS_FILENAME),
-      'user',
-      LEGACY_USER_STATUS_FILENAME,
-      actions,
-      { dryRun }
-    )
     await removeFile(path.join(userHome, '.sidekick', 'features.yaml'), 'user', 'features.yaml', actions, { dryRun })
   }
 
@@ -295,15 +286,7 @@ async function detectProjectScope(projectDir: string): Promise<boolean> {
 
 async function detectUserScope(userHome: string): Promise<boolean> {
   try {
-    // Check for new filename first, then legacy
     await fs.access(path.join(userHome, '.sidekick', USER_STATUS_FILENAME))
-    return true
-  } catch {
-    // Fall through to legacy check
-  }
-  try {
-    // Legacy file may exist if migration hasn't run yet
-    await fs.access(path.join(userHome, '.sidekick', LEGACY_USER_STATUS_FILENAME))
     return true
   } catch {
     // Also check for sidekick statusline in settings.json
@@ -429,11 +412,7 @@ async function collectDetectionSummary(
     }
 
     // Config
-    const userConfigFiles = await detectExistingItems(userHome, [
-      USER_STATUS_FILENAME,
-      LEGACY_USER_STATUS_FILENAME,
-      'features.yaml',
-    ])
+    const userConfigFiles = await detectExistingItems(userHome, [USER_STATUS_FILENAME, 'features.yaml'])
     if (userConfigFiles.length > 0) {
       summary.user.push({ label: 'Config', details: userConfigFiles.join(', ') })
     }

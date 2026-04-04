@@ -36,12 +36,7 @@ function createMockChildProcess(): EventEmitter & {
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
-import {
-  SetupStatusService,
-  USER_STATUS_FILENAME,
-  PROJECT_STATUS_FILENAME,
-  LEGACY_USER_STATUS_FILENAME,
-} from '../setup-status-service.js'
+import { SetupStatusService, USER_STATUS_FILENAME, PROJECT_STATUS_FILENAME } from '../setup-status-service.js'
 import type { UserSetupStatus, ProjectSetupStatus } from '@sidekick/types'
 import { createFakeLogger } from '@sidekick/testing-fixtures'
 
@@ -117,13 +112,6 @@ describe('SetupStatusService', () => {
     await fs.writeFile(userStatusPath, JSON.stringify(status, null, 2))
   }
 
-  /** Write to the LEGACY user-scope location (for migration tests) */
-  const writeLegacyUserStatus = async (status: UserSetupStatus): Promise<void> => {
-    const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
-    await fs.mkdir(path.dirname(legacyPath), { recursive: true })
-    await fs.writeFile(legacyPath, JSON.stringify(status, null, 2))
-  }
-
   const writeProjectStatus = async (status: ProjectSetupStatus): Promise<void> => {
     const projectStatusPath = path.join(projectDir, '.sidekick', PROJECT_STATUS_FILENAME)
     await fs.mkdir(path.dirname(projectStatusPath), { recursive: true })
@@ -174,71 +162,6 @@ describe('SetupStatusService', () => {
       await fs.mkdir(path.dirname(userStatusPath), { recursive: true })
       await fs.writeFile(userStatusPath, JSON.stringify({ version: 2 }))
 
-      const result = await service.getUserStatus()
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('getUserStatus - legacy migration', () => {
-    it('migrates from legacy location when new file does not exist', async () => {
-      const status = createUserStatus()
-      await writeLegacyUserStatus(status)
-
-      const result = await service.getUserStatus()
-      expect(result).toEqual(status)
-
-      // New file should now exist
-      const newPath = path.join(homeDir, '.sidekick', USER_STATUS_FILENAME)
-      const newContent = await fs.readFile(newPath, 'utf-8')
-      expect(JSON.parse(newContent).version).toBe(1)
-
-      // Legacy file should be deleted
-      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
-      await expect(fs.access(legacyPath)).rejects.toThrow()
-    })
-
-    it('does not migrate when new file already exists', async () => {
-      const newStatus = createUserStatus({ statusline: 'user' })
-      await writeUserStatus(newStatus)
-      // Also write a different status to legacy location
-      const legacyStatus = createUserStatus({ statusline: 'none' })
-      await writeLegacyUserStatus(legacyStatus)
-
-      const result = await service.getUserStatus()
-      // Should read from new location, not legacy
-      expect(result?.statusline).toBe('user')
-
-      // Legacy file should still exist (not touched)
-      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
-      const legacyContent = await fs.readFile(legacyPath, 'utf-8')
-      expect(JSON.parse(legacyContent).statusline).toBe('none')
-    })
-
-    it('does not migrate when legacy file contains project-format data (collision scenario)', async () => {
-      // This is the bug scenario: project-format data got written to user-scope location
-      const projectData = createProjectStatus()
-      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
-      await fs.mkdir(path.dirname(legacyPath), { recursive: true })
-      await fs.writeFile(legacyPath, JSON.stringify(projectData, null, 2))
-
-      const result = await service.getUserStatus()
-      // Should return null because project-format data doesn't parse as UserSetupStatus
-      expect(result).toBeNull()
-
-      // Legacy file should NOT be deleted (not a valid migration source)
-      await expect(fs.access(legacyPath)).resolves.toBeUndefined()
-    })
-
-    it('returns null when legacy file contains corrupt JSON', async () => {
-      const legacyPath = path.join(homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
-      await fs.mkdir(path.dirname(legacyPath), { recursive: true })
-      await fs.writeFile(legacyPath, '{ broken JSON !!!')
-
-      const result = await service.getUserStatus()
-      expect(result).toBeNull()
-    })
-
-    it('returns null when neither new nor legacy file exists', async () => {
       const result = await service.getUserStatus()
       expect(result).toBeNull()
     })

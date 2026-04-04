@@ -52,8 +52,6 @@ export type { DoctorCheckOptions, DoctorCheckResult, DoctorItemResult, DoctorApi
 // Filenames for status files (centralized to prevent collision bugs)
 export const USER_STATUS_FILENAME = 'user-setup-status.json'
 export const PROJECT_STATUS_FILENAME = 'setup-status.json'
-/** @deprecated Old user-scope filename — intentionally equals PROJECT_STATUS_FILENAME because that collision was the bug. Kept for migration only. */
-export const LEGACY_USER_STATUS_FILENAME = PROJECT_STATUS_FILENAME
 
 export interface SetupStatusServiceOptions {
   homeDir?: string
@@ -84,11 +82,6 @@ export class SetupStatusService {
 
   private get userStatusPath(): string {
     return path.join(this.homeDir, '.sidekick', USER_STATUS_FILENAME)
-  }
-
-  /** Legacy path for migration: old user-scope file that collided with project-scope */
-  private get legacyUserStatusPath(): string {
-    return path.join(this.homeDir, '.sidekick', LEGACY_USER_STATUS_FILENAME)
   }
 
   private get projectStatusPath(): string {
@@ -128,65 +121,11 @@ export class SetupStatusService {
       return parsed.data
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        // New file doesn't exist — try migrating from legacy location
-        return this.migrateFromLegacyUserStatus()
+        return null
       }
       if (err instanceof SyntaxError) {
         this.logger?.warn(`Corrupt ${USER_STATUS_FILENAME}, treating as missing`, {
           path: this.userStatusPath,
-          error: err.message,
-        })
-        return null
-      }
-      throw err
-    }
-  }
-
-  /**
-   * Migration: read user status from the legacy `setup-status.json` location,
-   * write it to the new `user-setup-status.json`, and remove the old file.
-   *
-   * Only migrates if the legacy file contains valid UserSetupStatus data
-   * (not project-format data that may have been written by the collision bug).
-   */
-  private async migrateFromLegacyUserStatus(): Promise<UserSetupStatus | null> {
-    try {
-      const legacyContent = await fs.readFile(this.legacyUserStatusPath, 'utf-8')
-      const parsed = UserSetupStatusSchema.safeParse(JSON.parse(legacyContent))
-      if (!parsed.success) {
-        // Legacy file exists but isn't valid user-format — don't migrate
-        // (could be a project-format file from the collision bug)
-        this.logger?.debug('Legacy user status file exists but is not valid user format, skipping migration', {
-          path: this.legacyUserStatusPath,
-        })
-        return null
-      }
-      // Write to new location and remove legacy file
-      this.logger?.info('Migrating user status from legacy location', {
-        from: this.legacyUserStatusPath,
-        to: this.userStatusPath,
-      })
-      await this.writeUserStatus(parsed.data)
-      try {
-        await fs.unlink(this.legacyUserStatusPath)
-      } catch (unlinkErr) {
-        if ((unlinkErr as NodeJS.ErrnoException).code !== 'ENOENT') {
-          this.logger?.warn('Migrated user status but failed to remove legacy file', {
-            path: this.legacyUserStatusPath,
-            error: unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr),
-          })
-        }
-      }
-      this.logger?.info('Legacy user status migration complete')
-      return parsed.data
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        // Neither new nor legacy file exists
-        return null
-      }
-      if (err instanceof SyntaxError) {
-        this.logger?.warn(`Corrupt legacy ${LEGACY_USER_STATUS_FILENAME}, treating as missing`, {
-          path: this.legacyUserStatusPath,
           error: err.message,
         })
         return null
