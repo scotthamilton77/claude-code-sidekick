@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { SessionLogWriter } from '../session-log-writer.js'
+import { logEvent, LogEvents, setSessionLogWriter } from '../log-events.js'
+import type { Logger } from '@sidekick/types'
 
 describe('SessionLogWriter', () => {
   let tempDir: string
@@ -23,8 +25,7 @@ describe('SessionLogWriter', () => {
   })
 
   it('writes NDJSON line to per-session log file', async () => {
-    const ndjsonLine =
-      JSON.stringify({ time: 1000, type: 'reminder:staged', context: { sessionId: 'sess-1' } }) + '\n'
+    const ndjsonLine = JSON.stringify({ time: 1000, type: 'reminder:staged', context: { sessionId: 'sess-1' } }) + '\n'
     await writer.write('sess-1', 'sidekickd.log', ndjsonLine)
 
     const content = await readFile(join(tempDir, 'sessions', 'sess-1', 'logs', 'sidekickd.log'), 'utf-8')
@@ -119,10 +120,7 @@ describe('SessionLogWriter', () => {
     await writer.write('sess-1', 'sidekickd.log', '{"src":"daemon"}\n')
     await writer.write('sess-1', 'cli.log', '{"src":"cli"}\n')
 
-    const daemonContent = await readFile(
-      join(tempDir, 'sessions', 'sess-1', 'logs', 'sidekickd.log'),
-      'utf-8',
-    )
+    const daemonContent = await readFile(join(tempDir, 'sessions', 'sess-1', 'logs', 'sidekickd.log'), 'utf-8')
     const cliContent = await readFile(join(tempDir, 'sessions', 'sess-1', 'logs', 'cli.log'), 'utf-8')
     expect(daemonContent).toBe('{"src":"daemon"}\n')
     expect(cliContent).toBe('{"src":"cli"}\n')
@@ -153,5 +151,121 @@ describe('SessionLogWriter', () => {
     // Second close should not throw
     await expect(writer.closeSession('sess-1')).resolves.toBeUndefined()
     expect(writer.handleCount).toBe(0)
+  })
+})
+
+describe('logEvent with SessionLogWriter', () => {
+  let tempDir: string
+  let writer: SessionLogWriter
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'logevent-test-'))
+    writer = new SessionLogWriter({
+      sessionsDir: join(tempDir, 'sessions'),
+    })
+    setSessionLogWriter(writer)
+  })
+
+  afterEach(async () => {
+    setSessionLogWriter(null)
+    await writer.closeAll()
+    await rm(tempDir, { recursive: true, force: true })
+  })
+
+  it('logEvent writes to per-session file when writer is set', async () => {
+    const fakeLogger: Logger = {
+      trace: vi.fn() as any,
+      debug: vi.fn() as any,
+      info: vi.fn() as any,
+      warn: vi.fn() as any,
+      error: vi.fn() as any,
+      fatal: vi.fn() as any,
+      child: () => fakeLogger,
+      flush: () => Promise.resolve(),
+    }
+
+    const event = LogEvents.hookReceived(
+      { sessionId: 'test-session', hook: 'UserPromptSubmit' },
+      { cwd: '/tmp', mode: 'hook' }
+    )
+    logEvent(fakeLogger, event)
+
+    // Give async write time to complete
+    await new Promise((r) => setTimeout(r, 100))
+
+    const content = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'), 'utf-8')
+    const parsed = JSON.parse(content.trim())
+    expect(parsed.type).toBe('hook:received')
+    expect(parsed.context.sessionId).toBe('test-session')
+  })
+
+  it('logEvent routes daemon events to sidekickd.log', async () => {
+    const fakeLogger: Logger = {
+      trace: vi.fn() as any,
+      debug: vi.fn() as any,
+      info: vi.fn() as any,
+      warn: vi.fn() as any,
+      error: vi.fn() as any,
+      fatal: vi.fn() as any,
+      child: () => fakeLogger,
+      flush: () => Promise.resolve(),
+    }
+
+    const event = LogEvents.reminderStaged(
+      { sessionId: 'test-session', hook: 'PostToolUse' },
+      { reminderName: 'vc-build', hookName: 'PostToolUse', blocking: true, priority: 10, persistent: false }
+    )
+    logEvent(fakeLogger, event)
+
+    await new Promise((r) => setTimeout(r, 100))
+
+    const content = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'), 'utf-8')
+    const parsed = JSON.parse(content.trim())
+    expect(parsed.type).toBe('reminder:staged')
+    expect(parsed.source).toBe('daemon')
+  })
+
+  it('logEvent skips per-session write when sessionId is empty', async () => {
+    const fakeLogger: Logger = {
+      trace: vi.fn() as any,
+      debug: vi.fn() as any,
+      info: vi.fn() as any,
+      warn: vi.fn() as any,
+      error: vi.fn() as any,
+      fatal: vi.fn() as any,
+      child: () => fakeLogger,
+      flush: () => Promise.resolve(),
+    }
+
+    const event = LogEvents.daemonStarting({ projectDir: '/tmp', pid: 123 })
+    logEvent(fakeLogger, event)
+
+    await new Promise((r) => setTimeout(r, 50))
+
+    // Writer should not have opened any handles (sessionId is '')
+    expect(writer.handleCount).toBe(0)
+  })
+
+  it('logEvent still calls logger.info even when writer is set', () => {
+    const infoFn = vi.fn() as any
+    const fakeLogger: Logger = {
+      trace: vi.fn() as any,
+      debug: vi.fn() as any,
+      info: infoFn,
+      warn: vi.fn() as any,
+      error: vi.fn() as any,
+      fatal: vi.fn() as any,
+      child: () => fakeLogger,
+      flush: () => Promise.resolve(),
+    }
+
+    const event = LogEvents.hookReceived(
+      { sessionId: 'test-session', hook: 'UserPromptSubmit' },
+      { cwd: '/tmp', mode: 'hook' }
+    )
+    logEvent(fakeLogger, event)
+
+    // logger.info should still be called (aggregate log path unchanged)
+    expect(infoFn).toHaveBeenCalledOnce()
   })
 })
