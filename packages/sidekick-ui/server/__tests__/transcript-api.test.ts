@@ -9,17 +9,20 @@ vi.mock('node:os', () => ({
 const mockReadFile = vi.fn()
 const mockAccess = vi.fn()
 const mockStat = vi.fn()
+const mockReaddir = vi.fn()
 
 vi.mock('node:fs/promises', () => ({
   readFile: (...args: unknown[]) => mockReadFile(...args),
   access: (...args: unknown[]) => mockAccess(...args),
   stat: (...args: unknown[]) => mockStat(...args),
+  readdir: (...args: unknown[]) => mockReaddir(...args),
 }))
 
 beforeEach(() => {
   mockReadFile.mockClear()
   mockAccess.mockClear()
   mockStat.mockClear()
+  mockReaddir.mockClear()
 })
 
 // --- Test helpers ---
@@ -104,7 +107,7 @@ beforeEach(() => {
 })
 
 // Import after mocks
-import { resolveTranscriptPath, parseTranscriptLines } from '../transcript-api.js'
+import { resolveTranscriptPath, parseTranscriptLines, parseSubagentTranscript, listSubagents } from '../transcript-api.js'
 
 const CLAUDE_PROJECT_BASE = '/home/testuser/.claude/projects/myproject'
 
@@ -927,6 +930,413 @@ describe('parseTranscriptLines', () => {
     expect(lines).toHaveLength(1)
     expect(lines[0].type).toBe('user-message')
     // Should not have called findLogFiles
+    expect(mockFindLogFiles).not.toHaveBeenCalled()
+  })
+
+  it('returns empty array when readFile throws after resolveTranscriptPath succeeds', async () => {
+    // stat succeeds (path found), but readFile throws
+    mockStat.mockImplementation((p: string) => {
+      if (p.endsWith('session-1.jsonl') && !p.includes('session-1/session-1')) {
+        return Promise.resolve({ isFile: () => true })
+      }
+      return Promise.reject(new Error('ENOENT'))
+    })
+    mockReadFile.mockRejectedValue(new Error('EACCES: permission denied'))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toEqual([])
+  })
+
+  it('attaches agentId to the preceding tool-use line when agent_progress is encountered', async () => {
+    const content = [
+      makeAssistantEntry([
+        { type: 'tool_use', id: 'toolu_abc', name: 'Agent', input: {} },
+      ]),
+      JSON.stringify({
+        type: 'agent_progress',
+        timestamp: DEFAULT_TIMESTAMP,
+        data: { agentId: 'agent-007' },
+      }),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    const toolUseLine = lines.find((l) => l.type === 'tool-use')
+    expect(toolUseLine).toBeDefined()
+    expect(toolUseLine!.agentId).toBe('agent-007')
+  })
+
+  it('skips agent_progress without agentId (no-op, no lines emitted)', async () => {
+    const content = [
+      makeAssistantEntry([{ type: 'tool_use', id: 'toolu_abc', name: 'Agent', input: {} }]),
+      JSON.stringify({
+        type: 'agent_progress',
+        timestamp: DEFAULT_TIMESTAMP,
+        data: {},
+      }),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    // agent_progress emits no new lines — only the tool-use from the assistant entry
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('tool-use')
+    expect(lines[0].agentId).toBeUndefined()
+  })
+
+  it('agent_progress skips backwards past non-tool-use lines to find the tool-use', async () => {
+    const content = [
+      makeAssistantEntry([
+        { type: 'tool_use', id: 'toolu_first', name: 'Agent', input: {} },
+        { type: 'text', text: 'Some text after tool use' },
+      ]),
+      JSON.stringify({
+        type: 'agent_progress',
+        timestamp: DEFAULT_TIMESTAMP,
+        data: { agentId: 'agent-z' },
+      }),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    const toolUseLine = lines.find((l) => l.type === 'tool-use')
+    expect(toolUseLine!.agentId).toBe('agent-z')
+  })
+
+  it('clamps out-of-order timestamps to preserve file order (line 598)', async () => {
+    // Create two entries where the second has a LOWER timestamp than the first.
+    // The clamping pass should raise the second entry's timestamp to match the first.
+    const earlier = '2025-01-15T10:00:02.000Z'
+    const later   = '2025-01-15T10:00:01.000Z' // intentionally out of order
+
+    const content = [
+      makeUserEntry('First',  { timestamp: earlier }),
+      makeAssistantEntry([{ type: 'text', text: 'Second' }], { timestamp: later }),
+    ].join('\n')
+
+    mockStat.mockImplementation((p: string) => {
+      if (p.endsWith('session-1.jsonl') && !p.includes('session-1/session-1')) {
+        return Promise.resolve({ isFile: () => true })
+      }
+      return Promise.reject(new Error('ENOENT'))
+    })
+    mockReadFile.mockResolvedValue(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(2)
+
+    const firstTs  = new Date(earlier).getTime()
+    const secondTs = new Date(later).getTime()
+
+    // The raw second timestamp is earlier than the first — clamping must fix it
+    expect(secondTs).toBeLessThan(firstTs)
+    // After clamping, the second line's timestamp must be >= the first
+    expect(lines[1].timestamp).toBeGreaterThanOrEqual(lines[0].timestamp)
+    // Specifically it should be clamped to equal the first timestamp
+    expect(lines[1].timestamp).toBe(firstTs)
+  })
+
+  it('extracts tool_result content from array of text blocks', async () => {
+    // Covers the Array.isArray branch in extractToolResultContent
+    setupTranscript(
+      makeUserEntry([
+        {
+          type: 'tool_result',
+          tool_use_id: 'tool-1',
+          content: [
+            { type: 'text', text: 'First line' },
+            { type: 'text', text: 'Second line' },
+          ],
+        },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].toolOutput).toBe('First line\nSecond line')
+  })
+
+  it('extracts tool_result content falling back to String() for non-string/non-array', async () => {
+    // Covers the String(content ?? '') fallback in extractToolResultContent
+    setupTranscript(
+      makeUserEntry([
+        {
+          type: 'tool_result',
+          tool_use_id: 'tool-1',
+          content: 42,
+        },
+      ])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].toolOutput).toBe('42')
+  })
+
+  it('skips non-object blocks in user array content (primitive guards)', async () => {
+    // Array content with a primitive (string) mixed in — must not crash, just skip it
+    setupTranscript(makeUserEntry(['not-an-object', { type: 'text', text: 'Real message' }]))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].content).toBe('Real message')
+  })
+
+  it('skips non-object blocks in assistant array content (primitive guards)', async () => {
+    // Assistant content array with a null block mixed in — must not crash
+    setupTranscript(
+      makeAssistantEntry([null as unknown as Record<string, unknown>, { type: 'text', text: 'Valid text' }])
+    )
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].content).toBe('Valid text')
+  })
+
+  it('skips unknown system subtypes (returns no lines)', async () => {
+    const content = [
+      makeUserEntry('Hello'),
+      makeSystemEntry('unknown_future_subtype'),
+    ].join('\n')
+    setupTranscript(content)
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    // Unknown subtype produces no output — only the user message survives
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('user-message')
+  })
+
+  it('maps reminder:consumed with renderedText to line.content', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'reminder:consumed',
+        context: { sessionId: 'session-1' },
+        payload: {
+          reminderName: 'vc-build',
+          renderedText: 'You MUST run pnpm build before completing.',
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const reminderLine = lines.find((l) => l.type === 'reminder:consumed')
+    expect(reminderLine).toBeDefined()
+    expect(reminderLine!.content).toBe('You MUST run pnpm build before completing.')
+  })
+
+  it('maps session-summary:finish with session_title to newValue', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: new Date('2025-01-15T10:30:01.000Z').getTime(),
+        type: 'session-summary:finish',
+        context: { sessionId: 'session-1' },
+        payload: {
+          session_title: 'Fix auth bug in login flow',
+        },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const summaryLine = lines.find((l) => l.type === 'session-summary:finish')
+    expect(summaryLine).toBeDefined()
+    expect(summaryLine!.newValue).toBe('Fix auth bug in login flow')
+  })
+
+  it('deduplicates Sidekick event IDs when two events share the same timestamp+type', async () => {
+    setupTranscript(makeUserEntry('Hello'))
+
+    // Return two identical-timestamp/type events to trigger the dedup counter path
+    const sharedTime = new Date('2025-01-15T10:30:01.000Z').getTime()
+    mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
+      if (prefix === 'sidekick.') return Promise.resolve(['/fake/logs/sidekick.1.log'])
+      return Promise.resolve([])
+    })
+    mockReadLogFile.mockResolvedValue([
+      {
+        time: sharedTime,
+        type: 'reminder:staged',
+        context: { sessionId: 'session-1' },
+        payload: { reminderName: 'vc-build' },
+      },
+      {
+        time: sharedTime,
+        type: 'reminder:staged',
+        context: { sessionId: 'session-1' },
+        payload: { reminderName: 'vc-typecheck' },
+      },
+    ])
+
+    const lines = await parseTranscriptLines('myproject', 'session-1', '/fake/project')
+    const sidekickLines = lines.filter((l) => l.type === 'reminder:staged')
+    expect(sidekickLines).toHaveLength(2)
+    // First occurrence keeps the base ID; second gets a -2 suffix
+    const ids = sidekickLines.map((l) => l.id)
+    const baseId = `sidekick-${sharedTime}-reminder:staged`
+    expect(ids).toContain(baseId)
+    expect(ids).toContain(`${baseId}-2`)
+  })
+})
+
+// ============================================================================
+// Subagent Support
+// ============================================================================
+
+const SUBAGENT_BASE = '/home/testuser/.claude/projects/myproject/session-1/subagents'
+
+describe('listSubagents', () => {
+  it('returns agent IDs from .jsonl files matching agent-*.jsonl', async () => {
+    mockReaddir.mockResolvedValue(['agent-abc123.jsonl', 'agent-def456.jsonl', 'agent-abc123.meta.json'])
+
+    const ids = await listSubagents('myproject', 'session-1')
+    expect(ids).toEqual(['abc123', 'def456'])
+  })
+
+  it('filters out files that do not match agent-*.jsonl', async () => {
+    mockReaddir.mockResolvedValue(['agent-abc123.jsonl', 'somethingelse.jsonl', 'README.md'])
+
+    const ids = await listSubagents('myproject', 'session-1')
+    expect(ids).toEqual(['abc123'])
+  })
+
+  it('returns empty array when directory does not exist', async () => {
+    mockReaddir.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+
+    const ids = await listSubagents('myproject', 'session-1')
+    expect(ids).toEqual([])
+  })
+
+  it('returns empty array when directory is empty', async () => {
+    mockReaddir.mockResolvedValue([])
+
+    const ids = await listSubagents('myproject', 'session-1')
+    expect(ids).toEqual([])
+  })
+
+  it('reads from the correct subagents directory path', async () => {
+    mockReaddir.mockResolvedValue([])
+
+    await listSubagents('myproject', 'session-1')
+
+    expect(mockReaddir).toHaveBeenCalledWith(SUBAGENT_BASE)
+  })
+})
+
+describe('parseSubagentTranscript', () => {
+  const AGENT_ID = 'agent42'
+  const JSONL_PATH = `${SUBAGENT_BASE}/agent-agent42.jsonl`
+
+  function setupSubagentTranscript(content: string, metaContent?: string) {
+    mockReadFile.mockImplementation((p: string) => {
+      if (p === JSONL_PATH) return Promise.resolve(content)
+      if (p.endsWith('.meta.json')) {
+        if (metaContent !== undefined) return Promise.resolve(metaContent)
+        return Promise.reject(new Error('ENOENT'))
+      }
+      return Promise.reject(new Error(`Unexpected path: ${p as string}`))
+    })
+  }
+
+  it('returns null when the .jsonl file does not exist', async () => {
+    mockReadFile.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+
+    const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+    expect(result).toBeNull()
+  })
+
+  it('returns empty lines and empty meta when .jsonl is blank', async () => {
+    setupSubagentTranscript('   \n  ')
+
+    const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+    expect(result).not.toBeNull()
+    expect(result!.lines).toEqual([])
+    expect(result!.meta).toEqual({})
+  })
+
+  it('reads the correct path derived from projectId/sessionId/agentId', async () => {
+    setupSubagentTranscript(makeUserEntry('Hello'))
+
+    await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+
+    const calls = mockReadFile.mock.calls.map((c: unknown[]) => c[0] as string)
+    expect(calls[0]).toBe(JSONL_PATH)
+  })
+
+  it('parses user and assistant entries from the .jsonl file', async () => {
+    const content = [
+      makeUserEntry('User prompt'),
+      makeAssistantEntry([{ type: 'text', text: 'Assistant reply' }]),
+    ].join('\n')
+    setupSubagentTranscript(content)
+
+    const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+    expect(result).not.toBeNull()
+    expect(result!.lines).toHaveLength(2)
+    expect(result!.lines[0].type).toBe('user-message')
+    expect(result!.lines[0].content).toBe('User prompt')
+    expect(result!.lines[1].type).toBe('assistant-message')
+    expect(result!.lines[1].content).toBe('Assistant reply')
+  })
+
+  it('returns empty meta when .meta.json does not exist', async () => {
+    setupSubagentTranscript(makeUserEntry('Hello'))
+
+    const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+    expect(result).not.toBeNull()
+    expect(result!.meta).toEqual({})
+  })
+
+  it('reads meta.json and maps agentType, worktreePath, parentToolUseId', async () => {
+    const meta = {
+      agentType: 'subagent',
+      worktreePath: '/tmp/worktrees/agent-42',
+      parentToolUseId: 'toolu_parent123',
+    }
+    setupSubagentTranscript(makeUserEntry('Hello'), JSON.stringify(meta))
+
+    const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+    expect(result).not.toBeNull()
+    expect(result!.meta.agentType).toBe('subagent')
+    expect(result!.meta.worktreePath).toBe('/tmp/worktrees/agent-42')
+    expect(result!.meta.parentToolUseId).toBe('toolu_parent123')
+  })
+
+  it('ignores malformed meta.json and returns empty meta', async () => {
+    setupSubagentTranscript(makeUserEntry('Hello'), '{not valid json}')
+
+    const result = await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+    expect(result).not.toBeNull()
+    expect(result!.meta).toEqual({})
+  })
+
+  it('meta.json path is derived from .jsonl path by replacing extension', async () => {
+    const meta = { agentType: 'subagent' }
+    setupSubagentTranscript(makeUserEntry('Hello'), JSON.stringify(meta))
+
+    await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+
+    const calls = mockReadFile.mock.calls.map((c: unknown[]) => c[0] as string)
+    const metaCall = calls.find((p) => p.endsWith('.meta.json'))
+    expect(metaCall).toBe(`${SUBAGENT_BASE}/agent-agent42.meta.json`)
+  })
+
+  it('does not interleave Sidekick events (findLogFiles not called)', async () => {
+    setupSubagentTranscript(makeUserEntry('Hello'))
+
+    await parseSubagentTranscript('myproject', 'session-1', AGENT_ID)
+
     expect(mockFindLogFiles).not.toHaveBeenCalled()
   })
 })
