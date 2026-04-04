@@ -13,17 +13,14 @@ describe('resolveProjectRoot', () => {
   })
 
   it('returns the resolved absolute path when projectDir is an absolute path', () => {
-    const absPath = '/some/absolute/dir'
-    expect(resolveProjectRoot({ projectDir: absPath })).toEqual({
-      projectRoot: path.resolve(absPath),
+    expect(resolveProjectRoot({ projectDir: '/some/absolute/dir' })).toEqual({
+      projectRoot: '/some/absolute/dir',
     })
   })
 
   it('returns an absolute resolved path when projectDir is a relative path', () => {
     const relPath = './foo/bar'
     const result = resolveProjectRoot({ projectDir: relPath })
-    expect(result.projectRoot).toBeDefined()
-    expect(path.isAbsolute(result.projectRoot!)).toBe(true)
     expect(result.projectRoot).toBe(path.resolve(relPath))
   })
 })
