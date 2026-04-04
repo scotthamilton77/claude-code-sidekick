@@ -22,15 +22,17 @@ function isControlled(props: CollapsibleProps): props is CollapsibleControlledPr
   return 'onToggle' in props
 }
 
-export function Collapsible(props: CollapsibleProps) {
+export function Collapsible(props: CollapsibleProps): ReactNode {
   const { label, labelClassName, children } = props
 
-  const [internalOpen, setInternalOpen] = useState(
-    isControlled(props) ? props.open : (props.defaultOpen ?? false)
-  )
+  const controlled = isControlled(props)
+  const [internalOpen, setInternalOpen] = useState(controlled ? false : (props.defaultOpen ?? false))
 
-  const open = isControlled(props) ? props.open : internalOpen
-  const toggle = isControlled(props) ? props.onToggle : () => setInternalOpen((v) => !v)
+  const open = controlled ? props.open : internalOpen
+  const toggle = controlled ? props.onToggle : () => setInternalOpen((v) => !v)
+
+  const Chevron = open ? ChevronDown : ChevronRight
+  const labelClass = ['text-[10px] font-medium text-slate-500', labelClassName].filter(Boolean).join(' ')
 
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded">
@@ -40,8 +42,8 @@ export function Collapsible(props: CollapsibleProps) {
         aria-expanded={open}
         className="flex items-center gap-1 w-full px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800"
       >
-        {open ? <ChevronDown size={12} className="text-slate-400" /> : <ChevronRight size={12} className="text-slate-400" />}
-        <span className={`text-[10px] font-medium text-slate-500${labelClassName ? ` ${labelClassName}` : ''}`}>{label}</span>
+        <Chevron size={12} className="text-slate-400" />
+        <span className={labelClass}>{label}</span>
       </button>
       {open && (
         <div className="px-2 py-1.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 overflow-auto max-h-[300px]">

@@ -113,21 +113,17 @@ export function HookDetail({ line }: HookDetailProps) {
 
       {line.hookInput != null && (
         <Collapsible label="Raw Input JSON" open={showRawInput} onToggle={() => setShowRawInput(!showRawInput)}>
-          {showRawInput && (
-            <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-all">
-              {JSON.stringify(line.hookInput, null, 2)}
-            </pre>
-          )}
+          <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-all">
+            {JSON.stringify(line.hookInput, null, 2)}
+          </pre>
         </Collapsible>
       )}
 
       {line.hookReturnValue != null && (
         <Collapsible label="Raw Return JSON" open={showRawReturn} onToggle={() => setShowRawReturn(!showRawReturn)}>
-          {showRawReturn && (
-            <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-all">
-              {JSON.stringify(line.hookReturnValue, null, 2)}
-            </pre>
-          )}
+          <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-wrap break-all">
+            {JSON.stringify(line.hookReturnValue, null, 2)}
+          </pre>
         </Collapsible>
       )}
     </div>
