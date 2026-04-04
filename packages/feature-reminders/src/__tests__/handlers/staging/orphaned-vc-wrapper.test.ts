@@ -47,32 +47,62 @@ const mockGetGitFileStatus = getGitFileStatus as ReturnType<typeof vi.fn>
 // Helpers
 // ============================================================================
 
-function createFileEditEvent(
+let toolUseIdCounter = 0
+function nextToolUseId(): string {
+  return `tool-use-${++toolUseIdCounter}`
+}
+
+function createToolResultEventForCorrelation(
   metrics: Partial<TranscriptMetrics>,
-  filePath: string,
+  toolName: string,
+  toolUseId: string,
   sessionId = 'test-session'
 ): TranscriptEvent {
   return {
     kind: 'transcript',
-    eventType: 'ToolCall',
+    eventType: 'ToolResult',
     context: { sessionId, timestamp: Date.now() },
-    payload: { lineNumber: 1, entry: { input: { file_path: filePath } }, toolName: 'Edit' },
+    payload: { lineNumber: 2, entry: { tool_use_id: toolUseId }, toolName },
     metadata: { transcriptPath: '/test/transcript.jsonl', metrics: { ...createDefaultMetrics(), ...metrics } },
   }
 }
 
-function createBashToolCallEvent(
+async function simulateFileEdit(
+  handler: import('@sidekick/types').EventHandler,
+  ctx: DaemonContext,
   metrics: Partial<TranscriptMetrics>,
-  command: string,
+  filePath: string,
   sessionId = 'test-session'
-): TranscriptEvent {
-  return {
+): Promise<void> {
+  const toolUseId = nextToolUseId()
+  const callEvent: TranscriptEvent = {
     kind: 'transcript',
     eventType: 'ToolCall',
     context: { sessionId, timestamp: Date.now() },
-    payload: { lineNumber: 1, entry: { input: { command } }, toolName: 'Bash' },
+    payload: { lineNumber: 1, entry: { id: toolUseId, input: { file_path: filePath } }, toolName: 'Edit' },
     metadata: { transcriptPath: '/test/transcript.jsonl', metrics: { ...createDefaultMetrics(), ...metrics } },
   }
+  await handler(callEvent, ctx as any)
+  await handler(createToolResultEventForCorrelation(metrics, 'Edit', toolUseId, sessionId), ctx as any)
+}
+
+async function simulateBashCommand(
+  handler: import('@sidekick/types').EventHandler,
+  ctx: DaemonContext,
+  metrics: Partial<TranscriptMetrics>,
+  command: string,
+  sessionId = 'test-session'
+): Promise<void> {
+  const toolUseId = nextToolUseId()
+  const callEvent: TranscriptEvent = {
+    kind: 'transcript',
+    eventType: 'ToolCall',
+    context: { sessionId, timestamp: Date.now() },
+    payload: { lineNumber: 1, entry: { id: toolUseId, input: { command } }, toolName: 'Bash' },
+    metadata: { transcriptPath: '/test/transcript.jsonl', metrics: { ...createDefaultMetrics(), ...metrics } },
+  }
+  await handler(callEvent, ctx as any)
+  await handler(createToolResultEventForCorrelation(metrics, 'Bash', toolUseId, sessionId), ctx as any)
 }
 
 function createBashToolResultEvent(metrics: Partial<TranscriptMetrics>, sessionId = 'test-session'): TranscriptEvent {
@@ -175,21 +205,22 @@ describe('Orphaned VC wrapper — Scenario A: bash-changes stages wrapper indepe
     expect(getStagedNames(staging)).toHaveLength(0)
 
     // --- Step 2: Agent edits a source file → per-tool + wrapper staged ---
-    await trackHandler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
+    await simulateFileEdit(
+      trackHandler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/src/index.ts'
     )
     snapshotStaging(staging, 'Step 2: After file edit')
     expect(hasWrapper(staging)).toBe(true)
     expect(getPerToolNames(staging).length).toBeGreaterThan(0)
 
     // --- Step 3: Agent runs `pnpm build && pnpm typecheck && pnpm test && pnpm lint` → all verified ---
-    await trackHandler(
-      createBashToolCallEvent(
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
-      ),
-      ctx as any
+    await simulateBashCommand(
+      trackHandler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
     )
     snapshotStaging(staging, 'Step 3: After all verification commands')
     expect(getPerToolNames(staging)).toHaveLength(0)
@@ -273,21 +304,22 @@ describe('Orphaned VC wrapper — Scenario B: unverified re-stage without per-to
     const unstageHandler = handlers.getHandler('reminders:unstage-verify-completion')!.handler
 
     // --- Step 1: Agent edits file → all per-tool + wrapper staged ---
-    await trackHandler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
+    await simulateFileEdit(
+      trackHandler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/src/index.ts'
     )
     snapshotStaging(staging, 'Step 1: After file edit')
     expect(hasWrapper(staging)).toBe(true)
     expect(getPerToolNames(staging).length).toBeGreaterThan(0)
 
     // --- Step 2: Agent verifies all tools ---
-    await trackHandler(
-      createBashToolCallEvent(
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
-      ),
-      ctx as any
+    await simulateBashCommand(
+      trackHandler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
     )
     snapshotStaging(staging, 'Step 2: After all verified')
     expect(hasWrapper(staging)).toBe(false)

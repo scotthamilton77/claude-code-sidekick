@@ -1,12 +1,15 @@
 /**
  * Track verification tools — stage/unstage per-tool VC reminders
  *
- * Watches ToolCall transcript events to:
- * 1. Stage per-tool VC reminders when source files are edited (Write/Edit/MultiEdit)
- * 2. Unstage per-tool VC reminders when verification commands are observed (Bash)
- * 3. Manage per-tool state machine: STAGED → VERIFIED → COOLDOWN → re-STAGED
+ * Uses two-phase staging to avoid acting on blocked tools:
+ * 1. ToolCall phase: Capture tool intent (name + input) in pending map
+ * 2. ToolResult phase: Confirm execution, run staging/unstaging logic
+ *
+ * If PreToolUse blocks the tool between phases, no ToolResult fires and
+ * no staging occurs. Pending map is cleaned on UserPromptSubmit/Stop.
  *
  * @see docs/plans/2026-03-05-dynamic-vc-tool-tracking-design.md
+ * @see docs/superpowers/specs/2026-04-04-pr-staging-toolresult-fix-design.md
  */
 
 import type { RuntimeContext } from '@sidekick/core'
@@ -17,10 +20,9 @@ import type {
   HandlerContext,
   SidekickEvent,
   StagingEnrichment,
-  TranscriptEvent,
   VerificationToolsState,
 } from '@sidekick/types'
-import { DecisionEvents, isDaemonContext, isTranscriptEvent } from '@sidekick/types'
+import { DecisionEvents, isDaemonContext, isHookEvent, isTranscriptEvent } from '@sidekick/types'
 import picomatch from 'picomatch'
 import { findMatchingPattern } from '../../tool-pattern-matcher.js'
 import { resolveReminder, stageReminder } from '../../reminder-utils.js'
@@ -38,18 +40,22 @@ const FILE_EDIT_TOOLS = ['Write', 'Edit', 'MultiEdit']
 
 const VC_TOOL_NAME_SET = new Set<string>(VC_TOOL_REMINDER_IDS)
 
-function extractToolInput(event: TranscriptEvent): Record<string, unknown> | undefined {
-  const entry = event.payload.entry as Record<string, unknown>
-  return entry?.input as Record<string, unknown> | undefined
-}
+/** Cap pending tool calls to prevent unbounded memory growth from blocked tools */
+const MAX_PENDING_TOOL_CALLS = 100
 
 export function registerTrackVerificationTools(context: RuntimeContext): void {
   if (!isDaemonContext(context)) return
 
+  // Closure-scoped pending map: tracks ToolCall intents awaiting ToolResult confirmation.
+  // Nested by sessionId → toolUseId to avoid composite key collisions and enable O(1) session cleanup.
+  type PendingEntry = { toolName: string; input: Record<string, unknown> }
+  const pendingBySession = new Map<string, Map<string, PendingEntry>>()
+
+  // Handler A: Two-phase staging — ToolCall captures intent, ToolResult executes staging
   context.handlers.register({
     id: 'reminders:track-verification-tools',
     priority: 60,
-    filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
+    filter: { kind: 'transcript', eventTypes: ['ToolCall', 'ToolResult'] },
     handler: async (event: SidekickEvent, ctx: HandlerContext) => {
       if (!isTranscriptEvent(event)) return
       if (event.metadata.isBulkProcessing) return
@@ -59,22 +65,72 @@ export function registerTrackVerificationTools(context: RuntimeContext): void {
       const sessionId = event.context?.sessionId
       if (!sessionId) return
 
-      const toolName = event.payload.toolName
-      if (!toolName) return
+      // Phase 1: ToolCall — capture intent, no staging
+      if (event.eventType === 'ToolCall') {
+        const toolUseId = (event.payload.entry as { id?: string }).id
+        const toolName = event.payload.toolName
+        if (!toolUseId || !toolName) return
 
-      const config = getRemindersConfig(context.config)
-      const verificationTools = config.verification_tools ?? {}
-      const runners = config.command_runners ?? []
+        const entry = event.payload.entry as Record<string, unknown>
+        const input = (entry?.input as Record<string, unknown>) ?? {}
 
-      const remindersState = createRemindersState(daemonCtx.stateService)
-      const stateResult = await remindersState.verificationTools.read(sessionId)
-      const toolsState: VerificationToolsState = { ...stateResult.data }
-
-      if (FILE_EDIT_TOOLS.includes(toolName)) {
-        await handleFileEdit(event, daemonCtx, sessionId, verificationTools, toolsState, remindersState)
-      } else if (toolName === 'Bash') {
-        await handleBashCommand(event, daemonCtx, sessionId, verificationTools, toolsState, remindersState, runners)
+        let sessionMap = pendingBySession.get(sessionId)
+        if (!sessionMap) {
+          sessionMap = new Map()
+          pendingBySession.set(sessionId, sessionMap)
+        }
+        // Cap pending entries to prevent unbounded memory growth
+        if (sessionMap.size >= MAX_PENDING_TOOL_CALLS) {
+          const oldest = sessionMap.keys().next().value
+          if (oldest) sessionMap.delete(oldest)
+        }
+        sessionMap.set(toolUseId, { toolName, input })
+        return
       }
+
+      // Phase 2: ToolResult — confirm execution, run staging/unstaging
+      if (event.eventType === 'ToolResult') {
+        const toolUseId = (event.payload.entry as { tool_use_id?: string }).tool_use_id
+        if (!toolUseId) return
+
+        const sessionMap = pendingBySession.get(sessionId)
+        const pending = sessionMap?.get(toolUseId)
+        if (!pending) return
+        sessionMap!.delete(toolUseId)
+        if (sessionMap!.size === 0) pendingBySession.delete(sessionId)
+
+        const { toolName, input } = pending
+
+        const config = getRemindersConfig(context.config)
+        const verificationTools = config.verification_tools ?? {}
+        const runners = config.command_runners ?? []
+
+        const remindersState = createRemindersState(daemonCtx.stateService)
+        const stateResult = await remindersState.verificationTools.read(sessionId)
+        const toolsState: VerificationToolsState = { ...stateResult.data }
+
+        if (FILE_EDIT_TOOLS.includes(toolName)) {
+          await handleFileEdit(input, daemonCtx, sessionId, verificationTools, toolsState, remindersState)
+        } else if (toolName === 'Bash') {
+          await handleBashCommand(input, daemonCtx, sessionId, verificationTools, toolsState, remindersState, runners)
+        }
+      }
+    },
+  })
+
+  // Handler B: Cleanup pending map on UserPromptSubmit/Stop (stale entries from blocked tools)
+  context.handlers.register({
+    id: 'reminders:track-verification-tools-cleanup',
+    priority: 60,
+    filter: { kind: 'hook', hooks: ['UserPromptSubmit', 'Stop'] },
+    // eslint-disable-next-line @typescript-eslint/require-await -- sync cleanup, async required by EventHandler type
+    handler: async (event: SidekickEvent, _ctx: HandlerContext) => {
+      if (!isHookEvent(event)) return
+      const sessionId = event.context?.sessionId
+      if (!sessionId) return
+
+      // Clear all pending entries for this session (O(1) with nested map)
+      pendingBySession.delete(sessionId)
     },
   })
 }
@@ -244,14 +300,14 @@ export async function stageToolsForFiles(
 }
 
 async function handleFileEdit(
-  event: TranscriptEvent,
+  input: Record<string, unknown>,
   daemonCtx: DaemonContext,
   sessionId: string,
   verificationTools: VerificationToolsMap,
   toolsState: VerificationToolsState,
   remindersState: RemindersStateAccessors
 ): Promise<void> {
-  const filePath = extractToolInput(event)?.file_path as string | undefined
+  const filePath = input.file_path as string | undefined
   if (!filePath) return
 
   // Guard: only track edits within the project directory
@@ -262,7 +318,7 @@ async function handleFileEdit(
 }
 
 async function handleBashCommand(
-  event: TranscriptEvent,
+  input: Record<string, unknown>,
   daemonCtx: DaemonContext,
   sessionId: string,
   verificationTools: VerificationToolsMap,
@@ -270,7 +326,7 @@ async function handleBashCommand(
   remindersState: RemindersStateAccessors,
   runners: CommandRunner[] = []
 ): Promise<void> {
-  const command = extractToolInput(event)?.command as string | undefined
+  const command = input.command as string | undefined
   if (!command) return
 
   let anyUnstaged = false

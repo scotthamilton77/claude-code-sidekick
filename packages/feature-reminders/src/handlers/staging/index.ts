@@ -15,6 +15,7 @@ import { registerTrackVerificationTools } from './track-verification-tools'
 import { registerUnstageVerifyCompletion } from './unstage-verify-completion'
 import { registerStagePersonaReminders } from './stage-persona-reminders'
 import { registerStageUserProfileReminders } from './stage-user-profile-reminders'
+import { registerCleanupOnStop } from './cleanup-on-stop'
 
 /**
  * Register all staging handlers
@@ -27,4 +28,5 @@ export function registerStagingHandlers(context: RuntimeContext): void {
   registerUnstageVerifyCompletion(context)
   registerStagePersonaReminders(context)
   registerStageUserProfileReminders(context)
+  registerCleanupOnStop(context)
 }

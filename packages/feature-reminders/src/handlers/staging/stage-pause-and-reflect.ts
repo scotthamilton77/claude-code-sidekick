@@ -20,7 +20,7 @@ export function registerStagePauseAndReflect(context: RuntimeContext): void {
   createStagingHandler(context, {
     id: 'reminders:stage-pause-and-reflect',
     priority: 80,
-    filter: { kind: 'transcript', eventTypes: ['ToolCall'] },
+    filter: { kind: 'transcript', eventTypes: ['ToolResult'] },
     execute: async (event, ctx) => {
       if (!isTranscriptEvent(event)) return undefined
 

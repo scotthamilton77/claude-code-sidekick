@@ -1,12 +1,11 @@
 /**
  * Tests for track-verification-tools staging handler
  *
- * Watches ToolCall transcript events to:
- * 1. Stage per-tool VC reminders when source files are edited
- * 2. Unstage per-tool VC reminders when verification commands are observed
- * 3. Manage STAGED → VERIFIED → COOLDOWN state machine with clearing threshold
+ * Uses two-phase staging: ToolCall captures intent, ToolResult confirms execution.
+ * Tests send ToolCall+ToolResult pairs via simulateToolExecution() helper.
  *
  * @see docs/plans/2026-03-05-dynamic-vc-tool-tracking-design.md
+ * @see docs/superpowers/specs/2026-04-04-pr-staging-toolresult-fix-design.md
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -31,11 +30,18 @@ import { ReminderIds } from '../../../types.js'
 // Test Helpers
 // ============================================================================
 
+let toolUseIdCounter = 0
+
+function nextToolUseId(): string {
+  return `tool-use-${++toolUseIdCounter}`
+}
+
 function createToolCallEvent(
   metrics: Partial<TranscriptMetrics>,
   toolName: string,
   input: Record<string, unknown> = {},
-  sessionId = 'test-session'
+  sessionId = 'test-session',
+  toolUseId?: string
 ): TranscriptEvent {
   return {
     kind: 'transcript',
@@ -46,7 +52,7 @@ function createToolCallEvent(
     },
     payload: {
       lineNumber: 1,
-      entry: { input },
+      entry: { id: toolUseId ?? nextToolUseId(), input },
       toolName,
     },
     metadata: {
@@ -56,21 +62,72 @@ function createToolCallEvent(
   }
 }
 
-function createFileEditEvent(
+function createToolResultEvent(
+  metrics: Partial<TranscriptMetrics>,
+  toolName: string,
+  toolUseId: string,
+  sessionId = 'test-session'
+): TranscriptEvent {
+  return {
+    kind: 'transcript',
+    eventType: 'ToolResult',
+    context: {
+      sessionId,
+      timestamp: Date.now(),
+    },
+    payload: {
+      lineNumber: 2,
+      entry: { tool_use_id: toolUseId },
+      toolName,
+    },
+    metadata: {
+      transcriptPath: '/test/transcript.jsonl',
+      metrics: { ...createDefaultMetrics(), ...metrics },
+    },
+  }
+}
+
+/**
+ * Simulate a complete tool execution: ToolCall (capture intent) + ToolResult (confirm execution).
+ * Returns both events in case tests need to inspect them.
+ */
+async function simulateToolExecution(
+  handler: EventHandler,
+  ctx: DaemonContext,
+  metrics: Partial<TranscriptMetrics>,
+  toolName: string,
+  input: Record<string, unknown> = {},
+  sessionId = 'test-session'
+): Promise<{ toolCallEvent: TranscriptEvent; toolResultEvent: TranscriptEvent }> {
+  const toolUseId = nextToolUseId()
+  const toolCallEvent = createToolCallEvent(metrics, toolName, input, sessionId, toolUseId)
+  const toolResultEvent = createToolResultEvent(metrics, toolName, toolUseId, sessionId)
+
+  await handler(toolCallEvent, ctx as any)
+  await handler(toolResultEvent, ctx as any)
+
+  return { toolCallEvent, toolResultEvent }
+}
+
+async function simulateFileEdit(
+  handler: EventHandler,
+  ctx: DaemonContext,
   metrics: Partial<TranscriptMetrics>,
   filePath: string,
   toolName = 'Edit',
   sessionId = 'test-session'
-): TranscriptEvent {
-  return createToolCallEvent(metrics, toolName, { file_path: filePath }, sessionId)
+): Promise<void> {
+  await simulateToolExecution(handler, ctx, metrics, toolName, { file_path: filePath }, sessionId)
 }
 
-function createBashEvent(
+async function simulateBashCommand(
+  handler: EventHandler,
+  ctx: DaemonContext,
   metrics: Partial<TranscriptMetrics>,
   command: string,
   sessionId = 'test-session'
-): TranscriptEvent {
-  return createToolCallEvent(metrics, 'Bash', { command }, sessionId)
+): Promise<void> {
+  await simulateToolExecution(handler, ctx, metrics, 'Bash', { command }, sessionId)
 }
 
 function getStagedNames(staging: MockStagingService, hook = 'Stop'): string[] {
@@ -153,9 +210,8 @@ additionalContext: "Lint needed"
 
   it('stages per-tool VC reminders + wrapper on source file edit', async () => {
     const handler = getRegisteredHandler()
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
-    await handler(event, ctx as any)
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
     const names = getStagedNames(staging)
     expect(names).toContain(ReminderIds.VERIFY_COMPLETION)
@@ -167,40 +223,45 @@ additionalContext: "Lint needed"
 
   it('ignores file edits outside projectDir', async () => {
     const handler = getRegisteredHandler()
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/other-project/src/index.ts')
 
-    await handler(event, ctx as any)
+    await simulateFileEdit(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/other-project/src/index.ts'
+    )
 
     expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
   })
 
   it('ignores file edits to non-matching patterns (e.g. .md files)', async () => {
     const handler = getRegisteredHandler()
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/docs/README.md')
 
-    await handler(event, ctx as any)
+    await simulateFileEdit(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/docs/README.md'
+    )
 
     expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
   })
 
   it('ignores non-file-edit, non-Bash tool calls', async () => {
     const handler = getRegisteredHandler()
-    const event = createToolCallEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Read', {
+
+    await simulateToolExecution(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, 'Read', {
       file_path: '/mock/project/src/index.ts',
     })
-
-    await handler(event, ctx as any)
 
     expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
   })
 
   it('does not re-stage if reminders already exist (idempotent)', async () => {
     const handler = getRegisteredHandler()
-    const event1 = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
-    const event2 = createFileEditEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, '/mock/project/src/b.ts')
 
-    await handler(event1, ctx as any)
-    await handler(event2, ctx as any)
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, '/mock/project/src/b.ts')
 
     // Should still be exactly 5 (wrapper + 4 tools), not doubled
     expect(staging.getRemindersForHook('Stop')).toHaveLength(5)
@@ -208,7 +269,14 @@ additionalContext: "Lint needed"
 
   it('skips bulk processing events', async () => {
     const handler = getRegisteredHandler()
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+    const toolUseId = nextToolUseId()
+    const event = createToolCallEvent(
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      'Edit',
+      { file_path: '/mock/project/src/index.ts' },
+      'test-session',
+      toolUseId
+    )
     event.metadata.isBulkProcessing = true
 
     await handler(event, ctx as any)
@@ -224,14 +292,11 @@ additionalContext: "Lint needed"
     const handler = getRegisteredHandler()
 
     // Stage by editing a file
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
     expect(getStagedNames(staging)).toContain(ReminderIds.VC_BUILD)
 
     // Observe a build command
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_BUILD)
   })
@@ -239,13 +304,12 @@ additionalContext: "Lint needed"
   it('unstages vc-test when test command is observed', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
-    await handler(
-      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm test -- --run src/__tests__/foo.test.ts'),
-      ctx as any
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+    await simulateBashCommand(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm test -- --run src/__tests__/foo.test.ts'
     )
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TEST)
@@ -254,14 +318,8 @@ additionalContext: "Lint needed"
   it('unstages multiple tools for chained commands', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
-    await handler(
-      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build && pnpm test'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build && pnpm test')
 
     const names = getStagedNames(staging)
     expect(names).not.toContain(ReminderIds.VC_BUILD)
@@ -271,18 +329,14 @@ additionalContext: "Lint needed"
   it('unstages wrapper when all per-tool reminders are unstaged', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
     // Verify all commands
-    await handler(
-      createBashEvent(
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
-      ),
-      ctx as any
+    await simulateBashCommand(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm build && pnpm typecheck && pnpm test && pnpm lint'
     )
 
     expect(staging.getRemindersForHook('Stop')).toHaveLength(0)
@@ -291,16 +345,12 @@ additionalContext: "Lint needed"
   it('unstages vc-test when workspace-scoped test command is observed', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
-    await handler(
-      createBashEvent(
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'pnpm --filter @sidekick/core test -- --exclude foo'
-      ),
-      ctx as any
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+    await simulateBashCommand(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm --filter @sidekick/core test -- --exclude foo'
     )
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TEST)
@@ -309,13 +359,12 @@ additionalContext: "Lint needed"
   it('unstages vc-build when workspace-scoped build command is observed', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
-    await handler(
-      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm --filter @sidekick/core build'),
-      ctx as any
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+    await simulateBashCommand(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'pnpm --filter @sidekick/core build'
     )
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_BUILD)
@@ -328,18 +377,14 @@ additionalContext: "Lint needed"
   it('unstages vc-typecheck when mypy is invoked through uv run', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py')
     expect(getStagedNames(staging)).toContain(ReminderIds.VC_TYPECHECK)
 
-    await handler(
-      createBashEvent(
-        { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
-        'uv run mypy tests/test_feedback_server.py --ignore-missing-imports'
-      ),
-      ctx as any
+    await simulateBashCommand(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'uv run mypy tests/test_feedback_server.py --ignore-missing-imports'
     )
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TYPECHECK)
@@ -348,12 +393,8 @@ additionalContext: "Lint needed"
   it('unstages vc-test when pytest is invoked through uv run', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py'),
-      ctx as any
-    )
-
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'uv run pytest tests/'), ctx as any)
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py')
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'uv run pytest tests/')
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_TEST)
   })
@@ -361,14 +402,12 @@ additionalContext: "Lint needed"
   it('unstages vc-lint when ruff is invoked through poetry run', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py'),
-      ctx as any
-    )
-
-    await handler(
-      createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'poetry run ruff check src/'),
-      ctx as any
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/app.py')
+    await simulateBashCommand(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 2, toolCount: 2 },
+      'poetry run ruff check src/'
     )
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_LINT)
@@ -377,11 +416,8 @@ additionalContext: "Lint needed"
   it('stores lastMatchedToolId and lastMatchedScope on verification', async () => {
     const handler = getRegisteredHandler()
 
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts'),
-      ctx as any
-    )
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
     const statePath = stateService.sessionStatePath('test-session', 'verification-tools.json')
     const state = stateService.getStored(statePath) as Record<string, Record<string, unknown>>
@@ -397,20 +433,14 @@ additionalContext: "Lint needed"
     const handler = getRegisteredHandler()
 
     // Edit → stage all
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
     // Verify build
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_BUILD)
 
     // One more edit — should NOT re-stage build (threshold is 3)
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts')
 
     expect(getStagedNames(staging)).not.toContain(ReminderIds.VC_BUILD)
   })
@@ -419,26 +449,14 @@ additionalContext: "Lint needed"
     const handler = getRegisteredHandler()
 
     // Edit → stage all
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
     // Verify build (threshold = 3)
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
     // 3 more qualifying edits to hit threshold
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
-      ctx as any
-    )
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 4, toolCount: 4 }, '/mock/project/src/c.ts'),
-      ctx as any
-    )
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, '/mock/project/src/d.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts')
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 4, toolCount: 4 }, '/mock/project/src/c.ts')
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, '/mock/project/src/d.ts')
 
     const names = getStagedNames(staging)
     expect(names).toContain(ReminderIds.VC_BUILD)
@@ -451,26 +469,28 @@ additionalContext: "Lint needed"
 
   it('stages on Write tool (not just Edit)', async () => {
     const handler = getRegisteredHandler()
-    const event = createFileEditEvent(
+
+    await simulateFileEdit(
+      handler,
+      ctx,
       { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
       '/mock/project/src/new-file.ts',
       'Write'
     )
-
-    await handler(event, ctx as any)
 
     expect(getStagedNames(staging)).toContain(ReminderIds.VC_BUILD)
   })
 
   it('stages on MultiEdit tool', async () => {
     const handler = getRegisteredHandler()
-    const event = createFileEditEvent(
+
+    await simulateFileEdit(
+      handler,
+      ctx,
       { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
       '/mock/project/src/refactored.ts',
       'MultiEdit'
     )
-
-    await handler(event, ctx as any)
 
     expect(getStagedNames(staging)).toContain(ReminderIds.VC_BUILD)
   })
@@ -488,28 +508,16 @@ additionalContext: "Lint needed"
       const handler = getRegisteredHandler()
 
       // Edit → stage all tools initially
-      await handler(
-        createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-        ctx as any
-      )
+      await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
       // Verify build (moves to "verified" state, threshold = 3)
-      await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+      await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
       logger.reset()
 
       // 3 more qualifying edits to hit clearing threshold
-      await handler(
-        createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
-        ctx as any
-      )
-      await handler(
-        createFileEditEvent({ turnCount: 1, toolsThisTurn: 4, toolCount: 4 }, '/mock/project/src/c.ts'),
-        ctx as any
-      )
-      await handler(
-        createFileEditEvent({ turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, '/mock/project/src/d.ts'),
-        ctx as any
-      )
+      await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts')
+      await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 4, toolCount: 4 }, '/mock/project/src/c.ts')
+      await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 5, toolCount: 5 }, '/mock/project/src/d.ts')
 
       const decisionEvents = getDecisionRecordedEvents()
       const staged = decisionEvents.filter((e) => e.meta?.decision === 'staged' && e.meta?.subsystem === 'vc-reminders')
@@ -521,15 +529,12 @@ additionalContext: "Lint needed"
       const handler = getRegisteredHandler()
 
       // Edit → stage all tools
-      await handler(
-        createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-        ctx as any
-      )
+      await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
 
       logger.reset()
 
       // Observe a build command → unstages vc-build
-      await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+      await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
       const decisionEvents = getDecisionRecordedEvents()
       const unstaged = decisionEvents.filter(
@@ -616,9 +621,12 @@ additionalContext: "Lint needed"
   it('should emit not-staged event when file does not match clearing patterns', async () => {
     const handler = getRegisteredHandler()
     // .md files don't match default clearing_patterns (**/*.ts, **/*.tsx, etc.)
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/docs/README.md')
-
-    await handler(event, ctx as any)
+    await simulateFileEdit(
+      handler,
+      ctx,
+      { turnCount: 1, toolsThisTurn: 1, toolCount: 1 },
+      '/mock/project/docs/README.md'
+    )
 
     const notStagedEvents = getNotStagedEvents()
     // Each of the 4 tools should emit a pattern_mismatch event
@@ -630,20 +638,14 @@ additionalContext: "Lint needed"
     const handler = getRegisteredHandler()
 
     // Edit → stage all tools
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/a.ts')
     // Verify build (moves to "verified" state)
-    await handler(createBashEvent({ turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build'), ctx as any)
+    await simulateBashCommand(handler, ctx, { turnCount: 1, toolsThisTurn: 2, toolCount: 2 }, 'pnpm build')
 
     logger.reset()
 
     // One more edit — should NOT re-stage build (threshold is 3), should emit below_threshold
-    await handler(
-      createFileEditEvent({ turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts'),
-      ctx as any
-    )
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 3, toolCount: 3 }, '/mock/project/src/b.ts')
 
     const notStagedEvents = getNotStagedEvents()
     const belowThreshold = notStagedEvents.filter(
@@ -697,9 +699,8 @@ additionalContext: "Wrapper"
 
     ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
     const handler = getHandlerFromContext(ctx, handlers)
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
-    await handler(event, ctx as any)
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
     // No per-tool reminders could resolve, so wrapper must NOT be staged
     const names = getStagedNames(staging)
@@ -726,9 +727,8 @@ additionalContext: "Build needed"
 
     ctx = createMockDaemonContext({ staging, logger, handlers, assets, stateService })
     const handler = getHandlerFromContext(ctx, handlers)
-    const event = createFileEditEvent({ turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
-    await handler(event, ctx as any)
+    await simulateFileEdit(handler, ctx, { turnCount: 1, toolsThisTurn: 1, toolCount: 1 }, '/mock/project/src/index.ts')
 
     // Only vc-build + wrapper should be staged (the others failed to resolve)
     const names = getStagedNames(staging)
