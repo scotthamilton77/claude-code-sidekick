@@ -208,54 +208,51 @@ See docs/DEVELOPER-GUIDE.md "Distribution and Publishing" section for full instr
 </lessons_learned>
 
 <!-- BEGIN BEADS INTEGRATION -->
-# Beads Issue Tracking
+## Beads Issue Tracker
 
-This project uses [Beads (bd)](https://github.com/steveyegge/beads) for issue tracking.
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
 
-## Core Rules
-
-- Track ALL work in bd (never use markdown TODOs or comment-based task lists)
-- Use `bd ready` to find available work
-- Use `bd create` to track new issues/tasks/bugs
-- Use `bd sync` at end of session to sync with git remote
-- Git hooks auto-sync on commit/merge
-
-## Quick Reference
+### Quick Reference
 
 ```bash
-bd prime                              # Load complete workflow context
-bd ready                              # Show issues ready to work (no blockers)
-bd list --status=open                 # List all open issues
-bd create --title="..." --type=task   # Create new issue
-bd update <id> --claim                # Claim work atomically
-bd close <id>                         # Mark complete
-bd dep add <issue> <depends-on>       # Add dependency
-bd sync                               # Sync with git remote
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work
+bd close <id>         # Complete work
 ```
 
-## Workflow
+### Rules
 
-1. Check for ready work: `bd ready`
-2. Claim an issue atomically: `bd update <id> --claim`
-3. Do the work
-4. Mark complete: `bd close <id>`
-5. Sync: `bd sync` (or let git hooks handle it)
+- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Run `bd prime` for detailed command reference and session close protocol
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
 
-## Issue Types
+## Session Completion
 
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
 
-## Priorities
+**MANDATORY WORKFLOW:**
 
-- `0` - Critical (security, data loss, broken builds)
-- `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
-- `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   git push
+   bd dolt push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
+
 <!-- END BEADS INTEGRATION -->
 
 ## Beads + Worktree Safety
