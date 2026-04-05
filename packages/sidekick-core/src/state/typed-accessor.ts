@@ -70,9 +70,13 @@ export class SessionStateAccessor<T, D = undefined> {
     await this.stateService.write(path, data, this.descriptor.schema, {
       trackHistory: this.descriptor.trackHistory,
     })
-    // Journal the state change (no-op if journal not configured)
+    // Journal the state change — best-effort (never fail the write)
     if (this.journal) {
-      await this.journal.appendIfChanged(sessionId, this.fileKey, data as Record<string, unknown>)
+      try {
+        await this.journal.appendIfChanged(sessionId, this.fileKey, data as Record<string, unknown>)
+      } catch {
+        // Journal failure must not prevent state writes
+      }
     }
   }
 
@@ -82,9 +86,13 @@ export class SessionStateAccessor<T, D = undefined> {
   async delete(sessionId: string): Promise<void> {
     const path = this.stateService.sessionStatePath(sessionId, this.descriptor.filename)
     await this.stateService.delete(path)
-    // Journal the deletion (no-op if journal not configured)
+    // Journal the deletion — best-effort (never fail the delete)
     if (this.journal) {
-      await this.journal.appendDeletion(sessionId, this.fileKey)
+      try {
+        await this.journal.appendDeletion(sessionId, this.fileKey)
+      } catch {
+        // Journal failure must not prevent state deletes
+      }
     }
   }
 
