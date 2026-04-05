@@ -15,6 +15,12 @@ import type { StateDescriptor } from './state-descriptor.js'
 // Re-export for convenience
 export type { StateReadResult } from '@sidekick/types'
 
+/** Minimal interface for state journal — avoids hard dependency on StateJournal class */
+export interface StateJournalLike {
+  appendIfChanged(sessionId: string, fileKey: string, data: Record<string, unknown>): Promise<void>
+  appendDeletion(sessionId: string, fileKey: string): Promise<void>
+}
+
 /**
  * Accessor for session-scoped state files.
  * Encapsulates path construction and schema validation.
@@ -29,13 +35,18 @@ export type { StateReadResult } from '@sidekick/types'
  * const result = await accessor.read(sessionId)
  */
 export class SessionStateAccessor<T, D = undefined> {
+  /** Descriptor filename without .json extension — used as journal file key */
+  private readonly fileKey: string
+
   constructor(
     private readonly stateService: MinimalStateService,
-    private readonly descriptor: StateDescriptor<T, D>
+    private readonly descriptor: StateDescriptor<T, D>,
+    private readonly journal?: StateJournalLike
   ) {
     if (descriptor.scope !== 'session') {
       throw new Error(`SessionStateAccessor requires a session-scoped descriptor, got: ${descriptor.scope}`)
     }
+    this.fileKey = descriptor.filename.replace(/\.json$/, '')
   }
 
   /**
@@ -56,9 +67,17 @@ export class SessionStateAccessor<T, D = undefined> {
    */
   async write(sessionId: string, data: T): Promise<void> {
     const path = this.stateService.sessionStatePath(sessionId, this.descriptor.filename)
-    return this.stateService.write(path, data, this.descriptor.schema, {
+    await this.stateService.write(path, data, this.descriptor.schema, {
       trackHistory: this.descriptor.trackHistory,
     })
+    // Journal the state change — best-effort (never fail the write)
+    if (this.journal) {
+      try {
+        await this.journal.appendIfChanged(sessionId, this.fileKey, data as Record<string, unknown>)
+      } catch {
+        // Journal failure must not prevent state writes
+      }
+    }
   }
 
   /**
@@ -67,6 +86,14 @@ export class SessionStateAccessor<T, D = undefined> {
   async delete(sessionId: string): Promise<void> {
     const path = this.stateService.sessionStatePath(sessionId, this.descriptor.filename)
     await this.stateService.delete(path)
+    // Journal the deletion — best-effort (never fail the delete)
+    if (this.journal) {
+      try {
+        await this.journal.appendDeletion(sessionId, this.fileKey)
+      } catch {
+        // Journal failure must not prevent state deletes
+      }
+    }
   }
 
   /**
