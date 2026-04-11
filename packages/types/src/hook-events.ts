@@ -31,6 +31,16 @@ export interface EventContext {
   agentType?: string
 }
 
+/**
+ * Narrowed context for subagent hook events (SubagentStart, SubagentStop).
+ * Enforces D1: context.agentId and context.agentType are required and authoritative.
+ * Payload.agentId/agentType are convenience copies of these required fields.
+ */
+export type SubagentEventContext = EventContext & {
+  agentId: string
+  agentType: string
+}
+
 // ============================================================================
 // Hook Events - from Claude Code
 // ============================================================================
@@ -142,7 +152,7 @@ export interface PreCompactHookEvent {
 export interface SubagentStartHookEvent {
   kind: 'hook'
   hook: 'SubagentStart'
-  context: EventContext
+  context: SubagentEventContext
   payload: {
     /** Path to parent transcript file */
     transcriptPath: string
@@ -156,7 +166,7 @@ export interface SubagentStartHookEvent {
 export interface SubagentStopHookEvent {
   kind: 'hook'
   hook: 'SubagentStop'
-  context: EventContext
+  context: SubagentEventContext
   payload: {
     /** Path to parent transcript file */
     transcriptPath: string

@@ -30,6 +30,7 @@ import type {
   PreCompactHookEvent,
   SubagentStartHookEvent,
   SubagentStopHookEvent,
+  SubagentEventContext,
 } from '@sidekick/types'
 import { HOOK_NAMES } from '@sidekick/types'
 import { buildCLIContext, registerCLIFeatures } from '../context.js'
@@ -283,15 +284,15 @@ function buildPreCompactEvent(context: EventContext, input: ParsedHookInput): Pr
  * agentId/agentType are required on SubagentStart per the schema, but parseHookInput
  * does not enforce that — so we fall back to empty string if somehow absent.
  */
-function buildSubagentStartEvent(context: EventContext, input: ParsedHookInput): SubagentStartHookEvent {
+function buildSubagentStartEvent(context: SubagentEventContext, input: ParsedHookInput): SubagentStartHookEvent {
   return {
     kind: 'hook',
     hook: 'SubagentStart',
     context,
     payload: {
       transcriptPath: input.transcriptPath,
-      agentId: input.agentId ?? '',
-      agentType: input.agentType ?? '',
+      agentId: context.agentId,
+      agentType: context.agentType,
     },
   } satisfies SubagentStartHookEvent
 }
@@ -301,7 +302,7 @@ function buildSubagentStartEvent(context: EventContext, input: ParsedHookInput):
  * Both context.agentId/agentType and payload.agentId/agentType are populated from
  * the same input values (D1: they must always agree).
  */
-function buildSubagentStopEvent(context: EventContext, input: ParsedHookInput): SubagentStopHookEvent {
+function buildSubagentStopEvent(context: SubagentEventContext, input: ParsedHookInput): SubagentStopHookEvent {
   const raw = input.raw
   const agentTranscriptPath = typeof raw.agent_transcript_path === 'string' ? raw.agent_transcript_path : ''
   const lastAssistantMessage = typeof raw.last_assistant_message === 'string' ? raw.last_assistant_message : ''
@@ -314,8 +315,8 @@ function buildSubagentStopEvent(context: EventContext, input: ParsedHookInput): 
     payload: {
       transcriptPath: input.transcriptPath,
       permissionMode,
-      agentId: input.agentId ?? '',
-      agentType: input.agentType ?? '',
+      agentId: context.agentId,
+      agentType: context.agentType,
       agentTranscriptPath,
       lastAssistantMessage,
       ...(stopHookActive !== undefined && { stopHookActive }),
@@ -353,10 +354,22 @@ export function buildHookEvent(hookName: HookName, input: ParsedHookInput, corre
       return buildStopEvent(context, input)
     case 'PreCompact':
       return buildPreCompactEvent(context, input)
-    case 'SubagentStart':
-      return buildSubagentStartEvent(context, input)
-    case 'SubagentStop':
-      return buildSubagentStopEvent(context, input)
+    case 'SubagentStart': {
+      const subagentContext: SubagentEventContext = {
+        ...context,
+        agentId: input.agentId ?? '',
+        agentType: input.agentType ?? '',
+      }
+      return buildSubagentStartEvent(subagentContext, input)
+    }
+    case 'SubagentStop': {
+      const subagentContext: SubagentEventContext = {
+        ...context,
+        agentId: input.agentId ?? '',
+        agentType: input.agentType ?? '',
+      }
+      return buildSubagentStopEvent(subagentContext, input)
+    }
   }
 }
 

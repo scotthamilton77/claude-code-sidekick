@@ -320,6 +320,11 @@ describe('translateToClaudeCodeFormat', () => {
         hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: 'Inject this' },
       })
     })
+
+    test('passes userMessage as systemMessage', () => {
+      const result = translateToClaudeCodeFormat('SubagentStart', { userMessage: 'Hello from SubagentStart' })
+      expect(result).toEqual({ systemMessage: 'Hello from SubagentStart' })
+    })
   })
 
   describe('SubagentStop', () => {

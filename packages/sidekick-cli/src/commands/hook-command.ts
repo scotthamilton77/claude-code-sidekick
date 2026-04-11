@@ -191,11 +191,18 @@ function translateStop(internal: HookResponse): ClaudeCodeHookResponse {
 }
 
 function translateSubagentStart(internal: HookResponse): ClaudeCodeHookResponse {
-  // SubagentStart cannot block; only additionalContext injection is supported
+  // SubagentStart cannot block; supports additionalContext injection and userMessage pass-through
+  const response: ClaudeCodeHookResponse = {}
+
   if (internal.additionalContext) {
-    return { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: internal.additionalContext } }
+    response.hookSpecificOutput = {
+      hookEventName: 'SubagentStart',
+      additionalContext: internal.additionalContext,
+    }
   }
-  return {}
+
+  addUserMessage(response, internal.userMessage)
+  return response
 }
 
 const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookResponse> = {
