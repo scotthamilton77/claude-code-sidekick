@@ -104,6 +104,43 @@ describe('parseHookInput', () => {
     expect(result?.cwd).toBeUndefined()
     expect(result?.hookEventName).toBe('unknown')
   })
+
+  test('extracts agent_id and agent_type when present (subagent hooks)', () => {
+    const input = {
+      session_id: 'sess-agent',
+      hook_event_name: 'SubagentStart',
+      agent_id: 'agent-abc-123',
+      agent_type: 'Bash',
+    }
+    const result = parseHookInput(JSON.stringify(input))
+
+    expect(result?.agentId).toBe('agent-abc-123')
+    expect(result?.agentType).toBe('Bash')
+  })
+
+  test('agentId and agentType are undefined when absent from payload', () => {
+    const input = {
+      session_id: 'sess-no-agent',
+      hook_event_name: 'PreToolUse',
+    }
+    const result = parseHookInput(JSON.stringify(input))
+
+    expect(result?.agentId).toBeUndefined()
+    expect(result?.agentType).toBeUndefined()
+  })
+
+  test('ignores non-string agent_id and agent_type', () => {
+    const input = {
+      session_id: 'sess-bad-agent',
+      hook_event_name: 'SubagentStart',
+      agent_id: 42, // number — ignored
+      agent_type: null, // null — ignored
+    }
+    const result = parseHookInput(JSON.stringify(input))
+
+    expect(result?.agentId).toBeUndefined()
+    expect(result?.agentType).toBeUndefined()
+  })
 })
 
 describe('parseStatuslineInput', () => {

@@ -25,6 +25,10 @@ export interface EventContext {
   correlationId?: string
   /** Links causally-related events (e.g., hook → handler → staged reminder) */
   traceId?: string
+  /** Subagent identifier (present when event fires inside a subagent) */
+  agentId?: string
+  /** Subagent type/name (present when event fires inside a subagent) */
+  agentType?: string
 }
 
 // ============================================================================
@@ -43,6 +47,8 @@ export const HOOK_NAMES = [
   'PostToolUse',
   'Stop',
   'PreCompact',
+  'SubagentStart',
+  'SubagentStop',
 ] as const
 
 /**
@@ -133,6 +139,42 @@ export interface PreCompactHookEvent {
   }
 }
 
+export interface SubagentStartHookEvent {
+  kind: 'hook'
+  hook: 'SubagentStart'
+  context: EventContext
+  payload: {
+    /** Path to parent transcript file */
+    transcriptPath: string
+    /** Unique identifier for the subagent (convenience copy — same value as context.agentId) */
+    agentId: string
+    /** Agent type/name (convenience copy — same value as context.agentType) */
+    agentType: string
+  }
+}
+
+export interface SubagentStopHookEvent {
+  kind: 'hook'
+  hook: 'SubagentStop'
+  context: EventContext
+  payload: {
+    /** Path to parent transcript file */
+    transcriptPath: string
+    /** Permission mode for the subagent session */
+    permissionMode: string
+    /** Unique identifier for the subagent (convenience copy — same value as context.agentId) */
+    agentId: string
+    /** Agent type/name (convenience copy — same value as context.agentType) */
+    agentType: string
+    /** Path to the subagent's own transcript JSONL */
+    agentTranscriptPath: string
+    /** Text content of the subagent's final response */
+    lastAssistantMessage: string
+    /** Whether stop hook is active (optional per docs/probe divergence) */
+    stopHookActive?: boolean
+  }
+}
+
 /**
  * Union of all hook event types.
  * Discriminated by the `hook` field.
@@ -145,6 +187,8 @@ export type HookEvent =
   | PostToolUseHookEvent
   | StopHookEvent
   | PreCompactHookEvent
+  | SubagentStartHookEvent
+  | SubagentStopHookEvent
 
 // ============================================================================
 // Hook-Specific Type Guards
@@ -176,4 +220,12 @@ export function isStopEvent(event: HookEvent): event is StopHookEvent {
 
 export function isPreCompactEvent(event: HookEvent): event is PreCompactHookEvent {
   return event.hook === 'PreCompact'
+}
+
+export function isSubagentStartEvent(event: HookEvent): event is SubagentStartHookEvent {
+  return event.hook === 'SubagentStart'
+}
+
+export function isSubagentStopEvent(event: HookEvent): event is SubagentStopHookEvent {
+  return event.hook === 'SubagentStop'
 }

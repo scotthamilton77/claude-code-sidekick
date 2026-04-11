@@ -32,6 +32,10 @@ export const HookInputBaseSchema = z.object({
   permission_mode: z.string().optional(),
   /** Name of the triggered hook (e.g., "UserPromptSubmit", "SessionStart") */
   hook_event_name: z.string(),
+  /** Unique identifier for the subagent (present when hook fires inside a subagent) */
+  agent_id: z.string().optional(),
+  /** Agent type/name: "Bash", "Explore", "Plan", or custom (present when inside a subagent) */
+  agent_type: z.string().optional(),
 })
 
 /**
@@ -196,10 +200,42 @@ export const StatuslineInputSchema = z.object({
 })
 
 /**
+ * SubagentStart hook input.
+ * Fired when the parent Claude session dispatches an Agent-tool subagent.
+ */
+export const SubagentStartInputSchema = HookInputBaseSchema.extend({
+  /** Unique identifier for the subagent (required per official docs) */
+  agent_id: z.string(),
+  /** Agent name: "Bash", "Explore", "Plan", or custom agent name */
+  agent_type: z.string(),
+})
+
+/**
+ * SubagentStop hook input.
+ * Fired when a subagent terminates.
+ */
+export const SubagentStopInputSchema = HookInputBaseSchema.extend({
+  /** Unique identifier for the subagent */
+  agent_id: z.string(),
+  /** Agent name */
+  agent_type: z.string(),
+  /** Path to subagent's own transcript JSONL */
+  agent_transcript_path: z.string(),
+  /** Text content of the subagent's final response */
+  last_assistant_message: z.string(),
+  /** Permission mode for the subagent session */
+  permission_mode: z.string(),
+  /** Optional: whether stop hook is active (probe doc says never populated; official docs show false) */
+  stop_hook_active: z.boolean().optional(),
+})
+
+/**
  * Union type for all hook inputs.
  * CLI parses this to extract common fields.
  */
 export const HookInputSchema = z.union([
+  SubagentStartInputSchema,
+  SubagentStopInputSchema,
   UserPromptSubmitInputSchema,
   PreToolUseInputSchema,
   PostToolUseInputSchema,
@@ -224,6 +260,8 @@ export type SessionStartInput = z.infer<typeof SessionStartInputSchema>
 export type SessionEndInput = z.infer<typeof SessionEndInputSchema>
 export type PreCompactInput = z.infer<typeof PreCompactInputSchema>
 export type NotificationInput = z.infer<typeof NotificationInputSchema>
+export type SubagentStartInput = z.infer<typeof SubagentStartInputSchema>
+export type SubagentStopInput = z.infer<typeof SubagentStopInputSchema>
 export type HookInput = z.infer<typeof HookInputSchema>
 
 // Statusline types (not part of HookInput union - handled separately)
@@ -248,6 +286,10 @@ export interface ParsedHookInput {
   hookEventName: string
   /** Permission mode */
   permissionMode: string | undefined
+  /** Subagent identifier (present when hook fires inside a subagent) */
+  agentId?: string
+  /** Subagent type/name (present when hook fires inside a subagent) */
+  agentType?: string
   /** Raw parsed payload for hook-specific fields */
   raw: Record<string, unknown>
 }

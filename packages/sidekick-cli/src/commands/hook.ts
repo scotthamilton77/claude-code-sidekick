@@ -28,6 +28,8 @@ import type {
   PostToolUseHookEvent,
   StopHookEvent,
   PreCompactHookEvent,
+  SubagentStartHookEvent,
+  SubagentStopHookEvent,
 } from '@sidekick/types'
 import { buildCLIContext, registerCLIFeatures } from '../context.js'
 import type { RuntimeShell } from '../runtime.js'
@@ -103,6 +105,8 @@ const VALID_HOOK_NAMES = new Set<HookName>([
   'PostToolUse',
   'Stop',
   'PreCompact',
+  'SubagentStart',
+  'SubagentStop',
 ])
 
 /**
@@ -125,6 +129,8 @@ const CLI_COMMAND_TO_HOOK: Record<string, HookName> = {
   'post-tool-use': 'PostToolUse',
   stop: 'Stop',
   'pre-compact': 'PreCompact',
+  'subagent-start': 'SubagentStart',
+  'subagent-stop': 'SubagentStop',
 }
 
 /**
@@ -134,6 +140,8 @@ interface EventContext {
   sessionId: string
   timestamp: number
   correlationId: string
+  agentId?: string
+  agentType?: string
 }
 
 /**
@@ -276,6 +284,57 @@ function buildPreCompactEvent(context: EventContext, input: ParsedHookInput): Pr
 }
 
 /**
+ * Build SubagentStart hook event.
+ * Both context.agentId/agentType and payload.agentId/agentType are populated from
+ * the same input values (D1: they must always agree).
+ */
+function buildSubagentStartEvent(context: EventContext, input: ParsedHookInput): SubagentStartHookEvent {
+  // agent_id and agent_type are required on SubagentStart; fall back to empty string if somehow absent
+  const agentId = input.agentId ?? (typeof input.raw.agent_id === 'string' ? input.raw.agent_id : '')
+  const agentType = input.agentType ?? (typeof input.raw.agent_type === 'string' ? input.raw.agent_type : '')
+  return {
+    kind: 'hook',
+    hook: 'SubagentStart',
+    context,
+    payload: {
+      transcriptPath: input.transcriptPath,
+      agentId,
+      agentType,
+    },
+  } satisfies SubagentStartHookEvent
+}
+
+/**
+ * Build SubagentStop hook event.
+ * Both context.agentId/agentType and payload.agentId/agentType are populated from
+ * the same input values (D1: they must always agree).
+ */
+function buildSubagentStopEvent(context: EventContext, input: ParsedHookInput): SubagentStopHookEvent {
+  const raw = input.raw
+  const agentId = input.agentId ?? (typeof raw.agent_id === 'string' ? raw.agent_id : '')
+  const agentType = input.agentType ?? (typeof raw.agent_type === 'string' ? raw.agent_type : '')
+  const agentTranscriptPath = typeof raw.agent_transcript_path === 'string' ? raw.agent_transcript_path : ''
+  const lastAssistantMessage = typeof raw.last_assistant_message === 'string' ? raw.last_assistant_message : ''
+  const permissionMode =
+    input.permissionMode ?? (typeof raw.permission_mode === 'string' ? raw.permission_mode : 'default')
+  const stopHookActive = typeof raw.stop_hook_active === 'boolean' ? raw.stop_hook_active : undefined
+  return {
+    kind: 'hook',
+    hook: 'SubagentStop',
+    context,
+    payload: {
+      transcriptPath: input.transcriptPath,
+      permissionMode,
+      agentId,
+      agentType,
+      agentTranscriptPath,
+      lastAssistantMessage,
+      ...(stopHookActive !== undefined && { stopHookActive }),
+    },
+  } satisfies SubagentStopHookEvent
+}
+
+/**
  * Build a typed HookEvent from parsed stdin input.
  * Constructs the appropriate discriminated union member based on hook type.
  *
@@ -286,6 +345,8 @@ export function buildHookEvent(hookName: HookName, input: ParsedHookInput, corre
     sessionId: input.sessionId,
     timestamp: Date.now(),
     correlationId,
+    ...(input.agentId !== undefined && { agentId: input.agentId }),
+    ...(input.agentType !== undefined && { agentType: input.agentType }),
   }
 
   switch (hookName) {
@@ -303,6 +364,10 @@ export function buildHookEvent(hookName: HookName, input: ParsedHookInput, corre
       return buildStopEvent(context, input)
     case 'PreCompact':
       return buildPreCompactEvent(context, input)
+    case 'SubagentStart':
+      return buildSubagentStartEvent(context, input)
+    case 'SubagentStop':
+      return buildSubagentStopEvent(context, input)
   }
 }
 

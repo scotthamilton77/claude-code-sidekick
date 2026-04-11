@@ -21,6 +21,14 @@
     }],
     "PreCompact": [{
       "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook pre-compact --project-dir=$CLAUDE_PROJECT_DIR" }]
+    }],
+    "SubagentStart": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook subagent-start --project-dir=$CLAUDE_PROJECT_DIR" }]
+    }],
+    "SubagentStop": [{
+      "matcher": "*",
+      "hooks": [{ "type": "command", "command": "npx --yes @scotthamilton77/sidekick hook subagent-stop --project-dir=$CLAUDE_PROJECT_DIR" }]
     }]
   },
   "statusLine": {

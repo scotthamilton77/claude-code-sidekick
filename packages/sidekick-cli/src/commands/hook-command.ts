@@ -190,6 +190,30 @@ function translateStop(internal: HookResponse): ClaudeCodeHookResponse {
   return response
 }
 
+function translateSubagentStart(internal: HookResponse): ClaudeCodeHookResponse {
+  // SubagentStart cannot block; only additionalContext injection is supported
+  if (internal.additionalContext) {
+    return { hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: internal.additionalContext } }
+  }
+  return {}
+}
+
+function translateSubagentStop(internal: HookResponse): ClaudeCodeHookResponse {
+  const response: ClaudeCodeHookResponse = {}
+
+  if (internal.blocking === true) {
+    response.decision = 'block'
+    if (!internal.reason && !internal.additionalContext) {
+      response.reason = 'Task not complete - please continue'
+    } else {
+      response.reason = combineReasonAndContext(internal.reason, internal.additionalContext, '\n')
+    }
+  }
+
+  addUserMessage(response, internal.userMessage)
+  return response
+}
+
 const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookResponse> = {
   SessionStart: translateSessionStart,
   SessionEnd: () => ({}),
@@ -198,6 +222,8 @@ const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookRe
   PostToolUse: translatePostToolUse,
   Stop: translateStop,
   PreCompact: () => ({}),
+  SubagentStart: translateSubagentStart,
+  SubagentStop: translateSubagentStop,
 }
 
 export function translateToClaudeCodeFormat(hookName: HookName, internal: HookResponse): ClaudeCodeHookResponse {
@@ -212,6 +238,8 @@ const HOOK_ARG_TO_NAME: Record<string, HookName> = {
   'post-tool-use': 'PostToolUse',
   stop: 'Stop',
   'pre-compact': 'PreCompact',
+  'subagent-start': 'SubagentStart',
+  'subagent-stop': 'SubagentStop',
   SessionStart: 'SessionStart',
   SessionEnd: 'SessionEnd',
   UserPromptSubmit: 'UserPromptSubmit',
@@ -219,6 +247,8 @@ const HOOK_ARG_TO_NAME: Record<string, HookName> = {
   PostToolUse: 'PostToolUse',
   Stop: 'Stop',
   PreCompact: 'PreCompact',
+  SubagentStart: 'SubagentStart',
+  SubagentStop: 'SubagentStop',
 }
 
 export function parseHookArg(arg: string | undefined): HookName | undefined {
