@@ -488,4 +488,109 @@ describe('HandlerRegistryImpl', () => {
       expect(called).toContain('catch-all')
     })
   })
+
+  describe('SubagentStart and SubagentStop hook dispatch', () => {
+    it('invokes handler registered for SubagentStart when SubagentStart event arrives', async () => {
+      const received: HookEvent[] = []
+
+      registry.register({
+        id: 'subagent-start-handler',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SubagentStart'] },
+        handler: (event) => {
+          received.push(event as HookEvent)
+          return Promise.resolve()
+        },
+      })
+
+      const event: HookEvent = {
+        kind: 'hook',
+        hook: 'SubagentStart',
+        context: { ...createEventContext(), agentId: 'agent-001', agentType: 'Bash' },
+        payload: {
+          transcriptPath: '/tmp/transcript.jsonl',
+          agentId: 'agent-001',
+          agentType: 'Bash',
+        },
+      }
+
+      await registry.invokeHook('SubagentStart', event)
+
+      expect(received).toHaveLength(1)
+      const receivedEvent = received[0] as Extract<HookEvent, { hook: 'SubagentStart' }>
+      expect(receivedEvent.hook).toBe('SubagentStart')
+      expect(receivedEvent.context.agentId).toBe('agent-001')
+      expect(receivedEvent.context.agentType).toBe('Bash')
+      expect(receivedEvent.payload.agentId).toBe('agent-001')
+    })
+
+    it('does NOT invoke SubagentStart handler for SubagentStop events', async () => {
+      const called: string[] = []
+
+      registry.register({
+        id: 'start-only',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SubagentStart'] },
+        handler: () => {
+          called.push('SubagentStart handler')
+          return Promise.resolve()
+        },
+      })
+
+      const stopEvent: HookEvent = {
+        kind: 'hook',
+        hook: 'SubagentStop',
+        context: { ...createEventContext(), agentId: 'agent-002', agentType: 'Explore' },
+        payload: {
+          transcriptPath: '/tmp/transcript.jsonl',
+          permissionMode: 'default',
+          agentId: 'agent-002',
+          agentType: 'Explore',
+          agentTranscriptPath: '/tmp/agent-transcript.jsonl',
+          lastAssistantMessage: 'Done.',
+        },
+      }
+
+      await registry.invokeHook('SubagentStop', stopEvent)
+
+      expect(called).toHaveLength(0)
+    })
+
+    it('invokes SubagentStop handler with full identity intact', async () => {
+      const received: HookEvent[] = []
+
+      registry.register({
+        id: 'subagent-stop-handler',
+        priority: 50,
+        filter: { kind: 'hook', hooks: ['SubagentStop'] },
+        handler: (event) => {
+          received.push(event as HookEvent)
+          return Promise.resolve()
+        },
+      })
+
+      const stopEvent: HookEvent = {
+        kind: 'hook',
+        hook: 'SubagentStop',
+        context: { ...createEventContext(), agentId: 'agent-007', agentType: 'Plan' },
+        payload: {
+          transcriptPath: '/tmp/transcript.jsonl',
+          permissionMode: 'default',
+          agentId: 'agent-007',
+          agentType: 'Plan',
+          agentTranscriptPath: '/tmp/agent-007-transcript.jsonl',
+          lastAssistantMessage: 'Task complete.',
+        },
+      }
+
+      await registry.invokeHook('SubagentStop', stopEvent)
+
+      expect(received).toHaveLength(1)
+      const receivedEvent = received[0] as Extract<HookEvent, { hook: 'SubagentStop' }>
+      expect(receivedEvent.context.agentId).toBe('agent-007')
+      expect(receivedEvent.context.agentType).toBe('Plan')
+      expect(receivedEvent.payload.agentId).toBe('agent-007')
+      expect(receivedEvent.payload.lastAssistantMessage).toBe('Task complete.')
+    })
+  })
 })

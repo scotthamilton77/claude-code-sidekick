@@ -17,6 +17,8 @@ import {
   SessionEndInputSchema,
   PreCompactInputSchema,
   NotificationInputSchema,
+  SubagentStartInputSchema,
+  SubagentStopInputSchema,
   StatuslineInputSchema,
   StatuslineModelSchema,
   StatuslineContextWindowSchema,
@@ -444,6 +446,173 @@ describe('StatuslineInputSchema', () => {
       hook_event_name: 'NotStatus',
       session_id: 'sess-123',
       model: { id: 'claude-opus-4-1', display_name: 'Opus' },
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+// ============================================================================
+// HookInputBaseSchema — agent_id / agent_type (Phase 1 tracer bullet)
+// ============================================================================
+
+describe('HookInputBaseSchema — agent identity fields', () => {
+  it('accepts payload with agent_id and agent_type', () => {
+    const result = HookInputBaseSchema.safeParse({
+      ...basePayload,
+      agent_id: 'agent-abc-123',
+      agent_type: 'Bash',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agent_id).toBe('agent-abc-123')
+      expect(result.data.agent_type).toBe('Bash')
+    }
+  })
+
+  it('accepts payload without agent_id and agent_type (both optional on base)', () => {
+    const result = HookInputBaseSchema.safeParse(basePayload)
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agent_id).toBeUndefined()
+      expect(result.data.agent_type).toBeUndefined()
+    }
+  })
+})
+
+describe('PreToolUseInputSchema — agent identity passthrough', () => {
+  it('accepts PreToolUse payload with agent_id and agent_type', () => {
+    const result = PreToolUseInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'ls' },
+      tool_use_id: 'tu-1',
+      agent_id: 'agent-xyz',
+      agent_type: 'Explore',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agent_id).toBe('agent-xyz')
+      expect(result.data.agent_type).toBe('Explore')
+    }
+  })
+})
+
+// ============================================================================
+// SubagentStartInputSchema
+// ============================================================================
+
+describe('SubagentStartInputSchema', () => {
+  it('accepts minimal required payload', () => {
+    const result = SubagentStartInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStart',
+      agent_id: 'agent-001',
+      agent_type: 'Bash',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agent_id).toBe('agent-001')
+      expect(result.data.agent_type).toBe('Bash')
+    }
+  })
+
+  it('rejects missing agent_id', () => {
+    const result = SubagentStartInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStart',
+      agent_type: 'Bash',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects missing agent_type', () => {
+    const result = SubagentStartInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStart',
+      agent_id: 'agent-001',
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+// ============================================================================
+// SubagentStopInputSchema
+// ============================================================================
+
+describe('SubagentStopInputSchema', () => {
+  it('accepts full payload with all required fields', () => {
+    const result = SubagentStopInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStop',
+      permission_mode: 'default',
+      agent_id: 'agent-001',
+      agent_type: 'Bash',
+      agent_transcript_path: '/tmp/agent-transcript.jsonl',
+      last_assistant_message: 'Task complete.',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.agent_id).toBe('agent-001')
+      expect(result.data.agent_type).toBe('Bash')
+      expect(result.data.agent_transcript_path).toBe('/tmp/agent-transcript.jsonl')
+      expect(result.data.last_assistant_message).toBe('Task complete.')
+    }
+  })
+
+  it('accepts stop_hook_active: true', () => {
+    const result = SubagentStopInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStop',
+      permission_mode: 'default',
+      agent_id: 'agent-001',
+      agent_type: 'Bash',
+      agent_transcript_path: '/tmp/agent-transcript.jsonl',
+      last_assistant_message: 'Task complete.',
+      stop_hook_active: true,
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.stop_hook_active).toBe(true)
+    }
+  })
+
+  it('accepts without stop_hook_active (optional field)', () => {
+    const result = SubagentStopInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStop',
+      permission_mode: 'default',
+      agent_id: 'agent-001',
+      agent_type: 'Bash',
+      agent_transcript_path: '/tmp/agent-transcript.jsonl',
+      last_assistant_message: 'Task complete.',
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.stop_hook_active).toBeUndefined()
+    }
+  })
+
+  it('rejects missing agent_transcript_path', () => {
+    const result = SubagentStopInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStop',
+      permission_mode: 'default',
+      agent_id: 'agent-001',
+      agent_type: 'Bash',
+      last_assistant_message: 'Task complete.',
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects missing last_assistant_message', () => {
+    const result = SubagentStopInputSchema.safeParse({
+      ...basePayload,
+      hook_event_name: 'SubagentStop',
+      permission_mode: 'default',
+      agent_id: 'agent-001',
+      agent_type: 'Bash',
+      agent_transcript_path: '/tmp/agent-transcript.jsonl',
     })
     expect(result.success).toBe(false)
   })

@@ -20,6 +20,8 @@ export type {
   PostToolUseHookEvent,
   StopHookEvent,
   PreCompactHookEvent,
+  SubagentStartHookEvent,
+  SubagentStopHookEvent,
   TranscriptEventType,
   TranscriptEntry,
   TranscriptMetrics,
@@ -70,6 +72,8 @@ export {
   isPostToolUseEvent,
   isStopEvent,
   isPreCompactEvent,
+  isSubagentStartEvent,
+  isSubagentStopEvent,
 } from '@sidekick/types'
 
 export * from './assets'

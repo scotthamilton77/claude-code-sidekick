@@ -97,6 +97,21 @@ describe('hook command utilities', () => {
     test('returns undefined for non-hook commands', () => {
       expect(getHookName('SessionStart')).toBeUndefined() // Wrong format
     })
+
+    test('maps subagent hook CLI commands', () => {
+      expect(getHookName('subagent-start')).toBe('SubagentStart')
+      expect(getHookName('subagent-stop')).toBe('SubagentStop')
+    })
+  })
+})
+
+describe('validateHookName — subagent hooks', () => {
+  test('accepts SubagentStart', () => {
+    expect(validateHookName('SubagentStart')).toBe('SubagentStart')
+  })
+
+  test('accepts SubagentStop', () => {
+    expect(validateHookName('SubagentStop')).toBe('SubagentStop')
   })
 })
 
@@ -307,6 +322,182 @@ describe('buildHookEvent', () => {
         transcriptPath: input.transcriptPath,
         transcriptSnapshotPath: '', // Placeholder until CLI populates
       })
+    })
+  })
+
+  describe('agent identity — Phase 1 tracer bullet', () => {
+    test('populates context.agentId and context.agentType when present in input', () => {
+      const input: ParsedHookInput = {
+        ...baseInput,
+        agentId: 'agent-abc',
+        agentType: 'Explore',
+        raw: {
+          session_id: 'test-session-123',
+          tool_name: 'Bash',
+          tool_input: {},
+          tool_use_id: 'tu-1',
+          agent_id: 'agent-abc',
+          agent_type: 'Explore',
+        },
+      }
+
+      const event = buildHookEvent('PreToolUse', input, correlationId)
+
+      expect(event.context.agentId).toBe('agent-abc')
+      expect(event.context.agentType).toBe('Explore')
+    })
+
+    test('context.agentId and context.agentType are undefined when absent from input', () => {
+      const input: ParsedHookInput = {
+        ...baseInput,
+        raw: { session_id: 'test-session-123' },
+      }
+
+      const event = buildHookEvent('SessionStart', input, correlationId)
+
+      expect(event.context.agentId).toBeUndefined()
+      expect(event.context.agentType).toBeUndefined()
+    })
+  })
+
+  describe('SubagentStart event', () => {
+    test('builds correctly-shaped SubagentStartHookEvent', () => {
+      const input: ParsedHookInput = {
+        ...baseInput,
+        hookEventName: 'SubagentStart',
+        agentId: 'agent-001',
+        agentType: 'Bash',
+        raw: {
+          session_id: 'test-session-123',
+          agent_id: 'agent-001',
+          agent_type: 'Bash',
+        },
+      }
+
+      const event = buildHookEvent('SubagentStart', input, correlationId)
+
+      expect(event.kind).toBe('hook')
+      expect(event.hook).toBe('SubagentStart')
+      expect(event.context.sessionId).toBe('test-session-123')
+      expect(event.context.correlationId).toBe(correlationId)
+      expect(event.context.agentId).toBe('agent-001')
+      expect(event.context.agentType).toBe('Bash')
+      // D1: payload must match context identity values
+      const payload = event.payload as { agentId: string; agentType: string; transcriptPath: string }
+      expect(payload.agentId).toBe(event.context.agentId)
+      expect(payload.agentType).toBe(event.context.agentType)
+      expect(payload.transcriptPath).toBe(input.transcriptPath)
+    })
+  })
+
+  describe('SubagentStop event', () => {
+    test('builds correctly-shaped SubagentStopHookEvent', () => {
+      const input: ParsedHookInput = {
+        ...baseInput,
+        hookEventName: 'SubagentStop',
+        permissionMode: 'default',
+        agentId: 'agent-002',
+        agentType: 'Explore',
+        raw: {
+          session_id: 'test-session-123',
+          agent_id: 'agent-002',
+          agent_type: 'Explore',
+          agent_transcript_path: '/tmp/agent-transcript.jsonl',
+          last_assistant_message: 'Analysis complete.',
+          permission_mode: 'default',
+        },
+      }
+
+      const event = buildHookEvent('SubagentStop', input, correlationId)
+
+      expect(event.hook).toBe('SubagentStop')
+      expect(event.context.agentId).toBe('agent-002')
+      expect(event.context.agentType).toBe('Explore')
+      const payload = event.payload as {
+        agentId: string
+        agentType: string
+        agentTranscriptPath: string
+        lastAssistantMessage: string
+        permissionMode: string
+        stopHookActive?: boolean
+        transcriptPath: string
+      }
+      expect(payload.agentId).toBe(event.context.agentId)
+      expect(payload.agentType).toBe(event.context.agentType)
+      expect(payload.agentTranscriptPath).toBe('/tmp/agent-transcript.jsonl')
+      expect(payload.lastAssistantMessage).toBe('Analysis complete.')
+      expect(payload.permissionMode).toBe('default')
+      expect(payload.stopHookActive).toBeUndefined()
+      expect(payload.transcriptPath).toBe(input.transcriptPath)
+    })
+
+    test('populates stopHookActive when present in raw', () => {
+      const input: ParsedHookInput = {
+        ...baseInput,
+        hookEventName: 'SubagentStop',
+        permissionMode: 'default',
+        agentId: 'agent-003',
+        agentType: 'Plan',
+        raw: {
+          session_id: 'test-session-123',
+          agent_id: 'agent-003',
+          agent_type: 'Plan',
+          agent_transcript_path: '/tmp/agent-transcript.jsonl',
+          last_assistant_message: 'Done.',
+          permission_mode: 'default',
+          stop_hook_active: true,
+        },
+      }
+
+      const event = buildHookEvent('SubagentStop', input, correlationId)
+      const payload = event.payload as { stopHookActive?: boolean }
+      expect(payload.stopHookActive).toBe(true)
+    })
+
+    test('handles edge case: last_assistant_message with newlines, quotes, and non-ASCII', () => {
+      const complexMessage = 'Analysis complete.\n\nFound 3 "critical" issues — details follow: ✓'
+      const input: ParsedHookInput = {
+        ...baseInput,
+        hookEventName: 'SubagentStop',
+        permissionMode: 'default',
+        agentId: 'agent-004',
+        agentType: 'Bash',
+        raw: {
+          session_id: 'test-session-123',
+          agent_id: 'agent-004',
+          agent_type: 'Bash',
+          agent_transcript_path: '/tmp/agent-transcript.jsonl',
+          last_assistant_message: complexMessage,
+          permission_mode: 'default',
+        },
+      }
+
+      const event = buildHookEvent('SubagentStop', input, correlationId)
+      const payload = event.payload as { lastAssistantMessage: string }
+      expect(payload.lastAssistantMessage).toBe(complexMessage)
+    })
+
+    test('builder invariant: payload.agentId === context.agentId (D1)', () => {
+      const input: ParsedHookInput = {
+        ...baseInput,
+        hookEventName: 'SubagentStop',
+        permissionMode: 'default',
+        agentId: 'agent-invariant-test',
+        agentType: 'Bash',
+        raw: {
+          session_id: 'test-session-123',
+          agent_id: 'agent-invariant-test',
+          agent_type: 'Bash',
+          agent_transcript_path: '/tmp/agent-transcript.jsonl',
+          last_assistant_message: 'Done.',
+          permission_mode: 'default',
+        },
+      }
+
+      const event = buildHookEvent('SubagentStop', input, correlationId)
+      const payload = event.payload as { agentId: string; agentType: string }
+      expect(payload.agentId).toBe(event.context.agentId)
+      expect(payload.agentType).toBe(event.context.agentType)
     })
   })
 })

@@ -17,12 +17,16 @@ describe('parseHookArg', () => {
     expect(parseHookArg('post-tool-use')).toBe('PostToolUse')
     expect(parseHookArg('stop')).toBe('Stop')
     expect(parseHookArg('pre-compact')).toBe('PreCompact')
+    expect(parseHookArg('subagent-start')).toBe('SubagentStart')
+    expect(parseHookArg('subagent-stop')).toBe('SubagentStop')
   })
 
   test('parses PascalCase hook names', () => {
     expect(parseHookArg('SessionStart')).toBe('SessionStart')
     expect(parseHookArg('UserPromptSubmit')).toBe('UserPromptSubmit')
     expect(parseHookArg('PreToolUse')).toBe('PreToolUse')
+    expect(parseHookArg('SubagentStart')).toBe('SubagentStart')
+    expect(parseHookArg('SubagentStop')).toBe('SubagentStop')
   })
 
   test('returns undefined for invalid hook names', () => {
@@ -295,6 +299,49 @@ describe('translateToClaudeCodeFormat', () => {
       }
       const result = translateToClaudeCodeFormat('PreCompact', internal)
       expect(result).toEqual({})
+    })
+  })
+
+  describe('SubagentStart', () => {
+    test('returns empty object for empty response (cannot block)', () => {
+      const result = translateToClaudeCodeFormat('SubagentStart', {})
+      expect(result).toEqual({})
+    })
+
+    test('ignores blocking: true — SubagentStart cannot block', () => {
+      // Per Claude Code docs, SubagentStart does not support decision: "block"
+      const result = translateToClaudeCodeFormat('SubagentStart', { blocking: true, reason: 'Should be ignored' })
+      expect(result).toEqual({})
+    })
+
+    test('passes additionalContext via hookSpecificOutput', () => {
+      const result = translateToClaudeCodeFormat('SubagentStart', { additionalContext: 'Inject this' })
+      expect(result).toEqual({
+        hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: 'Inject this' },
+      })
+    })
+
+    test('passes userMessage as systemMessage', () => {
+      const result = translateToClaudeCodeFormat('SubagentStart', { userMessage: 'Hello from SubagentStart' })
+      expect(result).toEqual({ systemMessage: 'Hello from SubagentStart' })
+    })
+  })
+
+  describe('SubagentStop', () => {
+    test('returns empty object for empty response', () => {
+      const result = translateToClaudeCodeFormat('SubagentStop', {})
+      expect(result).toEqual({})
+    })
+
+    test('translates blocking response to decision: block (shares Stop semantics)', () => {
+      const result = translateToClaudeCodeFormat('SubagentStop', { blocking: true, reason: 'Bad output' })
+      // SubagentStop shares translateStop — produces decision: "block" with stopReason
+      expect(result).toMatchObject({ decision: 'block' })
+    })
+
+    test('uses default reason when blocking without reason', () => {
+      const result = translateToClaudeCodeFormat('SubagentStop', { blocking: true })
+      expect(result).toMatchObject({ decision: 'block' })
     })
   })
 })

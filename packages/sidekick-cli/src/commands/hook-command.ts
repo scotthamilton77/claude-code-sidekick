@@ -190,6 +190,21 @@ function translateStop(internal: HookResponse): ClaudeCodeHookResponse {
   return response
 }
 
+function translateSubagentStart(internal: HookResponse): ClaudeCodeHookResponse {
+  // SubagentStart cannot block; supports additionalContext injection and userMessage pass-through
+  const response: ClaudeCodeHookResponse = {}
+
+  if (internal.additionalContext) {
+    response.hookSpecificOutput = {
+      hookEventName: 'SubagentStart',
+      additionalContext: internal.additionalContext,
+    }
+  }
+
+  addUserMessage(response, internal.userMessage)
+  return response
+}
+
 const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookResponse> = {
   SessionStart: translateSessionStart,
   SessionEnd: () => ({}),
@@ -198,6 +213,9 @@ const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookRe
   PostToolUse: translatePostToolUse,
   Stop: translateStop,
   PreCompact: () => ({}),
+  SubagentStart: translateSubagentStart,
+  // SubagentStop shares Stop's blocking semantics verbatim per Claude Code docs.
+  SubagentStop: translateStop,
 }
 
 export function translateToClaudeCodeFormat(hookName: HookName, internal: HookResponse): ClaudeCodeHookResponse {
@@ -212,6 +230,8 @@ const HOOK_ARG_TO_NAME: Record<string, HookName> = {
   'post-tool-use': 'PostToolUse',
   stop: 'Stop',
   'pre-compact': 'PreCompact',
+  'subagent-start': 'SubagentStart',
+  'subagent-stop': 'SubagentStop',
   SessionStart: 'SessionStart',
   SessionEnd: 'SessionEnd',
   UserPromptSubmit: 'UserPromptSubmit',
@@ -219,6 +239,8 @@ const HOOK_ARG_TO_NAME: Record<string, HookName> = {
   PostToolUse: 'PostToolUse',
   Stop: 'Stop',
   PreCompact: 'PreCompact',
+  SubagentStart: 'SubagentStart',
+  SubagentStop: 'SubagentStop',
 }
 
 export function parseHookArg(arg: string | undefined): HookName | undefined {

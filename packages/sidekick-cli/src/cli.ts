@@ -248,6 +248,8 @@ export function parseHookInput(stdinData: string | undefined): ParsedHookInput |
     const cwd = typeof raw.cwd === 'string' ? raw.cwd : undefined
     const hookEventName = typeof raw.hook_event_name === 'string' ? raw.hook_event_name : undefined
     const permissionMode = typeof raw.permission_mode === 'string' ? raw.permission_mode : undefined
+    const agentId = typeof raw.agent_id === 'string' ? raw.agent_id : undefined
+    const agentType = typeof raw.agent_type === 'string' ? raw.agent_type : undefined
 
     if (!sessionId) {
       // session_id is required - without it we can't correlate events
@@ -260,6 +262,8 @@ export function parseHookInput(stdinData: string | undefined): ParsedHookInput |
       cwd, // Optional - some hooks (Stop, SessionStart) may not include cwd
       hookEventName: hookEventName ?? 'unknown',
       permissionMode,
+      agentId,
+      agentType,
       raw,
     }
   } catch {
