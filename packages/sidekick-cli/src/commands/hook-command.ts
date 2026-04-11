@@ -198,22 +198,6 @@ function translateSubagentStart(internal: HookResponse): ClaudeCodeHookResponse 
   return {}
 }
 
-function translateSubagentStop(internal: HookResponse): ClaudeCodeHookResponse {
-  const response: ClaudeCodeHookResponse = {}
-
-  if (internal.blocking === true) {
-    response.decision = 'block'
-    if (!internal.reason && !internal.additionalContext) {
-      response.reason = 'Task not complete - please continue'
-    } else {
-      response.reason = combineReasonAndContext(internal.reason, internal.additionalContext, '\n')
-    }
-  }
-
-  addUserMessage(response, internal.userMessage)
-  return response
-}
-
 const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookResponse> = {
   SessionStart: translateSessionStart,
   SessionEnd: () => ({}),
@@ -223,7 +207,8 @@ const TRANSLATORS: Record<HookName, (internal: HookResponse) => ClaudeCodeHookRe
   Stop: translateStop,
   PreCompact: () => ({}),
   SubagentStart: translateSubagentStart,
-  SubagentStop: translateSubagentStop,
+  // SubagentStop shares Stop's blocking semantics verbatim per Claude Code docs.
+  SubagentStop: translateStop,
 }
 
 export function translateToClaudeCodeFormat(hookName: HookName, internal: HookResponse): ClaudeCodeHookResponse {

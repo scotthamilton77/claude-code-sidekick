@@ -117,6 +117,36 @@ export const NotificationInputSchema = HookInputBaseSchema.extend({
   notification_type: z.string(),
 })
 
+/**
+ * SubagentStart hook input.
+ * Fired when the parent Claude session dispatches an Agent-tool subagent.
+ */
+export const SubagentStartInputSchema = HookInputBaseSchema.extend({
+  /** Unique identifier for the subagent (required per official docs) */
+  agent_id: z.string(),
+  /** Agent name: "Bash", "Explore", "Plan", or custom agent name */
+  agent_type: z.string(),
+})
+
+/**
+ * SubagentStop hook input.
+ * Fired when a subagent terminates.
+ */
+export const SubagentStopInputSchema = HookInputBaseSchema.extend({
+  /** Unique identifier for the subagent */
+  agent_id: z.string(),
+  /** Agent name */
+  agent_type: z.string(),
+  /** Path to subagent's own transcript JSONL */
+  agent_transcript_path: z.string(),
+  /** Text content of the subagent's final response */
+  last_assistant_message: z.string(),
+  /** Permission mode for the subagent session */
+  permission_mode: z.string(),
+  /** Optional: whether stop hook is active (probe doc says never populated; official docs show false) */
+  stop_hook_active: z.boolean().optional(),
+})
+
 // ============================================================================
 // Statusline Input Schema (special hook - not routed through hook dispatcher)
 // ============================================================================
@@ -200,49 +230,20 @@ export const StatuslineInputSchema = z.object({
 })
 
 /**
- * SubagentStart hook input.
- * Fired when the parent Claude session dispatches an Agent-tool subagent.
- */
-export const SubagentStartInputSchema = HookInputBaseSchema.extend({
-  /** Unique identifier for the subagent (required per official docs) */
-  agent_id: z.string(),
-  /** Agent name: "Bash", "Explore", "Plan", or custom agent name */
-  agent_type: z.string(),
-})
-
-/**
- * SubagentStop hook input.
- * Fired when a subagent terminates.
- */
-export const SubagentStopInputSchema = HookInputBaseSchema.extend({
-  /** Unique identifier for the subagent */
-  agent_id: z.string(),
-  /** Agent name */
-  agent_type: z.string(),
-  /** Path to subagent's own transcript JSONL */
-  agent_transcript_path: z.string(),
-  /** Text content of the subagent's final response */
-  last_assistant_message: z.string(),
-  /** Permission mode for the subagent session */
-  permission_mode: z.string(),
-  /** Optional: whether stop hook is active (probe doc says never populated; official docs show false) */
-  stop_hook_active: z.boolean().optional(),
-})
-
-/**
  * Union type for all hook inputs.
  * CLI parses this to extract common fields.
+ * Ordered to match HOOK_NAMES in hook-events.ts so the two stay in lockstep.
  */
 export const HookInputSchema = z.union([
-  SubagentStartInputSchema,
-  SubagentStopInputSchema,
+  SessionStartInputSchema,
+  SessionEndInputSchema,
   UserPromptSubmitInputSchema,
   PreToolUseInputSchema,
   PostToolUseInputSchema,
   StopInputSchema,
-  SessionStartInputSchema,
-  SessionEndInputSchema,
   PreCompactInputSchema,
+  SubagentStartInputSchema,
+  SubagentStopInputSchema,
   NotificationInputSchema,
   HookInputBaseSchema, // Fallback for hooks without extra fields
 ])

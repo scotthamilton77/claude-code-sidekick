@@ -31,6 +31,7 @@ import type {
   SubagentStartHookEvent,
   SubagentStopHookEvent,
 } from '@sidekick/types'
+import { HOOK_NAMES } from '@sidekick/types'
 import { buildCLIContext, registerCLIFeatures } from '../context.js'
 import type { RuntimeShell } from '../runtime.js'
 
@@ -95,19 +96,10 @@ export interface HookResponse {
 }
 
 /**
- * Valid hook names (PascalCase).
+ * Valid hook names (PascalCase). Derived from the canonical HOOK_NAMES tuple
+ * in @sidekick/types so adding a hook in one place is enough.
  */
-const VALID_HOOK_NAMES = new Set<HookName>([
-  'SessionStart',
-  'SessionEnd',
-  'UserPromptSubmit',
-  'PreToolUse',
-  'PostToolUse',
-  'Stop',
-  'PreCompact',
-  'SubagentStart',
-  'SubagentStop',
-])
+const VALID_HOOK_NAMES: ReadonlySet<HookName> = new Set(HOOK_NAMES)
 
 /**
  * Validate that a hook event name is a valid PascalCase HookName.
@@ -287,19 +279,19 @@ function buildPreCompactEvent(context: EventContext, input: ParsedHookInput): Pr
  * Build SubagentStart hook event.
  * Both context.agentId/agentType and payload.agentId/agentType are populated from
  * the same input values (D1: they must always agree).
+ *
+ * agentId/agentType are required on SubagentStart per the schema, but parseHookInput
+ * does not enforce that — so we fall back to empty string if somehow absent.
  */
 function buildSubagentStartEvent(context: EventContext, input: ParsedHookInput): SubagentStartHookEvent {
-  // agent_id and agent_type are required on SubagentStart; fall back to empty string if somehow absent
-  const agentId = input.agentId ?? (typeof input.raw.agent_id === 'string' ? input.raw.agent_id : '')
-  const agentType = input.agentType ?? (typeof input.raw.agent_type === 'string' ? input.raw.agent_type : '')
   return {
     kind: 'hook',
     hook: 'SubagentStart',
     context,
     payload: {
       transcriptPath: input.transcriptPath,
-      agentId,
-      agentType,
+      agentId: input.agentId ?? '',
+      agentType: input.agentType ?? '',
     },
   } satisfies SubagentStartHookEvent
 }
@@ -311,12 +303,9 @@ function buildSubagentStartEvent(context: EventContext, input: ParsedHookInput):
  */
 function buildSubagentStopEvent(context: EventContext, input: ParsedHookInput): SubagentStopHookEvent {
   const raw = input.raw
-  const agentId = input.agentId ?? (typeof raw.agent_id === 'string' ? raw.agent_id : '')
-  const agentType = input.agentType ?? (typeof raw.agent_type === 'string' ? raw.agent_type : '')
   const agentTranscriptPath = typeof raw.agent_transcript_path === 'string' ? raw.agent_transcript_path : ''
   const lastAssistantMessage = typeof raw.last_assistant_message === 'string' ? raw.last_assistant_message : ''
-  const permissionMode =
-    input.permissionMode ?? (typeof raw.permission_mode === 'string' ? raw.permission_mode : 'default')
+  const permissionMode = input.permissionMode ?? 'default'
   const stopHookActive = typeof raw.stop_hook_active === 'boolean' ? raw.stop_hook_active : undefined
   return {
     kind: 'hook',
@@ -325,8 +314,8 @@ function buildSubagentStopEvent(context: EventContext, input: ParsedHookInput): 
     payload: {
       transcriptPath: input.transcriptPath,
       permissionMode,
-      agentId,
-      agentType,
+      agentId: input.agentId ?? '',
+      agentType: input.agentType ?? '',
       agentTranscriptPath,
       lastAssistantMessage,
       ...(stopHookActive !== undefined && { stopHookActive }),
