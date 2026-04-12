@@ -255,32 +255,33 @@ export async function parseTimelineEvents(
   projectDir: string,
   sessionId: string
 ): Promise<TimelineEvent[]> {
-  // Per-session logs (source of truth for post-rollout events)
   const sessionLogsDir = join(projectDir, '.sidekick', 'sessions', sessionId, 'logs')
-  const [sessionCliFiles, sessionDaemonFiles] = await Promise.all([
+  const aggregateLogsDir = join(projectDir, '.sidekick', 'logs')
+
+  // Run all directory listings in parallel — none depend on each other
+  const [sessionCliFiles, sessionDaemonFiles, cliFiles, daemonFiles] = await Promise.all([
     findLogFiles(sessionLogsDir, 'sidekick.'),
     findLogFiles(sessionLogsDir, 'sidekickd.'),
+    findLogFiles(aggregateLogsDir, 'sidekick.'),
+    findLogFiles(aggregateLogsDir, 'sidekickd.'),
   ])
 
   const hasSessionLogs = sessionCliFiles.length > 0 || sessionDaemonFiles.length > 0
 
-  const perSessionEntries: RawLogEntry[] = []
-  if (hasSessionLogs) {
-    const allSessionFiles = [...sessionCliFiles, ...sessionDaemonFiles]
-    const results = await Promise.all(allSessionFiles.map(readLogFile))
-    perSessionEntries.push(...results.flat())
-  }
+  // Read all files in parallel
+  const allSessionFiles = hasSessionLogs ? [...sessionCliFiles, ...sessionDaemonFiles] : []
+  const allAggregateFiles = [...cliFiles, ...daemonFiles]
 
   // Design intent was per-session-only (O(1) lookup) with aggregate as a fallback for
   // pre-migration sessions. We always read aggregate here because sessions can span the
   // rollout boundary — events from before the feature rollout land in aggregate only.
   // The 4MB aggregate cap (2MB × 2 files) bounds the overhead to an acceptable constant.
-  const aggregateLogsDir = join(projectDir, '.sidekick', 'logs')
-  const [cliFiles, daemonFiles] = await Promise.all([
-    findLogFiles(aggregateLogsDir, 'sidekick.'),
-    findLogFiles(aggregateLogsDir, 'sidekickd.'),
+  const [sessionResults, aggregateResults] = await Promise.all([
+    Promise.all(allSessionFiles.map(readLogFile)),
+    Promise.all(allAggregateFiles.map(readLogFile)),
   ])
-  const aggregateResults = await Promise.all([...cliFiles, ...daemonFiles].map(readLogFile))
+
+  const perSessionEntries: RawLogEntry[] = sessionResults.flat()
   const aggregateEntries = aggregateResults
     .flat()
     .filter((entry) => entry.context?.sessionId === sessionId)

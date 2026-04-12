@@ -75,7 +75,7 @@ export class SessionLogWriter {
         this.evictLRU()
       }
 
-      const creationPromise = this.createHandle(sessionId, logFile, key)
+      const creationPromise = this.createHandle(sessionId, logFile)
       this.pendingCreation.set(key, creationPromise)
       try {
         entry = await creationPromise
@@ -105,7 +105,7 @@ export class SessionLogWriter {
     })
   }
 
-  private async createHandle(sessionId: string, logFile: string, key: string): Promise<HandleEntry> {
+  private async createHandle(sessionId: string, logFile: string): Promise<HandleEntry> {
     const logDir = join(this.sessionsDir, sessionId, 'logs')
     await mkdir(logDir, { recursive: true })
 
@@ -115,8 +115,8 @@ export class SessionLogWriter {
     const ready = new Promise<void>((resolve, reject) => {
       stream.once('open', () => resolve())
       stream.once('error', (err) => {
-        // Evict broken handle so next write can retry
-        this.handles.delete(key)
+        // Evict broken handle so next write can retry — the entry is not yet in
+        // handles (it's still in pendingCreation), so nothing to delete here.
         stream.destroy()
         reject(err)
       })

@@ -6,20 +6,6 @@ import { SessionLogWriter } from '../session-log-writer.js'
 import { logEvent, LogEvents, setSessionLogWriter } from '../log-events.js'
 import type { Logger } from '@sidekick/types'
 
-/** Poll a file until it has non-empty content, or throw after timeoutMs. */
-async function waitForFileContent(filePath: string, timeoutMs = 500): Promise<string> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    try {
-      const content = await readFile(filePath, 'utf-8')
-      if (content.trim().length > 0) return content
-    } catch {
-      // file not yet created
-    }
-    await new Promise((r) => setTimeout(r, 10))
-  }
-  throw new Error(`File ${filePath} did not have content within ${timeoutMs}ms`)
-}
 
 describe('SessionLogWriter', () => {
   let tempDir: string
@@ -243,7 +229,11 @@ describe('logEvent with SessionLogWriter', () => {
     )
     logEvent(fakeLogger, event)
 
-    const content = await waitForFileContent(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'))
+    const content = await vi.waitFor(async () => {
+      const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'), 'utf-8')
+      expect(c.trim().length).toBeGreaterThan(0)
+      return c
+    }, { timeout: 500, interval: 10 })
     const parsed = JSON.parse(content.trim())
     expect(parsed.type).toBe('hook:received')
     expect(parsed.context.sessionId).toBe('test-session')
@@ -267,7 +257,11 @@ describe('logEvent with SessionLogWriter', () => {
     )
     logEvent(fakeLogger, event)
 
-    const content = await waitForFileContent(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'))
+    const content = await vi.waitFor(async () => {
+      const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'), 'utf-8')
+      expect(c.trim().length).toBeGreaterThan(0)
+      return c
+    }, { timeout: 500, interval: 10 })
     const parsed = JSON.parse(content.trim())
     expect(parsed.type).toBe('reminder:staged')
     expect(parsed.source).toBe('daemon')
