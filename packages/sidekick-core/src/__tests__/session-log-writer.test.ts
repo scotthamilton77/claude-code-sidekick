@@ -6,7 +6,6 @@ import { SessionLogWriter } from '../session-log-writer.js'
 import { logEvent, LogEvents, setSessionLogWriter } from '../log-events.js'
 import type { Logger } from '@sidekick/types'
 
-
 describe('SessionLogWriter', () => {
   let tempDir: string
   let writer: SessionLogWriter
@@ -183,10 +182,7 @@ describe('SessionLogWriter', () => {
     expect(writer.handleCount).toBe(1)
 
     // Both lines must be present in the file
-    const content = await readFile(
-      join(tempDir, 'sessions', 'sess-race', 'logs', 'sidekickd.log'),
-      'utf-8'
-    )
+    const content = await readFile(join(tempDir, 'sessions', 'sess-race', 'logs', 'sidekickd.log'), 'utf-8')
     const valid1 = line1 + line2
     const valid2 = line2 + line1
     expect([valid1, valid2]).toContain(content)
@@ -229,11 +225,14 @@ describe('logEvent with SessionLogWriter', () => {
     )
     logEvent(fakeLogger, event)
 
-    const content = await vi.waitFor(async () => {
-      const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'), 'utf-8')
-      expect(c.trim().length).toBeGreaterThan(0)
-      return c
-    }, { timeout: 500, interval: 10 })
+    const content = await vi.waitFor(
+      async () => {
+        const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'), 'utf-8')
+        expect(c.trim().length).toBeGreaterThan(0)
+        return c
+      },
+      { timeout: 500, interval: 10 }
+    )
     const parsed = JSON.parse(content.trim())
     expect(parsed.type).toBe('hook:received')
     expect(parsed.context.sessionId).toBe('test-session')
@@ -257,11 +256,14 @@ describe('logEvent with SessionLogWriter', () => {
     )
     logEvent(fakeLogger, event)
 
-    const content = await vi.waitFor(async () => {
-      const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'), 'utf-8')
-      expect(c.trim().length).toBeGreaterThan(0)
-      return c
-    }, { timeout: 500, interval: 10 })
+    const content = await vi.waitFor(
+      async () => {
+        const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'), 'utf-8')
+        expect(c.trim().length).toBeGreaterThan(0)
+        return c
+      },
+      { timeout: 500, interval: 10 }
+    )
     const parsed = JSON.parse(content.trim())
     expect(parsed.type).toBe('reminder:staged')
     expect(parsed.source).toBe('daemon')
