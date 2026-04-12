@@ -94,7 +94,7 @@ const LoggingSchema = z
     consoleEnabled: z.boolean(),
     /** Per-component log level overrides. Keys are component names (e.g., 'reminders', 'statusline'). */
     components: z.record(z.string(), LogLevelSchema).optional(),
-    /** Log rotation settings. Defaults to 10MB/5 files if not specified. */
+    /** Log rotation settings. Defaults come from core.defaults.yaml (2MB/2 files). */
     rotation: z
       .object({
         maxSizeBytes: z.number().min(1),

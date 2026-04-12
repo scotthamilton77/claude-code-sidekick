@@ -201,8 +201,9 @@ describe('SessionLogWriter', () => {
       join(tempDir, 'sessions', 'sess-race', 'logs', 'sidekickd.log'),
       'utf-8'
     )
-    expect(content).toContain(line1.trim())
-    expect(content).toContain(line2.trim())
+    const valid1 = line1 + line2
+    const valid2 = line2 + line1
+    expect([valid1, valid2]).toContain(content)
   })
 })
 

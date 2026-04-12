@@ -271,7 +271,10 @@ export async function parseTimelineEvents(
     perSessionEntries.push(...results.flat())
   }
 
-  // Always read aggregate logs — they cover pre-rollout events and pure-aggregate sessions
+  // Design intent was per-session-only (O(1) lookup) with aggregate as a fallback for
+  // pre-migration sessions. We always read aggregate here because sessions can span the
+  // rollout boundary — events from before the feature rollout land in aggregate only.
+  // The 4MB aggregate cap (2MB × 2 files) bounds the overhead to an acceptable constant.
   const aggregateLogsDir = join(projectDir, '.sidekick', 'logs')
   const [cliFiles, daemonFiles] = await Promise.all([
     findLogFiles(aggregateLogsDir, 'sidekick.'),
@@ -283,7 +286,11 @@ export async function parseTimelineEvents(
     .filter((entry) => entry.context?.sessionId === sessionId)
 
   // Merge: per-session is authoritative; aggregate adds entries not already in per-session.
-  // Deduplicate by time+type (same event written to both sources).
+  // Deduplicate aggregate entries against per-session entries by time:type key.
+  // This handles the rollout-boundary case where the same event was written to both sinks.
+  // Known limitation: two legitimately distinct events of the same type at the exact same
+  // millisecond from different sources will collide — the aggregate copy is dropped.
+  // In practice this is vanishingly rare given Pino's millisecond-precision timestamps.
   const perSessionKeys = new Set(perSessionEntries.map((e) => `${e.time}:${e.type}`))
   const uniqueAggregateEntries = aggregateEntries.filter(
     (e) => !perSessionKeys.has(`${e.time}:${e.type}`)
