@@ -246,15 +246,16 @@ export async function findLogFiles(logsDir: string, prefix: string): Promise<str
 /**
  * Parse timeline events from sidekick log files for a given session.
  *
- * Reads per-session logs first (.sidekick/sessions/{sessionId}/logs/).
- * Falls back to aggregate logs (.sidekick/logs/) for pre-migration sessions
- * that don't have per-session log files.
+ * Always reads aggregate logs (.sidekick/logs/) for pre-migration events.
+ * Also reads per-session logs (.sidekick/sessions/{sessionId}/logs/) when
+ * they exist (post-rollout). Merges and deduplicates by time+type so that
+ * sessions that span the rollout boundary show a complete timeline.
  */
 export async function parseTimelineEvents(
   projectDir: string,
   sessionId: string
 ): Promise<TimelineEvent[]> {
-  // Try per-session logs first (source of truth for new sessions)
+  // Per-session logs (source of truth for post-rollout events)
   const sessionLogsDir = join(projectDir, '.sidekick', 'sessions', sessionId, 'logs')
   const [sessionCliFiles, sessionDaemonFiles] = await Promise.all([
     findLogFiles(sessionLogsDir, 'sidekick.'),
@@ -263,26 +264,31 @@ export async function parseTimelineEvents(
 
   const hasSessionLogs = sessionCliFiles.length > 0 || sessionDaemonFiles.length > 0
 
-  let allEntries: RawLogEntry[]
-
+  const perSessionEntries: RawLogEntry[] = []
   if (hasSessionLogs) {
-    // Per-session path: read only this session's files (no sessionId filter needed)
-    const allFiles = [...sessionCliFiles, ...sessionDaemonFiles]
-    const fileResults = await Promise.all(allFiles.map(readLogFile))
-    allEntries = fileResults.flat()
-  } else {
-    // Fallback: scan aggregate logs and filter by sessionId (pre-migration sessions)
-    const aggregateLogsDir = join(projectDir, '.sidekick', 'logs')
-    const [cliFiles, daemonFiles] = await Promise.all([
-      findLogFiles(aggregateLogsDir, 'sidekick.'),
-      findLogFiles(aggregateLogsDir, 'sidekickd.'),
-    ])
-    const allFiles = [...cliFiles, ...daemonFiles]
-    const fileResults = await Promise.all(allFiles.map(readLogFile))
-    allEntries = fileResults.flat().filter(
-      (entry) => entry.context?.sessionId === sessionId
-    )
+    const allSessionFiles = [...sessionCliFiles, ...sessionDaemonFiles]
+    const results = await Promise.all(allSessionFiles.map(readLogFile))
+    perSessionEntries.push(...results.flat())
   }
+
+  // Always read aggregate logs — they cover pre-rollout events and pure-aggregate sessions
+  const aggregateLogsDir = join(projectDir, '.sidekick', 'logs')
+  const [cliFiles, daemonFiles] = await Promise.all([
+    findLogFiles(aggregateLogsDir, 'sidekick.'),
+    findLogFiles(aggregateLogsDir, 'sidekickd.'),
+  ])
+  const aggregateResults = await Promise.all([...cliFiles, ...daemonFiles].map(readLogFile))
+  const aggregateEntries = aggregateResults
+    .flat()
+    .filter((entry) => entry.context?.sessionId === sessionId)
+
+  // Merge: per-session is authoritative; aggregate adds entries not already in per-session.
+  // Deduplicate by time+type (same event written to both sources).
+  const perSessionKeys = new Set(perSessionEntries.map((e) => `${e.time}:${e.type}`))
+  const uniqueAggregateEntries = aggregateEntries.filter(
+    (e) => !perSessionKeys.has(`${e.time}:${e.type}`)
+  )
+  const allEntries: RawLogEntry[] = [...perSessionEntries, ...uniqueAggregateEntries]
 
   // Filter by timeline-visible event types
   const filtered = allEntries.filter(
