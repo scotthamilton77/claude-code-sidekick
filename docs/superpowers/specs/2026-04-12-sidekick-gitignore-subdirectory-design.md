@@ -73,7 +73,8 @@ export const GITIGNORE_ENTRIES = [
 ```
 
 **`installGitignoreSection(projectDir)`** — Writes `.sidekick/.gitignore`:
-- Ensures `.sidekick/` directory exists
+- Ensures `.sidekick/` directory exists (using `mkdir` with `recursive: true`)
+- **Fully overwrites the file** on every install/repair — file is entirely managed by Sidekick, no user additions preserved (user customization is a non-goal)
 - Writes all `GITIGNORE_ENTRIES` with a managed-file header comment
 - Returns `'already-installed'` if file exists with all entries
 - Self-repairs if file exists but entries are incomplete
@@ -81,7 +82,7 @@ export const GITIGNORE_ENTRIES = [
 
 **`detectGitignoreStatus(projectDir)`** — Checks new format first, then legacy:
 1. If `.sidekick/.gitignore` exists → verify entries → `'installed'` or `'incomplete'`
-2. Else check root `.gitignore` for `# >>> sidekick` marker → `'legacy'`
+2. Else check root `.gitignore` for `# >>> sidekick` marker → `'legacy'` (marker-only check — no entry verification; legacy entries use `.sidekick/`-prefixed paths which differ from current `GITIGNORE_ENTRIES`)
 3. Else → `'missing'`
 
 **`removeGitignoreSection(projectDir)`** — Updated to remove new format:
@@ -114,8 +115,9 @@ export const GITIGNORE_ENTRIES = [
 
 **Gitignore check (`--fix`):**
 1. If `'legacy'`: install `.sidekick/.gitignore`, then call `removeLegacyGitignoreSection`
-2. If `'missing'`/`'incomplete'`: install `.sidekick/.gitignore` (existing behavior)
-3. Report what was done (`migrated` | `installed` | `repaired`)
+2. If `'installed'`: check for legacy root section via `detectLegacyGitignoreSection` — if found, call `removeLegacyGitignoreSection` (cleans up redundant legacy section when both formats present)
+3. If `'missing'`/`'incomplete'`: install `.sidekick/.gitignore` (existing behavior)
+4. Report what was done (`migrated` | `cleaned-legacy` | `installed` | `repaired` | `already-installed`)
 
 ### `packages/sidekick-cli/src/commands/uninstall.ts`
 
@@ -151,7 +153,7 @@ The file is committed to the project repo. Other developers who clone the repo b
 |----------|---------|--------|--------------|-----------|
 | New install | Write `.sidekick/.gitignore` | ✓ installed | no-op | Delete `.sidekick/.gitignore` |
 | Existing (legacy) | n/a | ⚠ legacy, migrate | Create new, remove root section | Remove root section |
-| Both present | n/a | ✓ installed (legacy section silently redundant) | no-op | Delete `.sidekick/.gitignore` only |
+| Both present | n/a | ✓ installed (legacy section silently redundant) | Remove legacy root section | Delete `.sidekick/.gitignore` + remove root section |
 | Neither | Write `.sidekick/.gitignore` | ✗ missing | Create new | no-op |
 
 ---
