@@ -127,11 +127,11 @@ export interface LogManagerOptions {
   testStream?: Writable
 }
 
-/** Default max file size before rotation (10MB). */
-export const DEFAULT_ROTATE_SIZE_BYTES = 10 * 1024 * 1024
+/** Default max file size before rotation (2MB — aggregate logs are an ephemeral debug window). */
+export const DEFAULT_ROTATE_SIZE_BYTES = 2 * 1024 * 1024
 
-/** Default number of rotated files to retain. */
-export const DEFAULT_MAX_FILES = 5
+/** Default number of rotated files to retain (2 — aggregate logs are an ephemeral debug window). */
+export const DEFAULT_MAX_FILES = 2
 
 // Default sensitive keys to redact (pino redaction is case-sensitive and path-exact)
 const DEFAULT_REDACT_KEYS = [

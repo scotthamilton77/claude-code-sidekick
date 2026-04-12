@@ -34,6 +34,8 @@ export class SessionLogWriter {
   private readonly idleTimeoutMs: number
   /** Map key: `${sessionId}/${logFile}` */
   private readonly handles = new Map<string, HandleEntry>()
+  /** Sentinel map to prevent duplicate handle creation on concurrent writes */
+  private readonly pendingCreation = new Map<string, Promise<HandleEntry>>()
 
   constructor(options: SessionLogWriterOptions) {
     this.sessionsDir = options.sessionsDir
@@ -57,6 +59,21 @@ export class SessionLogWriter {
     if (!isValidPathSegment(sessionId) || !isValidPathSegment(logFile)) return
 
     const key = `${sessionId}/${logFile}`
+
+    // Wait for any in-progress handle creation for this key before checking the map.
+    // This prevents concurrent callers from each spawning their own WriteStream.
+    // If the first creator fails (e.g., transient mkdir/open error), catch the rejection
+    // so this caller can fall through and attempt its own creation after the sentinel clears.
+    const pending = this.pendingCreation.get(key)
+    if (pending) {
+      try {
+        await pending
+      } catch {
+        // First creator failed — sentinel already cleared in its finally block.
+        // Fall through to re-check handles and retry creation below.
+      }
+    }
+
     let entry = this.handles.get(key)
 
     if (!entry) {
@@ -65,29 +82,14 @@ export class SessionLogWriter {
         this.evictLRU()
       }
 
-      const logDir = join(this.sessionsDir, sessionId, 'logs')
-      await mkdir(logDir, { recursive: true })
-
-      const filePath = join(logDir, logFile)
-      const stream = createWriteStream(filePath, { flags: 'a' })
-
-      const ready = new Promise<void>((resolve, reject) => {
-        stream.once('open', () => resolve())
-        stream.once('error', (err) => {
-          // Evict broken handle so next write can retry
-          this.handles.delete(key)
-          stream.destroy()
-          reject(err)
-        })
-      })
-
-      entry = {
-        stream,
-        lastUsed: Date.now(),
-        timer: null,
-        ready,
+      const creationPromise = this.createHandle(sessionId, logFile)
+      this.pendingCreation.set(key, creationPromise)
+      try {
+        entry = await creationPromise
+        this.handles.set(key, entry)
+      } finally {
+        this.pendingCreation.delete(key)
       }
-      this.handles.set(key, entry)
     }
 
     // Wait for stream to be ready (may reject if open failed — handle evicted above)
@@ -108,6 +110,31 @@ export class SessionLogWriter {
         }
       })
     })
+  }
+
+  private async createHandle(sessionId: string, logFile: string): Promise<HandleEntry> {
+    const logDir = join(this.sessionsDir, sessionId, 'logs')
+    await mkdir(logDir, { recursive: true })
+
+    const filePath = join(logDir, logFile)
+    const stream = createWriteStream(filePath, { flags: 'a' })
+
+    const ready = new Promise<void>((resolve, reject) => {
+      stream.once('open', () => resolve())
+      stream.once('error', (err) => {
+        // Evict broken handle so next write can retry — the entry is not yet in
+        // handles (it's still in pendingCreation), so nothing to delete here.
+        stream.destroy()
+        reject(err)
+      })
+    })
+
+    return {
+      stream,
+      lastUsed: Date.now(),
+      timer: null,
+      ready,
+    }
   }
 
   /** Close all handles for a specific session. */

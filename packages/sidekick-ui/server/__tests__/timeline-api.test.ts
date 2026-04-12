@@ -379,8 +379,8 @@ describe('parseTimelineEvents — per-session logs', () => {
       if (path.includes('sessions/session-1/logs')) {
         return Promise.resolve(sessionLine)
       }
-      // Aggregate file — should NOT be read when per-session exists
-      return Promise.resolve(makeLogLine({ time: 9999, type: 'error:occurred', errorMessage: 'should not appear' }))
+      // Aggregate file — different sessionId so it does not bleed into session-1 results
+      return Promise.resolve(makeLogLine({ time: 9999, type: 'error:occurred', errorMessage: 'other session', context: { sessionId: 'session-other' } }))
     })
 
     const events = await parseTimelineEvents('/fake/project', 'session-1')
@@ -441,5 +441,68 @@ describe('parseTimelineEvents — per-session logs', () => {
     // daemon:started is not in TIMELINE_EVENT_TYPES, so filtered by type only
     expect(events).toHaveLength(1)
     expect(events[0].type).toBe('reminder:staged')
+  })
+
+  it('merges per-session and aggregate logs for mixed-boundary sessions', async () => {
+    // Older event only in aggregate (pre-rollout), newer event in per-session files
+    const oldAggregateLine = makeLogLine({
+      time: 500,
+      type: 'decision:recorded',
+      decision: 'old-decision',
+      reason: 'pre-rollout',
+      context: { sessionId: 'session-mixed' },
+    })
+    const newSessionLine = makeLogLine({
+      time: 1500,
+      type: 'reminder:staged',
+      context: { sessionId: 'session-mixed' },
+    })
+
+    mockReaddir.mockImplementation((dir: string) => {
+      if (dir.includes('sessions/session-mixed/logs')) {
+        return Promise.resolve(['sidekick.1.log'])
+      }
+      // Aggregate dir
+      return Promise.resolve(['sidekick.1.log', 'sidekickd.1.log'])
+    })
+
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sessions/session-mixed/logs')) return Promise.resolve(newSessionLine)
+      if (path.includes('/logs/sidekick.1.log')) return Promise.resolve(oldAggregateLine)
+      return Promise.resolve('')
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'session-mixed')
+    expect(events).toHaveLength(2)
+    expect(events.map((e) => e.timestamp)).toEqual([500, 1500])
+    expect(events[0].type).toBe('decision:recorded')
+    expect(events[1].type).toBe('reminder:staged')
+  })
+
+  it('deduplicates events that appear in both per-session and aggregate logs', async () => {
+    // Same event (same time + type) in both sources
+    const sharedLine = makeLogLine({
+      time: 1000,
+      type: 'reminder:staged',
+      context: { sessionId: 'session-dedup' },
+    })
+
+    mockReaddir.mockImplementation((dir: string) => {
+      if (dir.includes('sessions/session-dedup/logs')) {
+        return Promise.resolve(['sidekick.1.log'])
+      }
+      return Promise.resolve(['sidekick.1.log', 'sidekickd.1.log'])
+    })
+
+    mockReadFile.mockImplementation((path: string) => {
+      if (path.includes('sessions/session-dedup/logs')) return Promise.resolve(sharedLine)
+      if (path.includes('/logs/sidekick.1.log')) return Promise.resolve(sharedLine)
+      return Promise.resolve('')
+    })
+
+    const events = await parseTimelineEvents('/fake/project', 'session-dedup')
+    // Duplicate should be removed — only one event
+    expect(events).toHaveLength(1)
+    expect(events[0].timestamp).toBe(1000)
   })
 })

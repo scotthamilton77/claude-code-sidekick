@@ -167,6 +167,26 @@ describe('SessionLogWriter', () => {
     await expect(writer.closeSession('sess-1')).resolves.toBeUndefined()
     expect(writer.handleCount).toBe(0)
   })
+
+  it('concurrent writes for same key create only one handle and persist both lines', async () => {
+    const line1 = '{"seq":1}\n'
+    const line2 = '{"seq":2}\n'
+
+    // Simulate fire-and-forget usage (like logEvent does): kick off both writes
+    // without awaiting, so they race on handle creation.
+    const p1 = writer.write('sess-race', 'sidekickd.log', line1)
+    const p2 = writer.write('sess-race', 'sidekickd.log', line2)
+    await Promise.all([p1, p2])
+
+    // Only one stream handle should exist for this key
+    expect(writer.handleCount).toBe(1)
+
+    // Both lines must be present in the file
+    const content = await readFile(join(tempDir, 'sessions', 'sess-race', 'logs', 'sidekickd.log'), 'utf-8')
+    const valid1 = line1 + line2
+    const valid2 = line2 + line1
+    expect([valid1, valid2]).toContain(content)
+  })
 })
 
 describe('logEvent with SessionLogWriter', () => {
@@ -205,10 +225,14 @@ describe('logEvent with SessionLogWriter', () => {
     )
     logEvent(fakeLogger, event)
 
-    // Give async write time to complete
-    await new Promise((r) => setTimeout(r, 100))
-
-    const content = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'), 'utf-8')
+    const content = await vi.waitFor(
+      async () => {
+        const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekick.log'), 'utf-8')
+        expect(c.trim().length).toBeGreaterThan(0)
+        return c
+      },
+      { timeout: 500, interval: 10 }
+    )
     const parsed = JSON.parse(content.trim())
     expect(parsed.type).toBe('hook:received')
     expect(parsed.context.sessionId).toBe('test-session')
@@ -232,9 +256,14 @@ describe('logEvent with SessionLogWriter', () => {
     )
     logEvent(fakeLogger, event)
 
-    await new Promise((r) => setTimeout(r, 100))
-
-    const content = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'), 'utf-8')
+    const content = await vi.waitFor(
+      async () => {
+        const c = await readFile(join(tempDir, 'sessions', 'test-session', 'logs', 'sidekickd.log'), 'utf-8')
+        expect(c.trim().length).toBeGreaterThan(0)
+        return c
+      },
+      { timeout: 500, interval: 10 }
+    )
     const parsed = JSON.parse(content.trim())
     expect(parsed.type).toBe('reminder:staged')
     expect(parsed.source).toBe('daemon')
@@ -255,6 +284,7 @@ describe('logEvent with SessionLogWriter', () => {
     const event = LogEvents.daemonStarting({ projectDir: '/tmp', pid: 123 })
     logEvent(fakeLogger, event)
 
+    // Small wait — we're checking absence, not presence; 50ms is fine here
     await new Promise((r) => setTimeout(r, 50))
 
     // Writer should not have opened any handles (sessionId is '')
