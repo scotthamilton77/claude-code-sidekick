@@ -62,9 +62,16 @@ export class SessionLogWriter {
 
     // Wait for any in-progress handle creation for this key before checking the map.
     // This prevents concurrent callers from each spawning their own WriteStream.
+    // If the first creator fails (e.g., transient mkdir/open error), catch the rejection
+    // so this caller can fall through and attempt its own creation after the sentinel clears.
     const pending = this.pendingCreation.get(key)
     if (pending) {
-      await pending
+      try {
+        await pending
+      } catch {
+        // First creator failed — sentinel already cleared in its finally block.
+        // Fall through to re-check handles and retry creation below.
+      }
     }
 
     let entry = this.handles.get(key)
