@@ -125,7 +125,8 @@ export const GitignoreStatusSchema = z.enum([
   'unknown', // Setup hasn't checked yet (legacy projects)
   'missing', // User declined or entries not present
   'incomplete', // Section exists but missing end marker or required entries
-  'installed', // Sidekick section present with all required entries
+  'installed', // .sidekick/.gitignore present with all entries (new format)
+  'legacy', // Root .gitignore has old marked section — functional, migrate recommended
 ])
 export type GitignoreStatus = z.infer<typeof GitignoreStatusSchema>
 
