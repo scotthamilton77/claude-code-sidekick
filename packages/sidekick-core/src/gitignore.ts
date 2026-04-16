@@ -42,6 +42,9 @@ export interface GitignoreResult {
  * Fully overwrites the file on every repair — it is entirely managed by Sidekick.
  * Idempotent: returns 'already-installed' if all entries are present.
  * Does NOT touch the project root .gitignore.
+ *
+ * If the legacy format is present (root .gitignore section), this installs the
+ * new format alongside it. Use removeLegacyGitignoreSection to clean up afterward.
  */
 export async function installGitignoreSection(projectDir: string): Promise<GitignoreResult> {
   const status = await detectGitignoreStatus(projectDir)
@@ -84,8 +87,10 @@ export async function detectGitignoreStatus(projectDir: string): Promise<Gitigno
     const content = await fs.readFile(sidekickGitignorePath, 'utf-8')
     const missingEntries = GITIGNORE_ENTRIES.filter((entry) => !content.includes(entry))
     return missingEntries.length === 0 ? 'installed' : 'incomplete'
-  } catch {
-    // .sidekick/.gitignore not found — check for legacy
+  } catch (err) {
+    // Fall through to legacy check.
+    // ENOENT: file not present. Other errors (EACCES, EISDIR, etc.) are treated
+    // the same — can't determine new-format status, so check legacy.
   }
 
   const hasLegacy = await detectLegacyGitignoreSection(projectDir)
@@ -105,7 +110,10 @@ export async function removeGitignoreSection(projectDir: string): Promise<boolea
   try {
     await fs.unlink(path.join(projectDir, '.sidekick', '.gitignore'))
     removed = true
-  } catch {
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
     // File doesn't exist — nothing to remove
   }
 
