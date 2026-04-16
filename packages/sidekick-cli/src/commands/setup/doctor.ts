@@ -146,17 +146,35 @@ async function runDoctorFixes(
       if (result.status === 'error') {
         stdout.write(`  ⚠ Failed to create .sidekick/.gitignore: ${result.error}\n`)
       } else {
-        await removeLegacyGitignoreSection(projectDir)
-        stdout.write('  ✓ Migrated to .sidekick/.gitignore and removed legacy root section\n')
+        let legacyRemoved = false
+        try {
+          legacyRemoved = await removeLegacyGitignoreSection(projectDir)
+        } catch {
+          // fs error (e.g. EACCES) — legacy section may remain
+        }
+        stdout.write(
+          legacyRemoved
+            ? '  ✓ Migrated to .sidekick/.gitignore and removed legacy root section\n'
+            : '  ⚠ Created .sidekick/.gitignore, but legacy root section could not be removed\n'
+        )
         fixedCount++
       }
     } else if (gitignore === 'installed') {
       const hasLegacy = await detectLegacyGitignoreSection(projectDir)
       if (hasLegacy) {
         stdout.write('Fixing: Gitignore (removing redundant legacy section)\n')
-        await removeLegacyGitignoreSection(projectDir)
-        stdout.write('  ✓ Removed legacy section from root .gitignore\n')
-        fixedCount++
+        let legacyRemoved = false
+        try {
+          legacyRemoved = await removeLegacyGitignoreSection(projectDir)
+        } catch {
+          // fs error (e.g. EACCES)
+        }
+        if (legacyRemoved) {
+          stdout.write('  ✓ Removed legacy section from root .gitignore\n')
+          fixedCount++
+        } else {
+          stdout.write('  ⚠ Legacy section detected but could not be removed from root .gitignore\n')
+        }
       }
     } else {
       // 'missing' or 'incomplete'

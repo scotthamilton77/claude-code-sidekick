@@ -189,7 +189,11 @@ async function runStep3Gitignore(wctx: WizardContext, force: boolean): Promise<G
 
   if (currentStatus === 'installed' || currentStatus === 'legacy') {
     if (!force) {
-      printStatus(ctx, 'success', 'Sidekick entries already present in .gitignore')
+      const message =
+        currentStatus === 'legacy'
+          ? 'Sidekick entries already present in root .gitignore (legacy — run doctor --fix to migrate)'
+          : 'Sidekick already configured (.sidekick/.gitignore)'
+      printStatus(ctx, 'success', message)
     }
     return currentStatus
   }

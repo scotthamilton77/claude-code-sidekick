@@ -87,10 +87,13 @@ export async function detectGitignoreStatus(projectDir: string): Promise<Gitigno
     const content = await fs.readFile(sidekickGitignorePath, 'utf-8')
     const missingEntries = GITIGNORE_ENTRIES.filter((entry) => !content.includes(entry))
     return missingEntries.length === 0 ? 'installed' : 'incomplete'
-  } catch {
-    // Fall through to legacy check.
-    // ENOENT: file not present. Other errors (EACCES, EISDIR, etc.) are treated
-    // the same — can't determine new-format status, so check legacy.
+  } catch (err) {
+    // ENOENT: file not present — fall through to legacy check.
+    // Other errors (EACCES, EISDIR, etc.) are unexpected; re-throw so callers
+    // surface a meaningful warning rather than silently misreporting status.
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
   }
 
   const hasLegacy = await detectLegacyGitignoreSection(projectDir)
@@ -164,7 +167,10 @@ export async function removeLegacyGitignoreSection(projectDir: string): Promise<
     const newContent = before + (after ? '\n' + after : '') + '\n'
     await fs.writeFile(rootGitignorePath, newContent)
     return true
-  } catch {
-    return false
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false // Root .gitignore doesn't exist — nothing to remove
+    }
+    throw err // Re-throw unexpected errors (EACCES, EROFS, etc.)
   }
 }
