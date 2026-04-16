@@ -185,10 +185,7 @@ describe('gitignore utilities', () => {
     })
 
     it('returns false when markers are malformed (end before start)', async () => {
-      writeFileSync(
-        rootGitignore,
-        `${SIDEKICK_SECTION_END}\n.sidekick/logs/\n${SIDEKICK_SECTION_START}\n`
-      )
+      writeFileSync(rootGitignore, `${SIDEKICK_SECTION_END}\n.sidekick/logs/\n${SIDEKICK_SECTION_START}\n`)
 
       expect(await removeLegacyGitignoreSection(testDir)).toBe(false)
       // File unchanged

@@ -87,7 +87,7 @@ export async function detectGitignoreStatus(projectDir: string): Promise<Gitigno
     const content = await fs.readFile(sidekickGitignorePath, 'utf-8')
     const missingEntries = GITIGNORE_ENTRIES.filter((entry) => !content.includes(entry))
     return missingEntries.length === 0 ? 'installed' : 'incomplete'
-  } catch (err) {
+  } catch {
     // Fall through to legacy check.
     // ENOENT: file not present. Other errors (EACCES, EISDIR, etc.) are treated
     // the same — can't determine new-format status, so check legacy.
