@@ -16,6 +16,8 @@ import {
   SetupStatusService,
   installGitignoreSection,
   detectGitignoreStatus,
+  detectLegacyGitignoreSection,
+  removeLegacyGitignoreSection,
   findZombieDaemons,
   killZombieDaemons,
   USER_STATUS_FILENAME,
@@ -136,15 +138,36 @@ async function runDoctorFixes(
     }
   }
 
-  // Fix: Missing/incomplete gitignore
-  if (shouldFix('gitignore') && gitignore !== null && gitignore !== 'installed') {
-    stdout.write('Fixing: Gitignore\n')
-    const result = await installGitignoreSection(projectDir)
-    if (result.status === 'error') {
-      stdout.write(`  ⚠ Failed to update .gitignore: ${result.error}\n`)
+  // Fix: Missing/incomplete/legacy gitignore
+  if (shouldFix('gitignore') && gitignore !== null) {
+    if (gitignore === 'legacy') {
+      stdout.write('Fixing: Gitignore (migrating legacy format)\n')
+      const result = await installGitignoreSection(projectDir)
+      if (result.status === 'error') {
+        stdout.write(`  ⚠ Failed to create .sidekick/.gitignore: ${result.error}\n`)
+      } else {
+        await removeLegacyGitignoreSection(projectDir)
+        stdout.write('  ✓ Migrated to .sidekick/.gitignore and removed legacy root section\n')
+        fixedCount++
+      }
+    } else if (gitignore === 'installed') {
+      const hasLegacy = await detectLegacyGitignoreSection(projectDir)
+      if (hasLegacy) {
+        stdout.write('Fixing: Gitignore (removing redundant legacy section)\n')
+        await removeLegacyGitignoreSection(projectDir)
+        stdout.write('  ✓ Removed legacy section from root .gitignore\n')
+        fixedCount++
+      }
     } else {
-      stdout.write('  ✓ Gitignore configured\n')
-      fixedCount++
+      // 'missing' or 'incomplete'
+      stdout.write('Fixing: Gitignore\n')
+      const result = await installGitignoreSection(projectDir)
+      if (result.status === 'error') {
+        stdout.write(`  ⚠ Failed to update .sidekick/.gitignore: ${result.error}\n`)
+      } else {
+        stdout.write('  ✓ Gitignore configured\n')
+        fixedCount++
+      }
     }
   }
 
@@ -315,7 +338,11 @@ export async function runDoctor(
       detectGitignoreStatus(projectDir).then((result) => {
         gitignore = result
         const gitignoreIcon = result === 'installed' ? '✓' : '⚠'
-        stdout.write(`${gitignoreIcon} Gitignore: ${result}\n`)
+        const gitignoreMessage =
+          result === 'legacy'
+            ? `legacy section found in root .gitignore — run sidekick doctor --fix --only=gitignore to migrate`
+            : result
+        stdout.write(`${gitignoreIcon} Gitignore: ${gitignoreMessage}\n`)
       })
     )
   }
