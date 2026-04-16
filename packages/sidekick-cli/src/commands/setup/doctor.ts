@@ -75,6 +75,18 @@ type DoctorCheckResultType = Awaited<ReturnType<SetupStatusService['runDoctorChe
 // ============================================================================
 
 /**
+ * Attempt to remove the legacy sidekick section from root .gitignore.
+ * Swallows filesystem errors (EACCES, EROFS, etc.) — legacy cleanup is best-effort.
+ */
+async function tryRemoveLegacySection(projectDir: string): Promise<boolean> {
+  try {
+    return await removeLegacyGitignoreSection(projectDir)
+  } catch {
+    return false
+  }
+}
+
+/**
  * Apply targeted fixes for unhealthy doctor items.
  * When filter is null (unfiltered), runs all fixes and reports unfixable items.
  * When filter is provided, only runs fixes for the specified checks.
@@ -146,12 +158,7 @@ async function runDoctorFixes(
       if (result.status === 'error') {
         stdout.write(`  ⚠ Failed to create .sidekick/.gitignore: ${result.error}\n`)
       } else {
-        let legacyRemoved = false
-        try {
-          legacyRemoved = await removeLegacyGitignoreSection(projectDir)
-        } catch {
-          // fs error (e.g. EACCES) — legacy section may remain
-        }
+        const legacyRemoved = await tryRemoveLegacySection(projectDir)
         stdout.write(
           legacyRemoved
             ? '  ✓ Migrated to .sidekick/.gitignore and removed legacy root section\n'
@@ -163,12 +170,7 @@ async function runDoctorFixes(
       const hasLegacy = await detectLegacyGitignoreSection(projectDir)
       if (hasLegacy) {
         stdout.write('Fixing: Gitignore (removing redundant legacy section)\n')
-        let legacyRemoved = false
-        try {
-          legacyRemoved = await removeLegacyGitignoreSection(projectDir)
-        } catch {
-          // fs error (e.g. EACCES)
-        }
+        const legacyRemoved = await tryRemoveLegacySection(projectDir)
         if (legacyRemoved) {
           stdout.write('  ✓ Removed legacy section from root .gitignore\n')
           fixedCount++
