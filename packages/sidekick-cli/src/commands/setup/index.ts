@@ -187,11 +187,11 @@ async function runStep3Gitignore(wctx: WizardContext, force: boolean): Promise<G
   // Check current status
   const currentStatus = await detectGitignoreStatus(projectDir)
 
-  if (currentStatus === 'installed') {
+  if (currentStatus === 'installed' || currentStatus === 'legacy') {
     if (!force) {
       printStatus(ctx, 'success', 'Sidekick entries already present in .gitignore')
     }
-    return 'installed'
+    return currentStatus
   }
 
   const needsRepair = currentStatus === 'incomplete'
