@@ -392,7 +392,8 @@ async function collectDetectionSummary(
       const rootGitignore = await readFileOrNull(path.join(projectDir, '.gitignore'))
       if (sidekickGitignore !== null) {
         summary.project.push({ label: '.sidekick/.gitignore', details: 'sidekick managed file' })
-      } else if (rootGitignore?.includes('# >>> sidekick')) {
+      }
+      if (rootGitignore?.includes('# >>> sidekick')) {
         summary.project.push({ label: '.gitignore', details: 'sidekick section' })
       }
     }

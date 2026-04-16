@@ -355,15 +355,20 @@ export async function runDoctor(
   let gitignore: string | null = null
   if (shouldRun('gitignore')) {
     promises.push(
-      detectGitignoreStatus(projectDir).then((result) => {
-        gitignore = result
-        const gitignoreIcon = result === 'installed' ? '✓' : '⚠'
-        const gitignoreMessage =
-          result === 'legacy'
-            ? `legacy section found in root .gitignore — run sidekick doctor --fix --only=gitignore to migrate`
-            : result
-        stdout.write(`${gitignoreIcon} Gitignore: ${gitignoreMessage}\n`)
-      })
+      detectGitignoreStatus(projectDir)
+        .then((result) => {
+          gitignore = result
+          const gitignoreIcon = result === 'installed' ? '✓' : '⚠'
+          const gitignoreMessage =
+            result === 'legacy'
+              ? `legacy section found in root .gitignore — run sidekick doctor --fix --only=gitignore to migrate`
+              : result
+          stdout.write(`${gitignoreIcon} Gitignore: ${gitignoreMessage}\n`)
+        })
+        .catch((err: unknown) => {
+          gitignore = 'unknown'
+          stdout.write(`⚠ Gitignore: could not read status — ${(err as Error).message}\n`)
+        })
     )
   }
 

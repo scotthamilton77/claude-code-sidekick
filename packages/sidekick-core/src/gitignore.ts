@@ -47,7 +47,12 @@ export interface GitignoreResult {
  * new format alongside it. Use removeLegacyGitignoreSection to clean up afterward.
  */
 export async function installGitignoreSection(projectDir: string): Promise<GitignoreResult> {
-  const status = await detectGitignoreStatus(projectDir)
+  let status: GitignoreStatus
+  try {
+    status = await detectGitignoreStatus(projectDir)
+  } catch (err) {
+    return { status: 'error', error: `Failed to check gitignore status: ${(err as Error).message}` }
+  }
   if (status === 'installed') {
     return { status: 'already-installed' }
   }
@@ -134,8 +139,11 @@ export async function detectLegacyGitignoreSection(projectDir: string): Promise<
   try {
     const content = await fs.readFile(path.join(projectDir, '.gitignore'), 'utf-8')
     return content.includes(SIDEKICK_SECTION_START)
-  } catch {
-    return false
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return false // Root .gitignore doesn't exist
+    }
+    throw err
   }
 }
 

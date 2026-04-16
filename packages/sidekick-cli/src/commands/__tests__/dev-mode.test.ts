@@ -199,23 +199,22 @@ describe('handleDevModeCommand', () => {
 
       expect(result.exitCode).toBe(0)
 
-      // Verify .gitignore was created with sidekick section
-      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
-      expect(gitignoreContent).toContain('# >>> sidekick')
-      expect(gitignoreContent).toContain('.sidekick/logs/')
-      expect(gitignoreContent).toContain('.sidekick/setup-status.json')
-      expect(gitignoreContent).toContain('# <<< sidekick')
+      // Verify .sidekick/.gitignore was created (new format)
+      const gitignoreContent = await readFile(path.join(tempDir, '.sidekick', '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('logs/')
+      expect(gitignoreContent).toContain('sessions/')
+      expect(gitignoreContent).toContain('setup-status.json')
     })
 
     test('gitignore install is idempotent on re-enable', async () => {
       // First enable
       await handleDevModeCommand('enable', tempDir, logger, stdout)
       stdout.data = ''
-      // Second enable — gitignore should not get a duplicate section
+      // Second enable — gitignore should still exist and not be duplicated
       await handleDevModeCommand('enable', tempDir, logger, stdout)
-      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
-      // Count occurrences of section marker - should be exactly 1
-      const matches = gitignoreContent.match(/# >>> sidekick/g)
+      const gitignoreContent = await readFile(path.join(tempDir, '.sidekick', '.gitignore'), 'utf-8')
+      // The managed header should appear exactly once
+      const matches = gitignoreContent.match(/# Sidekick — managed file/g)
       expect(matches).toHaveLength(1)
     })
 
@@ -391,22 +390,23 @@ describe('handleDevModeCommand', () => {
     })
 
     test('removes gitignore entries when no plugin installed', async () => {
-      // Enable (installs gitignore)
+      // Enable (installs .sidekick/.gitignore)
       await handleDevModeCommand('enable', tempDir, logger, stdout)
       stdout.data = ''
 
-      // Verify gitignore exists
-      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
-      expect(gitignoreContent).toContain('# >>> sidekick')
+      // Verify .sidekick/.gitignore exists after enable
+      const gitignoreContent = await readFile(path.join(tempDir, '.sidekick', '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('logs/')
 
       // Disable
       const result = await handleDevModeCommand('disable', tempDir, logger, stdout)
 
       expect(result.exitCode).toBe(0)
 
-      // Gitignore section should be removed
-      const updated = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
-      expect(updated).not.toContain('# >>> sidekick')
+      // .sidekick/.gitignore should be removed (no plugin — uninstall removes it)
+      await expect(readFile(path.join(tempDir, '.sidekick', '.gitignore'), 'utf-8')).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
     })
 
     test('preserves gitignore entries when plugin is detected', async () => {
@@ -426,9 +426,9 @@ describe('handleDevModeCommand', () => {
       expect(result.exitCode).toBe(0)
       expect(stdout.data).toContain('plugin')
 
-      // Gitignore section should be preserved
-      const gitignoreContent = await readFile(path.join(tempDir, '.gitignore'), 'utf-8')
-      expect(gitignoreContent).toContain('# >>> sidekick')
+      // .sidekick/.gitignore should be preserved (plugin detected — don't remove gitignore)
+      const gitignoreContent = await readFile(path.join(tempDir, '.sidekick', '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('logs/')
     })
 
     test('kills running daemon during disable', async () => {

@@ -257,22 +257,23 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
-      // Create gitignore with complete sidekick section (required for healthy status)
-      const gitignorePath = path.join(projectDir, '.gitignore')
+      // Create .sidekick/.gitignore with all required entries (new format — required for healthy status)
+      const sidekickGitignoreDir = path.join(projectDir, '.sidekick')
+      await mkdir(sidekickGitignoreDir, { recursive: true })
+      const sidekickGitignorePath = path.join(sidekickGitignoreDir, '.gitignore')
       const completeGitignore = [
-        '# >>> sidekick',
-        '.sidekick/logs/',
-        '.sidekick/sessions/',
-        '.sidekick/state/',
-        '.sidekick/setup-status.json',
-        '.sidekick/.env',
-        '.sidekick/.env.local',
-        '.sidekick/sidekick*.pid',
-        '.sidekick/sidekick*.token',
-        '.sidekick/*.local.yaml',
-        '# <<< sidekick',
+        '# Sidekick — managed file, do not edit manually',
+        'logs/',
+        'sessions/',
+        'state/',
+        'setup-status.json',
+        '.env',
+        '.env.local',
+        'sidekick*.pid',
+        'sidekick*.token',
+        '*.local.yaml',
       ].join('\n')
-      await writeFile(gitignorePath, completeGitignore + '\n')
+      await writeFile(sidekickGitignorePath, completeGitignore + '\n')
 
       const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
@@ -321,22 +322,23 @@ describe('handleSetupCommand', () => {
       }
       await writeFile(statusPath, JSON.stringify(userStatus, null, 2))
 
-      // Create gitignore with complete sidekick section (required for healthy status)
-      const gitignorePath = path.join(projectDir, '.gitignore')
-      const completeGitignore = [
-        '# >>> sidekick',
-        '.sidekick/logs/',
-        '.sidekick/sessions/',
-        '.sidekick/state/',
-        '.sidekick/setup-status.json',
-        '.sidekick/.env',
-        '.sidekick/.env.local',
-        '.sidekick/sidekick*.pid',
-        '.sidekick/sidekick*.token',
-        '.sidekick/*.local.yaml',
-        '# <<< sidekick',
+      // Create .sidekick/.gitignore with all required entries (new format — required for healthy status)
+      const sidekickGitignoreDir2 = path.join(projectDir, '.sidekick')
+      await mkdir(sidekickGitignoreDir2, { recursive: true })
+      const sidekickGitignorePath2 = path.join(sidekickGitignoreDir2, '.gitignore')
+      const completeGitignore2 = [
+        '# Sidekick — managed file, do not edit manually',
+        'logs/',
+        'sessions/',
+        'state/',
+        'setup-status.json',
+        '.env',
+        '.env.local',
+        'sidekick*.pid',
+        'sidekick*.token',
+        '*.local.yaml',
       ].join('\n')
-      await writeFile(gitignorePath, completeGitignore + '\n')
+      await writeFile(sidekickGitignorePath2, completeGitignore2 + '\n')
 
       const result = await handleSetupCommand(projectDir, logger, output, { checkOnly: true, homeDir })
 
@@ -763,10 +765,10 @@ describe('handleSetupCommand', () => {
 
       // Should have attempted to fix gitignore
       expect(output.data).toContain('Gitignore')
-      // Check that .gitignore was created with sidekick section
-      const gitignorePath = path.join(projectDir, '.gitignore')
-      const content = await readFile(gitignorePath, 'utf-8')
-      expect(content).toContain('# >>> sidekick')
+      // Check that .sidekick/.gitignore was created (new format)
+      const sidekickGitignorePath = path.join(projectDir, '.sidekick', '.gitignore')
+      const content = await readFile(sidekickGitignorePath, 'utf-8')
+      expect(content).toContain('logs/')
     })
 
     test('fixes missing statusline by configuring at user scope', async () => {
@@ -902,22 +904,22 @@ describe('handleSetupCommand', () => {
         })
       )
 
-      // Complete .gitignore
-      const gitignorePath = path.join(projectDir, '.gitignore')
+      // Complete .sidekick/.gitignore (new format — required for healthy status)
+      const healthySidekickDir = path.join(projectDir, '.sidekick')
+      await mkdir(healthySidekickDir, { recursive: true })
       await writeFile(
-        gitignorePath,
+        path.join(healthySidekickDir, '.gitignore'),
         [
-          '# >>> sidekick',
-          '.sidekick/logs/',
-          '.sidekick/sessions/',
-          '.sidekick/state/',
-          '.sidekick/setup-status.json',
-          '.sidekick/.env',
-          '.sidekick/.env.local',
-          '.sidekick/sidekick*.pid',
-          '.sidekick/sidekick*.token',
-          '.sidekick/*.local.yaml',
-          '# <<< sidekick',
+          '# Sidekick — managed file, do not edit manually',
+          'logs/',
+          'sessions/',
+          'state/',
+          'setup-status.json',
+          '.env',
+          '.env.local',
+          'sidekick*.pid',
+          'sidekick*.token',
+          '*.local.yaml',
         ].join('\n') + '\n'
       )
 
@@ -1049,10 +1051,10 @@ describe('handleSetupCommand', () => {
 
       expect(result.exitCode).toBe(0)
 
-      // Should fix gitignore
-      const gitignorePath = path.join(projectDir, '.gitignore')
-      const content = await readFile(gitignorePath, 'utf-8')
-      expect(content).toContain('# >>> sidekick')
+      // Should fix gitignore — new format: .sidekick/.gitignore
+      const sidekickGitignorePath = path.join(projectDir, '.sidekick', '.gitignore')
+      const content = await readFile(sidekickGitignorePath, 'utf-8')
+      expect(content).toContain('logs/')
 
       // Should NOT have created statusline settings (not in --only)
       const settingsPath = path.join(homeDir, '.claude', 'settings.json')
