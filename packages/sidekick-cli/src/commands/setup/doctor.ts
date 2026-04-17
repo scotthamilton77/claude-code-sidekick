@@ -16,6 +16,8 @@ import {
   SetupStatusService,
   installGitignoreSection,
   detectGitignoreStatus,
+  detectLegacyGitignoreSection,
+  removeLegacyGitignoreSection,
   findZombieDaemons,
   killZombieDaemons,
   USER_STATUS_FILENAME,
@@ -71,6 +73,18 @@ type DoctorCheckResultType = Awaited<ReturnType<SetupStatusService['runDoctorChe
 // ============================================================================
 // Doctor Fixes
 // ============================================================================
+
+/**
+ * Attempt to remove the legacy sidekick section from root .gitignore.
+ * Swallows filesystem errors (EACCES, EROFS, etc.) — legacy cleanup is best-effort.
+ */
+async function tryRemoveLegacySection(projectDir: string): Promise<boolean> {
+  try {
+    return await removeLegacyGitignoreSection(projectDir)
+  } catch {
+    return false
+  }
+}
 
 /**
  * Apply targeted fixes for unhealthy doctor items.
@@ -136,15 +150,44 @@ async function runDoctorFixes(
     }
   }
 
-  // Fix: Missing/incomplete gitignore
-  if (shouldFix('gitignore') && gitignore !== null && gitignore !== 'installed') {
-    stdout.write('Fixing: Gitignore\n')
-    const result = await installGitignoreSection(projectDir)
-    if (result.status === 'error') {
-      stdout.write(`  ⚠ Failed to update .gitignore: ${result.error}\n`)
+  // Fix: Missing/incomplete/legacy gitignore
+  if (shouldFix('gitignore') && gitignore !== null) {
+    if (gitignore === 'legacy') {
+      stdout.write('Fixing: Gitignore (migrating legacy format)\n')
+      const result = await installGitignoreSection(projectDir)
+      if (result.status === 'error') {
+        stdout.write(`  ⚠ Failed to create .sidekick/.gitignore: ${result.error}\n`)
+      } else {
+        const legacyRemoved = await tryRemoveLegacySection(projectDir)
+        stdout.write(
+          legacyRemoved
+            ? '  ✓ Migrated to .sidekick/.gitignore and removed legacy root section\n'
+            : '  ⚠ Created .sidekick/.gitignore, but legacy root section could not be removed\n'
+        )
+        fixedCount++
+      }
+    } else if (gitignore === 'installed') {
+      const hasLegacy = await detectLegacyGitignoreSection(projectDir)
+      if (hasLegacy) {
+        stdout.write('Fixing: Gitignore (removing redundant legacy section)\n')
+        const legacyRemoved = await tryRemoveLegacySection(projectDir)
+        if (legacyRemoved) {
+          stdout.write('  ✓ Removed legacy section from root .gitignore\n')
+          fixedCount++
+        } else {
+          stdout.write('  ⚠ Legacy section detected but could not be removed from root .gitignore\n')
+        }
+      }
     } else {
-      stdout.write('  ✓ Gitignore configured\n')
-      fixedCount++
+      // 'missing' or 'incomplete'
+      stdout.write('Fixing: Gitignore\n')
+      const result = await installGitignoreSection(projectDir)
+      if (result.status === 'error') {
+        stdout.write(`  ⚠ Failed to update .sidekick/.gitignore: ${result.error}\n`)
+      } else {
+        stdout.write('  ✓ Gitignore configured\n')
+        fixedCount++
+      }
     }
   }
 
@@ -312,11 +355,20 @@ export async function runDoctor(
   let gitignore: string | null = null
   if (shouldRun('gitignore')) {
     promises.push(
-      detectGitignoreStatus(projectDir).then((result) => {
-        gitignore = result
-        const gitignoreIcon = result === 'installed' ? '✓' : '⚠'
-        stdout.write(`${gitignoreIcon} Gitignore: ${result}\n`)
-      })
+      detectGitignoreStatus(projectDir)
+        .then((result) => {
+          gitignore = result
+          const gitignoreIcon = result === 'installed' ? '✓' : '⚠'
+          const gitignoreMessage =
+            result === 'legacy'
+              ? `legacy section found in root .gitignore — run sidekick doctor --fix --only=gitignore to migrate`
+              : result
+          stdout.write(`${gitignoreIcon} Gitignore: ${gitignoreMessage}\n`)
+        })
+        .catch((err: unknown) => {
+          gitignore = 'unknown'
+          stdout.write(`⚠ Gitignore: could not read status — ${(err as Error).message}\n`)
+        })
     )
   }
 

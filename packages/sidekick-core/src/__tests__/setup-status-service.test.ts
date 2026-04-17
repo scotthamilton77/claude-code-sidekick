@@ -557,10 +557,10 @@ describe('SetupStatusService', () => {
       expect(projectStatus?.apiKeys.OPENAI_API_KEY).toBe('user')
       expect(projectStatus?.gitignore).toBe('installed')
 
-      // Verify .gitignore was actually created with sidekick section
-      const gitignoreContent = await fs.readFile(path.join(projectDir, '.gitignore'), 'utf-8')
-      expect(gitignoreContent).toContain('# >>> sidekick')
-      expect(gitignoreContent).toContain('.sidekick/logs/')
+      // Verify .sidekick/.gitignore was created with sidekick entries
+      const gitignoreContent = await fs.readFile(path.join(projectDir, '.sidekick', '.gitignore'), 'utf-8')
+      expect(gitignoreContent).toContain('# Sidekick')
+      expect(gitignoreContent).toContain('logs/')
     })
 
     it('is idempotent - second call returns false', async () => {

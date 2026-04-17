@@ -185,8 +185,11 @@ export {
   installGitignoreSection,
   removeGitignoreSection,
   detectGitignoreStatus,
+  detectLegacyGitignoreSection,
+  removeLegacyGitignoreSection,
   SIDEKICK_SECTION_START,
   SIDEKICK_SECTION_END,
+  SIDEKICK_GITIGNORE_HEADER,
   GITIGNORE_ENTRIES,
   type GitignoreResult,
 } from './gitignore'

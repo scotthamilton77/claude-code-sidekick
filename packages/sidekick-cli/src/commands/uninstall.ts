@@ -386,10 +386,14 @@ async function collectDetectionSummary(
       summary.project.push({ label: '.env', details: envDetail })
     }
 
-    // .gitignore
+    // .gitignore — check new format (.sidekick/.gitignore) and legacy root section
     if (!devModeActive) {
-      const gitignore = await readFileOrNull(path.join(projectDir, '.gitignore'))
-      if (gitignore?.includes('# >>> sidekick')) {
+      const sidekickGitignore = await readFileOrNull(path.join(projectDir, '.sidekick', '.gitignore'))
+      const rootGitignore = await readFileOrNull(path.join(projectDir, '.gitignore'))
+      if (sidekickGitignore !== null) {
+        summary.project.push({ label: '.sidekick/.gitignore', details: 'sidekick managed file' })
+      }
+      if (rootGitignore?.includes('# >>> sidekick')) {
         summary.project.push({ label: '.gitignore', details: 'sidekick section' })
       }
     }

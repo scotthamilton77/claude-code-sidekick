@@ -27,6 +27,8 @@ const {
   mockGetProjectStatus,
   mockDetectGitignoreStatus,
   mockInstallGitignoreSection,
+  mockDetectLegacyGitignoreSection,
+  mockRemoveLegacyGitignoreSection,
   mockFindZombieDaemons,
   mockKillZombieDaemons,
   mockEnsurePluginInstalled,
@@ -44,6 +46,8 @@ const {
   mockGetProjectStatus: vi.fn(),
   mockDetectGitignoreStatus: vi.fn(),
   mockInstallGitignoreSection: vi.fn(),
+  mockDetectLegacyGitignoreSection: vi.fn(),
+  mockRemoveLegacyGitignoreSection: vi.fn(),
   mockFindZombieDaemons: vi.fn(),
   mockKillZombieDaemons: vi.fn(),
   mockEnsurePluginInstalled: vi.fn(),
@@ -80,6 +84,8 @@ vi.mock('@sidekick/core', async (importOriginal) => {
     SetupStatusService: MockSetupStatusService,
     detectGitignoreStatus: mockDetectGitignoreStatus,
     installGitignoreSection: mockInstallGitignoreSection,
+    detectLegacyGitignoreSection: mockDetectLegacyGitignoreSection,
+    removeLegacyGitignoreSection: mockRemoveLegacyGitignoreSection,
     findZombieDaemons: mockFindZombieDaemons,
     killZombieDaemons: mockKillZombieDaemons,
   }
@@ -174,6 +180,8 @@ describe('runDoctor', () => {
     mockGetProjectStatus.mockClear()
     mockDetectGitignoreStatus.mockClear()
     mockInstallGitignoreSection.mockClear()
+    mockDetectLegacyGitignoreSection.mockReset()
+    mockRemoveLegacyGitignoreSection.mockReset()
     mockFindZombieDaemons.mockClear()
     mockKillZombieDaemons.mockClear()
     mockEnsurePluginInstalled.mockClear()
@@ -543,7 +551,78 @@ describe('runDoctor', () => {
       only: 'gitignore',
       fix: true,
     })
-    expect(getOutput()).toContain('Failed to update .gitignore')
+    expect(getOutput()).toContain('Failed to update .sidekick/.gitignore')
+    expect(getOutput()).toContain('Permission denied')
+  })
+
+  // --------------------------------------------------------------------------
+  // Fix: Gitignore legacy path
+  // --------------------------------------------------------------------------
+
+  it('reports legacy gitignore status with migration hint', async () => {
+    mockDetectGitignoreStatus.mockResolvedValue('legacy')
+    mockKillZombieDaemons.mockResolvedValue([])
+
+    const { stdout, getOutput } = createStdout()
+    await runDoctor(projectDir, logger as Logger, stdout, {
+      homeDir,
+      only: 'gitignore',
+    })
+
+    expect(getOutput()).toContain('legacy section found in root .gitignore')
+    expect(getOutput()).toContain('sidekick doctor --fix --only=gitignore')
+  })
+
+  it('migrates legacy gitignore on --fix: installs new format and removes root section', async () => {
+    mockDetectGitignoreStatus.mockResolvedValue('legacy')
+    mockInstallGitignoreSection.mockResolvedValue({ status: 'installed' })
+    mockRemoveLegacyGitignoreSection.mockResolvedValue(true)
+    mockKillZombieDaemons.mockResolvedValue([])
+
+    const { stdout, getOutput } = createStdout()
+    await runDoctor(projectDir, logger as Logger, stdout, {
+      homeDir,
+      only: 'gitignore',
+      fix: true,
+    })
+
+    expect(mockInstallGitignoreSection).toHaveBeenCalled()
+    expect(mockRemoveLegacyGitignoreSection).toHaveBeenCalled()
+    expect(getOutput()).toContain('Migrated to .sidekick/.gitignore')
+  })
+
+  it('removes redundant legacy section when already installed on new format', async () => {
+    mockDetectGitignoreStatus.mockResolvedValue('installed')
+    mockDetectLegacyGitignoreSection.mockResolvedValue(true)
+    mockRemoveLegacyGitignoreSection.mockResolvedValue(true)
+    mockKillZombieDaemons.mockResolvedValue([])
+
+    const { stdout, getOutput } = createStdout()
+    await runDoctor(projectDir, logger as Logger, stdout, {
+      homeDir,
+      only: 'gitignore',
+      fix: true,
+    })
+
+    expect(mockDetectLegacyGitignoreSection).toHaveBeenCalled()
+    expect(mockRemoveLegacyGitignoreSection).toHaveBeenCalled()
+    expect(getOutput()).toContain('Removed legacy section from root .gitignore')
+  })
+
+  it('does not call removeLegacyGitignoreSection when legacy install fails', async () => {
+    mockDetectGitignoreStatus.mockResolvedValue('legacy')
+    mockInstallGitignoreSection.mockResolvedValue({ status: 'error', error: 'Permission denied' })
+    mockKillZombieDaemons.mockResolvedValue([])
+
+    const { stdout, getOutput } = createStdout()
+    await runDoctor(projectDir, logger as Logger, stdout, {
+      homeDir,
+      only: 'gitignore',
+      fix: true,
+    })
+
+    expect(mockRemoveLegacyGitignoreSection).not.toHaveBeenCalled()
+    expect(getOutput()).toContain('Failed to create .sidekick/.gitignore')
     expect(getOutput()).toContain('Permission denied')
   })
 

@@ -185,13 +185,23 @@ async function runStep3Gitignore(wctx: WizardContext, force: boolean): Promise<G
   const { ctx, projectDir } = wctx
 
   // Check current status
-  const currentStatus = await detectGitignoreStatus(projectDir)
+  let currentStatus: GitignoreStatus
+  try {
+    currentStatus = await detectGitignoreStatus(projectDir)
+  } catch {
+    // Unexpected fs error — treat as missing so the wizard can offer to install
+    currentStatus = 'missing'
+  }
 
-  if (currentStatus === 'installed') {
+  if (currentStatus === 'installed' || currentStatus === 'legacy') {
     if (!force) {
-      printStatus(ctx, 'success', 'Sidekick entries already present in .gitignore')
+      const message =
+        currentStatus === 'legacy'
+          ? 'Sidekick entries already present in root .gitignore (legacy — run doctor --fix to migrate)'
+          : 'Sidekick already configured (.sidekick/.gitignore)'
+      printStatus(ctx, 'success', message)
     }
-    return 'installed'
+    return currentStatus
   }
 
   const needsRepair = currentStatus === 'incomplete'
