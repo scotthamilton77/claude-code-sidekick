@@ -441,6 +441,16 @@ export async function handleUnifiedHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HookCommandResult> {
+  // Recursion guard: when invoked inside a `claude -p` subprocess spawned by
+  // Sidekick itself (see packages/shared-providers/src/claude-cli-spawn.ts),
+  // bail before any side effects — no daemon spawn, no auto-configure, no IPC,
+  // no logging, no LLM call — so nested subprocesses stay cheap and inert.
+  // The env var is inherited transitively, so the guard fires at every depth.
+  if (process.env.SIDEKICK_SUBPROCESS === '1') {
+    stdout.write('{}\n')
+    return { exitCode: 0, output: '{}' }
+  }
+
   const { projectRoot, hookInput, correlationId, runtime, forceDevMode } = options
 
   logger.debug('Unified hook command invoked', { hookName, sessionId: hookInput.sessionId })
