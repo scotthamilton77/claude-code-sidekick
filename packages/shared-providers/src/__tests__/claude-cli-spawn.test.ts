@@ -145,7 +145,8 @@ describe('spawnClaudeCli', () => {
 
       await resultPromise
 
-      // Assert: spawn was called with an env option carrying the recursion guard.
+      // Assert: spawn was called with an env option carrying the recursion guard
+      // AND inheriting parent env (verified via a sentinel var below).
       expect(mockSpawn).toHaveBeenCalledTimes(1)
       const spawnArgs = mockSpawn.mock.calls[0]
       const spawnOptions = spawnArgs[2] as { env?: Record<string, string> }
@@ -157,7 +158,7 @@ describe('spawnClaudeCli', () => {
       const mockProc = createMockProcess()
       mockSpawn.mockReturnValue(mockProc)
 
-      // Set a sentinel env var to verify inheritance from process.env
+      // Set a sentinel env var to verify inheritance
       const sentinelKey = '__SIDEKICK_SPAWN_TEST_SENTINEL__'
       const sentinelValue = 'inherited-value'
       process.env[sentinelKey] = sentinelValue
