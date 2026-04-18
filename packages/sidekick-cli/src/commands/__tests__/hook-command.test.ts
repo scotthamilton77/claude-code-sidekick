@@ -378,7 +378,7 @@ describe('ClaudeCodeHookResponse type', () => {
 
 // Integration tests for handleUnifiedHookCommand
 import { Writable } from 'node:stream'
-import { vi, beforeEach } from 'vitest'
+import { vi, beforeEach, afterEach } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
 import { handleUnifiedHookCommand } from '../hook-command.js'
 
@@ -1145,6 +1145,58 @@ describe('handleUnifiedHookCommand', () => {
       expect(mockDaemonStart).toHaveBeenCalled()
       // Hook should still complete
       expect(mockHandleHookCommand).toHaveBeenCalled()
+    })
+  })
+
+  describe('SIDEKICK_SUBPROCESS recursion guard', () => {
+    let originalGuard: string | undefined
+
+    beforeEach(() => {
+      originalGuard = process.env.SIDEKICK_SUBPROCESS
+    })
+
+    afterEach(() => {
+      if (originalGuard === undefined) {
+        delete process.env.SIDEKICK_SUBPROCESS
+      } else {
+        process.env.SIDEKICK_SUBPROCESS = originalGuard
+      }
+    })
+
+    test('short-circuits before any side effects when guard is set', async () => {
+      process.env.SIDEKICK_SUBPROCESS = '1'
+
+      const stdout = new CollectingWritable()
+      const result = await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result).toEqual({ exitCode: 0, output: '{}' })
+      expect(stdout.data).toBe('{}\n')
+      // None of the external side effects should fire: no daemon spawn,
+      // no auto-configure probe, no setup-state check, no inner hook dispatch.
+      expect(mockDaemonStart).not.toHaveBeenCalled()
+      expect(mockShouldAutoConfigureProject).not.toHaveBeenCalled()
+      expect(mockGetSetupState).not.toHaveBeenCalled()
+      expect(mockHandleHookCommand).not.toHaveBeenCalled()
+    })
+
+    test('processes hook normally when guard is unset', async () => {
+      delete process.env.SIDEKICK_SUBPROCESS
+      mockHandleHookCommand.mockResolvedValue({ exitCode: 0, output: '{}' })
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockHandleHookCommand).toHaveBeenCalledTimes(1)
+    })
+
+    test('processes hook normally when guard is set to non-"1" value', async () => {
+      process.env.SIDEKICK_SUBPROCESS = '0'
+      mockHandleHookCommand.mockResolvedValue({ exitCode: 0, output: '{}' })
+
+      const stdout = new CollectingWritable()
+      await handleUnifiedHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockHandleHookCommand).toHaveBeenCalledTimes(1)
     })
   })
 })

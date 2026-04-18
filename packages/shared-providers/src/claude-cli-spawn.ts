@@ -154,6 +154,12 @@ function executeSpawn(options: ExecuteSpawnOptions): Promise<ClaudeCliSpawnResul
     const child = spawn(cliPath, args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
+      // Recursion guard: Sidekick's own Claude Code hooks fire inside any
+      // `claude -p` subprocess we spawn. Without this flag, the subprocess
+      // hook handler would dispatch to the daemon, trigger another LLM call,
+      // spawn another subprocess, and so on. handleHookCommand short-circuits
+      // when SIDEKICK_SUBPROCESS=1 is set. See packages/sidekick-cli/src/commands/hook.ts.
+      env: { ...process.env, SIDEKICK_SUBPROCESS: '1' },
     })
 
     let stdout = ''
