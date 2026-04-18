@@ -128,6 +128,60 @@ describe('spawnClaudeCli', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith('claude', ['--version'], expect.objectContaining({ cwd: '/custom/cwd' }))
     })
+
+    it('passes SIDEKICK_SUBPROCESS=1 in env to prevent hook recursion', async () => {
+      const mockProc = createMockProcess()
+      mockSpawn.mockReturnValue(mockProc)
+
+      const resultPromise = spawnClaudeCli({
+        args: ['-p', 'Hello'],
+        logger,
+      })
+
+      setTimeout(() => {
+        mockProc.stdout.emit('data', Buffer.from('OK'))
+        mockProc.emit('close', 0)
+      }, 10)
+
+      await resultPromise
+
+      // Assert: spawn was called with an env option carrying the recursion guard.
+      expect(mockSpawn).toHaveBeenCalledTimes(1)
+      const spawnArgs = mockSpawn.mock.calls[0]
+      const spawnOptions = spawnArgs[2] as { env?: Record<string, string> }
+      expect(spawnOptions.env).toBeDefined()
+      expect(spawnOptions.env!.SIDEKICK_SUBPROCESS).toBe('1')
+    })
+
+    it('inherits process.env when setting SIDEKICK_SUBPROCESS guard', async () => {
+      const mockProc = createMockProcess()
+      mockSpawn.mockReturnValue(mockProc)
+
+      // Set a sentinel env var to verify inheritance from process.env
+      const sentinelKey = '__SIDEKICK_SPAWN_TEST_SENTINEL__'
+      const sentinelValue = 'inherited-value'
+      process.env[sentinelKey] = sentinelValue
+
+      try {
+        const resultPromise = spawnClaudeCli({
+          args: ['-p', 'Hello'],
+          logger,
+        })
+
+        setTimeout(() => {
+          mockProc.stdout.emit('data', Buffer.from('OK'))
+          mockProc.emit('close', 0)
+        }, 10)
+
+        await resultPromise
+
+        const spawnArgs = mockSpawn.mock.calls[0]
+        const spawnOptions = spawnArgs[2] as { env?: Record<string, string> }
+        expect(spawnOptions.env![sentinelKey]).toBe(sentinelValue)
+      } finally {
+        delete process.env[sentinelKey]
+      }
+    })
   })
 
   describe('error handling', () => {

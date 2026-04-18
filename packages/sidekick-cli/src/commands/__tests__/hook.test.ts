@@ -6,7 +6,7 @@
  * @see docs/design/flow.md §5 Complete Hook Flows
  */
 import { Writable } from 'node:stream'
-import { describe, expect, test, vi, beforeEach } from 'vitest'
+import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import type { ParsedHookInput } from '@sidekick/types'
 import {
   buildHookEvent,
@@ -618,6 +618,66 @@ describe('handleHookCommand', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSend.mockResolvedValue(null) // Default to daemon unavailable
+  })
+
+  describe('recursion guard (SIDEKICK_SUBPROCESS)', () => {
+    const originalGuard = process.env.SIDEKICK_SUBPROCESS
+
+    beforeEach(() => {
+      delete process.env.SIDEKICK_SUBPROCESS
+    })
+
+    afterEach(() => {
+      if (originalGuard === undefined) {
+        delete process.env.SIDEKICK_SUBPROCESS
+      } else {
+        process.env.SIDEKICK_SUBPROCESS = originalGuard
+      }
+    })
+
+    test('short-circuits and writes empty response when SIDEKICK_SUBPROCESS=1', async () => {
+      process.env.SIDEKICK_SUBPROCESS = '1'
+
+      const stdout = new CollectingWritable()
+      const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(result.output).toBe('{}')
+      expect(stdout.data).toBe('{}\n')
+
+      // Critical: no IPC dispatch, no CLI handler registration, no logging
+      expect(mockSend).not.toHaveBeenCalled()
+      expect(mockClose).not.toHaveBeenCalled()
+      expect(mockLogger.info).not.toHaveBeenCalled()
+      expect(mockLogger.debug).not.toHaveBeenCalled()
+    })
+
+    test('processes hook normally when SIDEKICK_SUBPROCESS is unset', async () => {
+      // env var intentionally unset in beforeEach
+      mockSend.mockResolvedValue({ additionalContext: 'proceed' })
+
+      const stdout = new CollectingWritable()
+      const result = await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(result.exitCode).toBe(0)
+      expect(mockSend).toHaveBeenCalledTimes(1)
+    })
+
+    test('processes hook normally when SIDEKICK_SUBPROCESS is any value other than "1"', async () => {
+      process.env.SIDEKICK_SUBPROCESS = '0'
+      mockSend.mockResolvedValue({})
+
+      const stdout = new CollectingWritable()
+      await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+
+      expect(mockSend).toHaveBeenCalledTimes(1)
+
+      // Also confirm 'true' and arbitrary strings do NOT trigger the guard
+      mockSend.mockClear()
+      process.env.SIDEKICK_SUBPROCESS = 'true'
+      await handleHookCommand('SessionStart', baseOptions, mockLogger, stdout)
+      expect(mockSend).toHaveBeenCalledTimes(1)
+    })
   })
 
   test('returns empty response on IPC failure (graceful degradation)', async () => {

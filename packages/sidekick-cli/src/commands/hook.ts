@@ -437,6 +437,14 @@ export async function handleHookCommand(
   logger: Logger,
   stdout: Writable
 ): Promise<HandleHookResult> {
+  // Recursion guard: when invoked inside a `claude -p` subprocess spawned by
+  // Sidekick itself (see packages/shared-providers/src/claude-cli-spawn.ts),
+  // skip all hook processing to avoid hook -> LLM -> hook recursion.
+  if (process.env.SIDEKICK_SUBPROCESS === '1') {
+    stdout.write('{}\n')
+    return { exitCode: 0, output: '{}' }
+  }
+
   const { projectRoot, hookInput, correlationId, runtime } = options
   const startTime = Date.now()
 
