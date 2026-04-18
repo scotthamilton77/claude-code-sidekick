@@ -621,9 +621,10 @@ describe('handleHookCommand', () => {
   })
 
   describe('recursion guard (SIDEKICK_SUBPROCESS)', () => {
-    const originalGuard = process.env.SIDEKICK_SUBPROCESS
+    let originalGuard: string | undefined
 
     beforeEach(() => {
+      originalGuard = process.env.SIDEKICK_SUBPROCESS
       delete process.env.SIDEKICK_SUBPROCESS
     })
 

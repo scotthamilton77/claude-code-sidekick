@@ -149,7 +149,7 @@ describe('spawnClaudeCli', () => {
       // AND inheriting parent env (verified via a sentinel var below).
       expect(mockSpawn).toHaveBeenCalledTimes(1)
       const spawnArgs = mockSpawn.mock.calls[0]
-      const spawnOptions = spawnArgs[2] as { env?: Record<string, string> }
+      const spawnOptions = spawnArgs[2] as { env?: NodeJS.ProcessEnv }
       expect(spawnOptions.env).toBeDefined()
       expect(spawnOptions.env!.SIDEKICK_SUBPROCESS).toBe('1')
     })
@@ -177,7 +177,7 @@ describe('spawnClaudeCli', () => {
         await resultPromise
 
         const spawnArgs = mockSpawn.mock.calls[0]
-        const spawnOptions = spawnArgs[2] as { env?: Record<string, string> }
+        const spawnOptions = spawnArgs[2] as { env?: NodeJS.ProcessEnv }
         expect(spawnOptions.env![sentinelKey]).toBe(sentinelValue)
       } finally {
         delete process.env[sentinelKey]
