@@ -351,7 +351,7 @@ function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, t
   }
 
   if (subtype === 'away_summary') {
-    const summaryText = typeof entry.content === 'string' && entry.content ? entry.content : null
+    const summaryText = typeof entry.content === 'string' ? entry.content.trim() : ''
     if (!summaryText) return []
     return [
       {
@@ -377,7 +377,7 @@ function processSummaryEntry(
   lineIndex: number,
   timestamp: number,
 ): ApiTranscriptLine[] {
-  const summaryText = typeof entry.summary === 'string' && entry.summary ? entry.summary : null
+  const summaryText = typeof entry.summary === 'string' ? entry.summary.trim() : ''
   if (!summaryText) return []
   return [
     {
