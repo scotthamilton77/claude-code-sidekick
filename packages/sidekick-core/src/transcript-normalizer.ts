@@ -261,6 +261,9 @@ export function renderTranscriptString(entries: CanonicalTranscriptEntry[]): str
         return `[${timestamp}] ${role} TOOL_USE: ${String(toolContent.name)}`
       } else if (type === 'tool_result') {
         return `[${timestamp}] ${role} TOOL_RESULT`
+      } else if (type === 'recap') {
+        const content = typeof entry.content === 'string' ? entry.content : ''
+        return `[${timestamp}] RECAP: ${content}`
       }
       return `[${timestamp}] ${role}: ${JSON.stringify(entry.content)}`
     })
