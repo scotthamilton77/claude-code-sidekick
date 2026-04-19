@@ -351,12 +351,14 @@ function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, t
   }
 
   if (subtype === 'away_summary') {
+    const summaryText = typeof entry.content === 'string' && entry.content ? entry.content : null
+    if (!summaryText) return []
     return [
       {
         id: `transcript-${lineIndex}-0`,
         timestamp,
         type: 'recap',
-        content: String(entry.content ?? ''),
+        content: summaryText,
         recapSource: 'away',
         ...meta,
       },
@@ -554,13 +556,15 @@ function parseJsonlContent(
         lines = processSystemEntry(entry, lineIndex, timestamp)
         break
       case 'summary': {
+        const summaryText = typeof entry.summary === 'string' && entry.summary ? entry.summary : null
+        if (!summaryText) { lines = []; break }
         const meta = extractMetadata(entry)
         lines = [
           {
             id: `transcript-${lineIndex}-0`,
             timestamp,
             type: 'recap',
-            content: String(entry.summary ?? ''),
+            content: summaryText,
             recapSource: 'compaction',
             ...meta,
           },

@@ -1169,6 +1169,32 @@ describe('parseTranscriptLines', () => {
     expect(lines).toHaveLength(0)
   })
 
+  it('skips summary entry with missing summary field', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'sum-uuid-3',
+      type: 'summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      leafUuid: 'leaf-abc',
+      // no summary field
+    }))
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(0)
+  })
+
+  it('skips system/away_summary with missing content field', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'away-uuid-2',
+      type: 'system',
+      subtype: 'away_summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      // no content field
+    }))
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(0)
+  })
+
   // Helper: set up Sidekick log events for interleaving tests
   function setupSidekickEvents(events: Record<string, unknown>[]): void {
     mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {
