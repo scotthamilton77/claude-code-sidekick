@@ -310,6 +310,30 @@ describe('TranscriptLineCard', () => {
     })
   })
 
+  describe('recap bubble', () => {
+    it('renders away recap with "Recap" label and content', () => {
+      const line = makeLine({
+        type: 'recap',
+        recapSource: 'away',
+        content: 'Waiting for user choice.',
+      })
+      render(<TranscriptLineCard line={line} {...defaultProps} />)
+      expect(screen.getByText('Recap')).toBeInTheDocument()
+      expect(screen.getByText('Waiting for user choice.')).toBeInTheDocument()
+    })
+
+    it('renders compaction recap with "Compaction Summary" label and content', () => {
+      const line = makeLine({
+        type: 'recap',
+        recapSource: 'compaction',
+        content: 'Session compacted.',
+      })
+      render(<TranscriptLineCard line={line} {...defaultProps} />)
+      expect(screen.getByText('Compaction Summary')).toBeInTheDocument()
+      expect(screen.getByText('Session compacted.')).toBeInTheDocument()
+    })
+  })
+
   describe('model badge', () => {
     it('renders model badge when line model differs from default', () => {
       const line = makeLine({
