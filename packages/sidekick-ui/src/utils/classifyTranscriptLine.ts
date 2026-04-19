@@ -3,7 +3,7 @@ import { SIDEKICK_EVENT_TO_FILTER } from '../types'
 
 export const CLAUDE_CODE_TYPES: ReadonlySet<TranscriptLineType> = new Set<TranscriptLineType>([
   'user-message', 'assistant-message', 'tool-use', 'tool-result',
-  'compaction', 'turn-duration', 'api-error', 'pr-link',
+  'compaction', 'recap', 'turn-duration', 'api-error', 'pr-link',
 ])
 
 /**
@@ -26,7 +26,7 @@ export function classifyLineCategory(line: TranscriptLine): TranscriptFilter {
   }
   if (type === 'assistant-message') return 'conversation'
   if (type === 'tool-use' || type === 'tool-result') return 'tools'
-  if (type === 'compaction' || type === 'turn-duration' || type === 'api-error' || type === 'pr-link') return 'system'
+  if (type === 'compaction' || type === 'recap' || type === 'turn-duration' || type === 'api-error' || type === 'pr-link') return 'system'
   // Sidekick events: map to their specific timeline filter category
   if (!CLAUDE_CODE_TYPES.has(type)) {
     const filterCategory = SIDEKICK_EVENT_TO_FILTER[type as SidekickEventType]

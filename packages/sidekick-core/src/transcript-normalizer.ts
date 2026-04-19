@@ -16,6 +16,36 @@ import type { BufferedEntry } from './transcript-helpers.js'
 // ============================================================================
 
 /**
+ * Build a canonical recap entry from a raw summary/away_summary field.
+ * Returns null when the source text is missing or blank.
+ * `leafUuid` is only set for compaction recaps (references earlier entry for excerpt lookup).
+ */
+function buildRecapEntry(params: {
+  rawText: unknown
+  uuid: string | undefined
+  timestamp: string | undefined
+  lineNumber: number
+  recapSource: 'compaction' | 'away'
+  leafUuid?: string
+}): CanonicalTranscriptEntry | null {
+  const text = typeof params.rawText === 'string' ? params.rawText.trim() : ''
+  if (!text) return null
+  return {
+    id: params.uuid ?? `line-${params.lineNumber}`,
+    timestamp: new Date(params.timestamp ?? Date.now()),
+    role: 'system',
+    type: 'recap',
+    content: text,
+    metadata: {
+      provider: 'claude',
+      lineNumber: params.lineNumber,
+      recapSource: params.recapSource,
+      leafUuid: params.leafUuid,
+    },
+  }
+}
+
+/**
  * Normalize a raw transcript entry into canonical form.
  * Handles nested tool_use and tool_result blocks.
  * Returns array because one raw entry can produce multiple canonical entries.
@@ -23,7 +53,35 @@ import type { BufferedEntry } from './transcript-helpers.js'
 export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): CanonicalTranscriptEntry[] | null {
   const entryType = rawEntry.type as string | undefined
 
-  // Skip non-message entry types (file-history-snapshot, summary, etc.)
+  // Handle compaction summary entries (type: 'summary')
+  if (entryType === 'summary') {
+    const raw = rawEntry as { uuid?: string; timestamp?: string; summary?: unknown; leafUuid?: unknown }
+    const recap = buildRecapEntry({
+      rawText: raw.summary,
+      uuid: raw.uuid,
+      timestamp: raw.timestamp,
+      lineNumber,
+      recapSource: 'compaction',
+      leafUuid: typeof raw.leafUuid === 'string' ? raw.leafUuid : undefined,
+    })
+    return recap ? [recap] : null
+  }
+
+  // Handle away_summary system entries (type: 'system', subtype: 'away_summary')
+  if (entryType === 'system') {
+    const raw = rawEntry as { uuid?: string; timestamp?: string; subtype?: string; content?: unknown }
+    if (raw.subtype !== 'away_summary') return null
+    const recap = buildRecapEntry({
+      rawText: raw.content,
+      uuid: raw.uuid,
+      timestamp: raw.timestamp,
+      lineNumber,
+      recapSource: 'away',
+    })
+    return recap ? [recap] : null
+  }
+
+  // Skip remaining non-message types (file-history-snapshot, attachment, etc.)
   if (entryType !== 'user' && entryType !== 'assistant') {
     return null
   }
@@ -215,6 +273,9 @@ export function renderTranscriptString(entries: CanonicalTranscriptEntry[]): str
         return `[${timestamp}] ${role} TOOL_USE: ${String(toolContent.name)}`
       } else if (type === 'tool_result') {
         return `[${timestamp}] ${role} TOOL_RESULT`
+      } else if (type === 'recap') {
+        const content = typeof entry.content === 'string' ? entry.content : ''
+        return `[${timestamp}] RECAP: ${content}`
       }
       return `[${timestamp}] ${role}: ${JSON.stringify(entry.content)}`
     })

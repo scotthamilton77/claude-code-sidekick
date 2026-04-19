@@ -17,6 +17,7 @@ export type ApiTranscriptLineType =
   | 'tool-use'
   | 'tool-result'
   | 'compaction'
+  | 'recap'
   | 'turn-duration'
   | 'api-error'
   | 'pr-link'
@@ -39,6 +40,7 @@ export interface ApiTranscriptLine {
   toolSuccess?: boolean
   compactionTokensBefore?: number
   compactionTokensAfter?: number
+  recapSource?: 'compaction' | 'away'
   durationMs?: number
   retryAttempt?: number
   maxRetries?: number
@@ -348,8 +350,45 @@ function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, t
     ]
   }
 
+  if (subtype === 'away_summary') {
+    const summaryText = typeof entry.content === 'string' ? entry.content.trim() : ''
+    if (!summaryText) return []
+    return [
+      {
+        id: `transcript-${lineIndex}-0`,
+        timestamp,
+        type: 'recap',
+        content: summaryText,
+        recapSource: 'away',
+        ...meta,
+      },
+    ]
+  }
+
   // Unknown system subtype — skip
   return []
+}
+
+/**
+ * Process a compaction summary entry (type: 'summary').
+ */
+function processSummaryEntry(
+  entry: Record<string, unknown>,
+  lineIndex: number,
+  timestamp: number,
+): ApiTranscriptLine[] {
+  const summaryText = typeof entry.summary === 'string' ? entry.summary.trim() : ''
+  if (!summaryText) return []
+  return [
+    {
+      id: `transcript-${lineIndex}-0`,
+      timestamp,
+      type: 'recap',
+      content: summaryText,
+      recapSource: 'compaction',
+      ...extractMetadata(entry),
+    },
+  ]
 }
 
 /**
@@ -537,6 +576,9 @@ function parseJsonlContent(
         break
       case 'system':
         lines = processSystemEntry(entry, lineIndex, timestamp)
+        break
+      case 'summary':
+        lines = processSummaryEntry(entry, lineIndex, timestamp)
         break
       default:
         lines = onExtra?.(entry, entryType, lineIndex, timestamp, results) ?? []

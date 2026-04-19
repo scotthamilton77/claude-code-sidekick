@@ -1104,6 +1104,97 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].type).toBe('user-message')
   })
 
+  it('parses summary entry -> recap with recapSource compaction', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'sum-uuid-1',
+      type: 'summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      summary: 'Working on gitignore migration.',
+      leafUuid: 'leaf-abc',
+    }))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('recap')
+    expect(lines[0].content).toBe('Working on gitignore migration.')
+    expect(lines[0].recapSource).toBe('compaction')
+  })
+
+  it('parses summary entry -> preserves isSidechain metadata flag', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'sum-uuid-2',
+      type: 'summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      summary: 'Session compacted.',
+      leafUuid: 'leaf-xyz',
+      isSidechain: true,
+    }))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('recap')
+    expect(lines[0].isSidechain).toBe(true)
+  })
+
+  it('parses system/away_summary -> recap with recapSource away', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'away-uuid-1',
+      type: 'system',
+      subtype: 'away_summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      content: 'Waiting for user choice before merging.',
+      isMeta: false,
+    }))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('recap')
+    expect(lines[0].content).toBe('Waiting for user choice before merging.')
+    expect(lines[0].recapSource).toBe('away')
+  })
+
+  it('skips system/stop_hook_summary (regression guard)', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'hook-uuid-1',
+      type: 'system',
+      subtype: 'stop_hook_summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      hookCount: 1,
+      hookInfos: [],
+    }))
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(0)
+  })
+
+  it('skips summary entry with missing summary field', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'sum-uuid-3',
+      type: 'summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      leafUuid: 'leaf-abc',
+      // no summary field
+    }))
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(0)
+  })
+
+  it('skips system/away_summary with missing content field', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'away-uuid-2',
+      type: 'system',
+      subtype: 'away_summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      // no content field
+    }))
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(0)
+  })
+
   // Helper: set up Sidekick log events for interleaving tests
   function setupSidekickEvents(events: Record<string, unknown>[]): void {
     mockFindLogFiles.mockImplementation((_dir: string, prefix: string) => {

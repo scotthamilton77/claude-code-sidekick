@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { BookOpen, Scissors, ChevronDown, ChevronRight } from 'lucide-react'
+import { BookOpen, FileText, RotateCcw, Scissors, ChevronDown, ChevronRight } from 'lucide-react'
 import type { TranscriptLine as TLine } from '../../types'
 import { formatTime } from '../../utils/formatTime'
 import { CollapsibleContent } from './CollapsibleContent'
@@ -57,6 +57,44 @@ export function TranscriptLineCard({
           )}
         </div>
         <div className="flex-1 border-t border-dashed border-slate-300 dark:border-slate-600" />
+      </div>
+    )
+  }
+
+  // Recap bubble: centered, muted — infrastructure metadata, not conversation
+  if (line.type === 'recap') {
+    const isCompaction = line.recapSource === 'compaction'
+    const Icon = isCompaction ? FileText : RotateCcw
+    const label = isCompaction ? 'Compaction Summary' : 'Recap'
+    return (
+      <div
+        onClick={onClick}
+        className="flex justify-center px-4 py-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50"
+      >
+        <div className="w-[70%]">
+          <div
+            className={`rounded-lg px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 ${
+              isSelected
+                ? 'ring-2 ring-indigo-400 dark:ring-indigo-500'
+                : isSynced
+                  ? 'ring-2 ring-amber-400 dark:ring-amber-500'
+                  : ''
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <Icon size={10} className="text-slate-400 dark:text-slate-500 flex-shrink-0" />
+              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">{label}</span>
+              <span className="text-[10px] text-slate-400 ml-auto tabular-nums flex-shrink-0">
+                {formatTime(line.timestamp)}
+              </span>
+            </div>
+            {line.content && (
+              <p className="text-[10px] italic text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5">
+                {line.content}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
