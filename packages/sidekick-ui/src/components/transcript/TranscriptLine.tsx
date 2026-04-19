@@ -63,9 +63,9 @@ export function TranscriptLineCard({
 
   // Recap bubble: centered, muted — infrastructure metadata, not conversation
   if (line.type === 'recap') {
-    const isAway = line.recapSource === 'away'
-    const Icon = isAway ? RotateCcw : FileText
-    const label = isAway ? 'Recap' : 'Compaction Summary'
+    const isCompaction = line.recapSource === 'compaction'
+    const Icon = isCompaction ? FileText : RotateCcw
+    const label = isCompaction ? 'Compaction Summary' : 'Recap'
     return (
       <div
         onClick={onClick}
