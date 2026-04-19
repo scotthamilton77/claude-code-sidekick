@@ -34,7 +34,7 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
         timestamp,
         role: 'system',
         type: 'recap',
-        content: String(raw.summary ?? ''),
+        content: typeof raw.summary === 'string' ? raw.summary : '',
         metadata: {
           provider: 'claude',
           lineNumber,
@@ -57,7 +57,7 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
           timestamp,
           role: 'system',
           type: 'recap',
-          content: String(raw.content ?? ''),
+          content: typeof raw.content === 'string' ? raw.content : '',
           metadata: {
             provider: 'claude',
             lineNumber,

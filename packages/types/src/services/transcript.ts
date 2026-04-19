@@ -36,7 +36,7 @@ export interface CanonicalTranscriptEntry {
     originalId?: string
     lineNumber?: number
     recapSource?: 'compaction' | 'away'
-    leafUuid?: string      // internal-only: used by excerpt builder knownUuids check, not surfaced to UI
+    leafUuid?: string // internal-only: used by excerpt builder knownUuids check, not surfaced to UI
     [key: string]: unknown
   }
 }
