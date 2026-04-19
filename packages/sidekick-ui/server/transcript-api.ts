@@ -350,6 +350,19 @@ function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, t
     ]
   }
 
+  if (subtype === 'away_summary') {
+    return [
+      {
+        id: `transcript-${lineIndex}-0`,
+        timestamp,
+        type: 'recap',
+        content: String(entry.content ?? ''),
+        recapSource: 'away',
+        ...meta,
+      },
+    ]
+  }
+
   // Unknown system subtype — skip
   return []
 }
@@ -539,6 +552,17 @@ function parseJsonlContent(
         break
       case 'system':
         lines = processSystemEntry(entry, lineIndex, timestamp)
+        break
+      case 'summary':
+        lines = [
+          {
+            id: `transcript-${lineIndex}-0`,
+            timestamp,
+            type: 'recap',
+            content: String(entry.summary ?? ''),
+            recapSource: 'compaction',
+          },
+        ]
         break
       default:
         lines = onExtra?.(entry, entryType, lineIndex, timestamp, results) ?? []
