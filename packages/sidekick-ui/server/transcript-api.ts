@@ -553,7 +553,8 @@ function parseJsonlContent(
       case 'system':
         lines = processSystemEntry(entry, lineIndex, timestamp)
         break
-      case 'summary':
+      case 'summary': {
+        const meta = extractMetadata(entry)
         lines = [
           {
             id: `transcript-${lineIndex}-0`,
@@ -561,9 +562,11 @@ function parseJsonlContent(
             type: 'recap',
             content: String(entry.summary ?? ''),
             recapSource: 'compaction',
+            ...meta,
           },
         ]
         break
+      }
       default:
         lines = onExtra?.(entry, entryType, lineIndex, timestamp, results) ?? []
     }

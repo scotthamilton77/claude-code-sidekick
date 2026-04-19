@@ -1121,6 +1121,23 @@ describe('parseTranscriptLines', () => {
     expect(lines[0].recapSource).toBe('compaction')
   })
 
+  it('parses summary entry -> preserves isSidechain metadata flag', async () => {
+    setupTranscript(JSON.stringify({
+      uuid: 'sum-uuid-2',
+      type: 'summary',
+      timestamp: DEFAULT_TIMESTAMP,
+      sessionId: DEFAULT_SESSION_ID,
+      summary: 'Session compacted.',
+      leafUuid: 'leaf-xyz',
+      isSidechain: true,
+    }))
+
+    const lines = await parseTranscriptLines('myproject', 'session-1')
+    expect(lines).toHaveLength(1)
+    expect(lines[0].type).toBe('recap')
+    expect(lines[0].isSidechain).toBe(true)
+  })
+
   it('parses system/away_summary -> recap with recapSource away', async () => {
     setupTranscript(JSON.stringify({
       uuid: 'away-uuid-1',
