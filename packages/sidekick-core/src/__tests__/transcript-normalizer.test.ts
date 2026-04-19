@@ -80,8 +80,8 @@ describe('normalizeEntry', () => {
 
   it('returns null for non-message types', () => {
     const entry: TranscriptEntry = {
-      type: 'summary',
-      uuid: 'summary-1',
+      type: 'file-history-snapshot',
+      uuid: 'snapshot-1',
     }
 
     expect(normalizeEntry(entry, 1)).toBeNull()
@@ -262,5 +262,70 @@ describe('renderTranscriptString', () => {
 
   it('returns empty string for empty array', () => {
     expect(renderTranscriptString([])).toBe('')
+  })
+})
+
+// ============================================================================
+// normalizeEntry — recap entries
+// ============================================================================
+
+describe('normalizeEntry — recap entries', () => {
+  it('normalizes summary entry -> type recap, source compaction, preserves leafUuid', () => {
+    const raw = {
+      type: 'summary',
+      uuid: 'sum-uuid-1',
+      timestamp: '2026-04-15T10:00:00.000Z',
+      summary: 'Working on gitignore migration. Next: choose execution mode.',
+      leafUuid: 'leaf-abc-123',
+    }
+    const result = normalizeEntry(raw as TranscriptEntry, 5)
+    expect(result).toHaveLength(1)
+    const entry = result![0]
+    expect(entry.type).toBe('recap')
+    expect(entry.role).toBe('system')
+    expect(entry.content).toBe('Working on gitignore migration. Next: choose execution mode.')
+    expect(entry.metadata.recapSource).toBe('compaction')
+    expect(entry.metadata.leafUuid).toBe('leaf-abc-123')
+    expect(entry.metadata.lineNumber).toBe(5)
+  })
+
+  it('normalizes system/away_summary entry -> type recap, source away', () => {
+    const raw = {
+      type: 'system',
+      subtype: 'away_summary',
+      uuid: 'away-uuid-1',
+      timestamp: '2026-04-15T10:05:00.000Z',
+      content: 'Waiting for user option choice before merging.',
+      isMeta: false,
+    }
+    const result = normalizeEntry(raw as TranscriptEntry, 10)
+    expect(result).toHaveLength(1)
+    const entry = result![0]
+    expect(entry.type).toBe('recap')
+    expect(entry.role).toBe('system')
+    expect(entry.content).toBe('Waiting for user option choice before merging.')
+    expect(entry.metadata.recapSource).toBe('away')
+    expect(entry.metadata.lineNumber).toBe(10)
+  })
+
+  it('returns null for system/compact_boundary (regression guard)', () => {
+    const raw = {
+      type: 'system',
+      subtype: 'compact_boundary',
+      uuid: 'cb-uuid-1',
+      timestamp: '2026-04-15T10:00:00.000Z',
+    }
+    expect(normalizeEntry(raw as TranscriptEntry, 3)).toBeNull()
+  })
+
+  it('returns null for system/turn_duration (regression guard)', () => {
+    const raw = {
+      type: 'system',
+      subtype: 'turn_duration',
+      uuid: 'td-uuid-1',
+      timestamp: '2026-04-15T10:00:00.000Z',
+      durationMs: 1234,
+    }
+    expect(normalizeEntry(raw as TranscriptEntry, 4)).toBeNull()
   })
 })

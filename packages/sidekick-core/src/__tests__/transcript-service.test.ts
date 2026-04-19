@@ -2024,10 +2024,6 @@ describe('TranscriptServiceImpl', () => {
           uuid: 'user-1',
           message: { role: 'user', content: 'Hello' },
         }),
-        JSON.stringify({
-          type: 'summary',
-          summary: 'Session summary',
-        }),
       ].join('\n')
       writeFileSync(transcriptPath, content)
       await service.prepare('test-session', transcriptPath)
@@ -2035,7 +2031,7 @@ describe('TranscriptServiceImpl', () => {
 
       const transcript = service.getTranscript()
 
-      // Only the user message is parsed
+      // Only the user message is parsed; file-history-snapshot is skipped
       expect(transcript.entries.length).toBe(1)
       expect(transcript.entries[0].role).toBe('user')
     })

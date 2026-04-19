@@ -23,7 +23,53 @@ import type { BufferedEntry } from './transcript-helpers.js'
 export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): CanonicalTranscriptEntry[] | null {
   const entryType = rawEntry.type as string | undefined
 
-  // Skip non-message entry types (file-history-snapshot, summary, etc.)
+  // Handle compaction summary entries (type: 'summary')
+  if (entryType === 'summary') {
+    const raw = rawEntry as { uuid?: string; timestamp?: string; summary?: unknown; leafUuid?: unknown }
+    const uuid = raw.uuid ?? `line-${lineNumber}`
+    const timestamp = new Date(raw.timestamp ?? Date.now())
+    return [
+      {
+        id: uuid,
+        timestamp,
+        role: 'system',
+        type: 'recap',
+        content: String(raw.summary ?? ''),
+        metadata: {
+          provider: 'claude',
+          lineNumber,
+          recapSource: 'compaction',
+          leafUuid: raw.leafUuid as string | undefined,
+        },
+      },
+    ]
+  }
+
+  // Handle away_summary system entries (type: 'system', subtype: 'away_summary')
+  if (entryType === 'system') {
+    const raw = rawEntry as { uuid?: string; timestamp?: string; subtype?: string; content?: unknown }
+    if (raw.subtype === 'away_summary') {
+      const uuid = raw.uuid ?? `line-${lineNumber}`
+      const timestamp = new Date(raw.timestamp ?? Date.now())
+      return [
+        {
+          id: uuid,
+          timestamp,
+          role: 'system',
+          type: 'recap',
+          content: String(raw.content ?? ''),
+          metadata: {
+            provider: 'claude',
+            lineNumber,
+            recapSource: 'away',
+          },
+        },
+      ]
+    }
+    return null
+  }
+
+  // Skip remaining non-message types (file-history-snapshot, attachment, etc.)
   if (entryType !== 'user' && entryType !== 'assistant') {
     return null
   }
