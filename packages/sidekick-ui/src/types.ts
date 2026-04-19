@@ -39,6 +39,7 @@ export type TranscriptLineType =
   | 'tool-use'
   | 'tool-result'
   | 'compaction'
+  | 'recap'
   | 'turn-duration'    // system/turn_duration entries
   | 'api-error'        // system/api_error entries
   | 'pr-link'          // pr-link entries
@@ -76,6 +77,9 @@ export interface TranscriptLine {
   compactionSegment?: number
   compactionTokensBefore?: number
   compactionTokensAfter?: number
+
+  // recap
+  recapSource?: 'compaction' | 'away'
 
   // reminder:staged / reminder:unstaged / reminder:consumed
   reminderId?: string

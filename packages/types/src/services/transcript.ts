@@ -29,12 +29,14 @@ export interface CanonicalTranscriptEntry {
   id: string
   timestamp: Date
   role: 'user' | 'assistant' | 'system'
-  type: 'text' | 'tool_use' | 'tool_result'
+  type: 'text' | 'tool_use' | 'tool_result' | 'recap'
   content: string | Record<string, unknown>
   metadata: {
     provider: string
     originalId?: string
     lineNumber?: number
+    recapSource?: 'compaction' | 'away'
+    leafUuid?: string      // internal-only: used by excerpt builder knownUuids check, not surfaced to UI
     [key: string]: unknown
   }
 }

@@ -17,6 +17,7 @@ export type ApiTranscriptLineType =
   | 'tool-use'
   | 'tool-result'
   | 'compaction'
+  | 'recap'
   | 'turn-duration'
   | 'api-error'
   | 'pr-link'
@@ -39,6 +40,7 @@ export interface ApiTranscriptLine {
   toolSuccess?: boolean
   compactionTokensBefore?: number
   compactionTokensAfter?: number
+  recapSource?: 'compaction' | 'away'
   durationMs?: number
   retryAttempt?: number
   maxRetries?: number
