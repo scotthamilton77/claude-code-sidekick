@@ -176,6 +176,55 @@ describe('parseBufferedEntry', () => {
     const result = parseBufferedEntry(entry, logger)
     expect(result).toBeNull()
   })
+
+  it('produces recap entry for summary type end-to-end', () => {
+    const logger = createFakeLogger()
+    const entry = {
+      lineNumber: 7,
+      rawLine: JSON.stringify({
+        type: 'summary',
+        uuid: 'sum-e2e-1',
+        timestamp: '2026-04-15T10:00:00.000Z',
+        summary: 'End-to-end compaction summary.',
+        leafUuid: 'leaf-e2e-1',
+      }),
+      uuid: 'sum-e2e-1',
+    }
+
+    const result = parseBufferedEntry(entry, logger)
+    expect(result).toHaveLength(1)
+    const canonical = result![0]
+    expect(canonical.type).toBe('recap')
+    expect(canonical.role).toBe('system')
+    expect(canonical.content).toBe('End-to-end compaction summary.')
+    expect(canonical.metadata.recapSource).toBe('compaction')
+    expect(canonical.metadata.leafUuid).toBe('leaf-e2e-1')
+    expect(canonical.metadata.lineNumber).toBe(7)
+  })
+
+  it('produces recap entry for system/away_summary type end-to-end', () => {
+    const logger = createFakeLogger()
+    const entry = {
+      lineNumber: 12,
+      rawLine: JSON.stringify({
+        type: 'system',
+        subtype: 'away_summary',
+        uuid: 'away-e2e-1',
+        timestamp: '2026-04-15T10:05:00.000Z',
+        content: 'End-to-end away summary.',
+      }),
+      uuid: 'away-e2e-1',
+    }
+
+    const result = parseBufferedEntry(entry, logger)
+    expect(result).toHaveLength(1)
+    const canonical = result![0]
+    expect(canonical.type).toBe('recap')
+    expect(canonical.role).toBe('system')
+    expect(canonical.content).toBe('End-to-end away summary.')
+    expect(canonical.metadata.recapSource).toBe('away')
+    expect(canonical.metadata.lineNumber).toBe(12)
+  })
 })
 
 // ============================================================================
