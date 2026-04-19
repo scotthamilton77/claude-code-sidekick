@@ -265,6 +265,14 @@ export function formatExcerptLine(line: string, knownUuids: Set<string>, options
         }
         return `[SESSION_HINT]: ${entry.summary ?? ''}`
 
+      case 'system': {
+        const subtype = (entry as { subtype?: string }).subtype
+        if (subtype === 'away_summary') {
+          return `[SESSION_RECAP]: ${String((entry as { content?: string }).content ?? '')}`
+        }
+        return null
+      }
+
       default:
         // Unknown types are excluded to avoid noise
         return null

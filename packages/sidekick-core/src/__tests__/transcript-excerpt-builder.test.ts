@@ -183,6 +183,38 @@ describe('formatExcerptLine', () => {
   it('returns null for malformed JSON', () => {
     expect(formatExcerptLine('not json', knownUuids, defaultFilterOptions)).toBeNull()
   })
+
+  it('formats system/away_summary as [SESSION_RECAP]', () => {
+    const line = JSON.stringify({
+      type: 'system',
+      subtype: 'away_summary',
+      content: 'Waiting for user choice before merging.',
+      uuid: 'away-1',
+      timestamp: '2026-04-15T10:00:00.000Z',
+      isMeta: false,
+    })
+    expect(formatExcerptLine(line, new Set(), {})).toBe(
+      '[SESSION_RECAP]: Waiting for user choice before merging.'
+    )
+  })
+
+  it('returns null for system/stop_hook_summary (regression guard)', () => {
+    const line = JSON.stringify({
+      type: 'system',
+      subtype: 'stop_hook_summary',
+      hookCount: 2,
+      hookInfos: [],
+    })
+    expect(formatExcerptLine(line, new Set(), {})).toBeNull()
+  })
+
+  it('returns null for system/compact_boundary (regression guard)', () => {
+    const line = JSON.stringify({
+      type: 'system',
+      subtype: 'compact_boundary',
+    })
+    expect(formatExcerptLine(line, new Set(), {})).toBeNull()
+  })
 })
 
 // ============================================================================
