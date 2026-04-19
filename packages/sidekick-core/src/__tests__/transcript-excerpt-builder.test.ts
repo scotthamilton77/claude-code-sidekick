@@ -193,7 +193,7 @@ describe('formatExcerptLine', () => {
       timestamp: '2026-04-15T10:00:00.000Z',
       isMeta: false,
     })
-    expect(formatExcerptLine(line, new Set(), {})).toBe(
+    expect(formatExcerptLine(line, new Set(), defaultFilterOptions)).toBe(
       '[SESSION_RECAP]: Waiting for user choice before merging.'
     )
   })
@@ -205,7 +205,7 @@ describe('formatExcerptLine', () => {
       hookCount: 2,
       hookInfos: [],
     })
-    expect(formatExcerptLine(line, new Set(), {})).toBeNull()
+    expect(formatExcerptLine(line, new Set(), defaultFilterOptions)).toBeNull()
   })
 
   it('returns null for system/compact_boundary (regression guard)', () => {
@@ -213,7 +213,7 @@ describe('formatExcerptLine', () => {
       type: 'system',
       subtype: 'compact_boundary',
     })
-    expect(formatExcerptLine(line, new Set(), {})).toBeNull()
+    expect(formatExcerptLine(line, new Set(), defaultFilterOptions)).toBeNull()
   })
 })
 
