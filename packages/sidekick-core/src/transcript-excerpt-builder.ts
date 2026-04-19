@@ -187,6 +187,7 @@ export function formatExcerptLine(line: string, knownUuids: Set<string>, options
   try {
     const entry = JSON.parse(line) as {
       type?: string
+      subtype?: string
       name?: string
       content?: string
       thinking?: string
@@ -266,13 +267,10 @@ export function formatExcerptLine(line: string, knownUuids: Set<string>, options
         return `[SESSION_HINT]: ${entry.summary ?? ''}`
 
       case 'system': {
-        const subtype = (entry as { subtype?: string }).subtype
-        if (subtype === 'away_summary') {
-          const content = (entry as { content?: string }).content
-          if (typeof content !== 'string' || !content.trim()) return null
-          return `[SESSION_RECAP]: ${content}`
-        }
-        return null
+        if (entry.subtype !== 'away_summary') return null
+        const content = entry.content
+        if (typeof content !== 'string' || !content.trim()) return null
+        return `[SESSION_RECAP]: ${content}`
       }
 
       default:

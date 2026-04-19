@@ -370,6 +370,28 @@ function processSystemEntry(entry: Record<string, unknown>, lineIndex: number, t
 }
 
 /**
+ * Process a compaction summary entry (type: 'summary').
+ */
+function processSummaryEntry(
+  entry: Record<string, unknown>,
+  lineIndex: number,
+  timestamp: number,
+): ApiTranscriptLine[] {
+  const summaryText = typeof entry.summary === 'string' && entry.summary ? entry.summary : null
+  if (!summaryText) return []
+  return [
+    {
+      id: `transcript-${lineIndex}-0`,
+      timestamp,
+      type: 'recap',
+      content: summaryText,
+      recapSource: 'compaction',
+      ...extractMetadata(entry),
+    },
+  ]
+}
+
+/**
  * Process a pr-link entry.
  */
 function processPrLinkEntry(entry: Record<string, unknown>, lineIndex: number, timestamp: number): ApiTranscriptLine[] {
@@ -555,22 +577,9 @@ function parseJsonlContent(
       case 'system':
         lines = processSystemEntry(entry, lineIndex, timestamp)
         break
-      case 'summary': {
-        const summaryText = typeof entry.summary === 'string' && entry.summary ? entry.summary : null
-        if (!summaryText) { lines = []; break }
-        const meta = extractMetadata(entry)
-        lines = [
-          {
-            id: `transcript-${lineIndex}-0`,
-            timestamp,
-            type: 'recap',
-            content: summaryText,
-            recapSource: 'compaction',
-            ...meta,
-          },
-        ]
+      case 'summary':
+        lines = processSummaryEntry(entry, lineIndex, timestamp)
         break
-      }
       default:
         lines = onExtra?.(entry, entryType, lineIndex, timestamp, results) ?? []
     }
