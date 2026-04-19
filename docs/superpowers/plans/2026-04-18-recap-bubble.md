@@ -38,7 +38,7 @@ Add `'recap'` to all type systems. This must land first so subsequent tasks type
     provider: string
     originalId?: string
     lineNumber?: number
-    source?: 'compaction' | 'away'
+    recapSource?: 'compaction' | 'away'
     leafUuid?: string
     [key: string]: unknown
   }
@@ -135,7 +135,7 @@ Extend `normalizeEntry()` to produce `type: 'recap'` canonical entries from raw 
       expect(entry.type).toBe('recap')
       expect(entry.role).toBe('system')
       expect(entry.content).toBe('Working on gitignore migration. Next: choose execution mode.')
-      expect(entry.metadata.source).toBe('compaction')
+      expect(entry.metadata.recapSource).toBe('compaction')
       expect(entry.metadata.leafUuid).toBe('leaf-abc-123')
       expect(entry.metadata.lineNumber).toBe(5)
     })
@@ -155,7 +155,7 @@ Extend `normalizeEntry()` to produce `type: 'recap'` canonical entries from raw 
       expect(entry.type).toBe('recap')
       expect(entry.role).toBe('system')
       expect(entry.content).toBe('Waiting for user option choice before merging.')
-      expect(entry.metadata.source).toBe('away')
+      expect(entry.metadata.recapSource).toBe('away')
       expect(entry.metadata.lineNumber).toBe(10)
     })
 
@@ -209,7 +209,7 @@ Extend `normalizeEntry()` to produce `type: 'recap'` canonical entries from raw 
         metadata: {
           provider: 'claude',
           lineNumber,
-          source: 'compaction',
+          recapSource: 'compaction',
           leafUuid: raw.leafUuid as string | undefined,
         },
       },
@@ -232,7 +232,7 @@ Extend `normalizeEntry()` to produce `type: 'recap'` canonical entries from raw 
           metadata: {
             provider: 'claude',
             lineNumber,
-            source: 'away',
+            recapSource: 'away',
           },
         },
       ]

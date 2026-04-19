@@ -34,7 +34,7 @@ type: 'text' | 'tool_use' | 'tool_result' | 'recap'
 When `type === 'recap'`:
 - `role: 'system'` — infrastructure metadata, not a conversation turn
 - `content: string` — plain-prose summary text
-- `metadata.source: 'compaction' | 'away'` — discriminates origin for UI labeling
+- `metadata.recapSource: 'compaction' | 'away'` — discriminates origin for UI labeling
 - `metadata.leafUuid?: string` — preserved from compaction summary for future reference. Note: `knownUuids` filtering applies only to the existing raw-entry excerpt path (`case 'summary':` in `formatExcerptLine`), not to canonical entries. All compaction summaries appear in the UI timeline regardless of `leafUuid` validity.
 
 ## Pipeline Changes
@@ -42,7 +42,7 @@ When `type === 'recap'`:
 ### `packages/types/src/services/transcript.ts`
 
 - Add `'recap'` to the `type` union on `CanonicalTranscriptEntry`
-- Add `source?: 'compaction' | 'away'` and `leafUuid?: string` to the metadata shape
+- Add `recapSource?: 'compaction' | 'away'` and `leafUuid?: string` to the metadata shape
 
 ### `packages/sidekick-core/src/transcript-normalizer.ts`
 

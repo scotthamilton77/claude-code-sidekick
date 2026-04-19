@@ -26,6 +26,8 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
   // Handle compaction summary entries (type: 'summary')
   if (entryType === 'summary') {
     const raw = rawEntry as { uuid?: string; timestamp?: string; summary?: unknown; leafUuid?: unknown }
+    const summaryText = typeof raw.summary === 'string' ? raw.summary.trim() : ''
+    if (!summaryText) return null
     const uuid = raw.uuid ?? `line-${lineNumber}`
     const timestamp = new Date(raw.timestamp ?? Date.now())
     return [
@@ -34,7 +36,7 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
         timestamp,
         role: 'system',
         type: 'recap',
-        content: typeof raw.summary === 'string' ? raw.summary : '',
+        content: summaryText,
         metadata: {
           provider: 'claude',
           lineNumber,
@@ -49,6 +51,8 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
   if (entryType === 'system') {
     const raw = rawEntry as { uuid?: string; timestamp?: string; subtype?: string; content?: unknown }
     if (raw.subtype === 'away_summary') {
+      const contentText = typeof raw.content === 'string' ? raw.content.trim() : ''
+      if (!contentText) return null
       const uuid = raw.uuid ?? `line-${lineNumber}`
       const timestamp = new Date(raw.timestamp ?? Date.now())
       return [
@@ -57,7 +61,7 @@ export function normalizeEntry(rawEntry: TranscriptEntry, lineNumber: number): C
           timestamp,
           role: 'system',
           type: 'recap',
-          content: typeof raw.content === 'string' ? raw.content : '',
+          content: contentText,
           metadata: {
             provider: 'claude',
             lineNumber,

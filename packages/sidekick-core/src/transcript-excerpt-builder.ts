@@ -268,7 +268,9 @@ export function formatExcerptLine(line: string, knownUuids: Set<string>, options
       case 'system': {
         const subtype = (entry as { subtype?: string }).subtype
         if (subtype === 'away_summary') {
-          return `[SESSION_RECAP]: ${String((entry as { content?: string }).content ?? '')}`
+          const content = (entry as { content?: string }).content
+          if (typeof content !== 'string' || !content.trim()) return null
+          return `[SESSION_RECAP]: ${content}`
         }
         return null
       }
