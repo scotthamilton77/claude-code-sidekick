@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createLogManager } from '@sidekick/core'
 import { FallbackProvider, ProviderError, type LLMProvider, type LLMRequest } from '../index'
+import { MalformedResponseError } from '../errors'
 
 const logger = createLogManager({
   destinations: { console: { enabled: false } },
@@ -227,5 +228,39 @@ describe('FallbackProvider', () => {
       expect(provider.lastUsedProviderId).toBe(null)
       expect(provider.fallbackWasUsed).toBe(false)
     })
+  })
+})
+
+describe('FallbackProvider - MalformedResponseError triggers fallback', () => {
+  const mockRequest: LLMRequest = {
+    messages: [{ role: 'user', content: 'test' }],
+  }
+
+  const fallbackResponse = {
+    content: 'Fallback succeeded',
+    model: 'fallback-model',
+    rawResponse: { status: 200, body: '{}' },
+  }
+
+  it('invokes fallback provider when primary throws MalformedResponseError', async () => {
+    const malformedError = new MalformedResponseError('openrouter', 'rate_exceeded', 'Too many')
+
+    const primary: LLMProvider = {
+      id: 'primary',
+      complete: vi.fn().mockRejectedValue(malformedError),
+    }
+
+    const fallback: LLMProvider = {
+      id: 'fallback',
+      complete: vi.fn().mockResolvedValue(fallbackResponse),
+    }
+
+    const provider = new FallbackProvider(primary, [fallback], logger)
+    const result = await provider.complete(mockRequest)
+
+    expect(result).toEqual(fallbackResponse)
+    expect(primary.complete).toHaveBeenCalledTimes(1)
+    expect(fallback.complete).toHaveBeenCalledTimes(1)
+    expect(provider.fallbackWasUsed).toBe(true)
   })
 })
