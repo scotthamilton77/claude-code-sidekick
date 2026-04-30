@@ -56,11 +56,7 @@ describe('Emulator round-trip - finishReason', () => {
   })
 
   it('OpenRouterEmulator complete() returns finishReason === "stop"', async () => {
-    const emulator = new OpenRouterEmulator(
-      createFakeStateManager(),
-      { model: 'openai/gpt-4' },
-      logger
-    )
+    const emulator = new OpenRouterEmulator(createFakeStateManager(), { model: 'openai/gpt-4' }, logger)
 
     const response = await emulator.complete(testRequest)
 

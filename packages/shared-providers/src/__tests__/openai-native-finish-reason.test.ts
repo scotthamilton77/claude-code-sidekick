@@ -111,12 +111,12 @@ describe('OpenAINativeProvider - finishReason', () => {
       model: 'gpt-4',
     })
 
-    await expect(
-      makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })
-    ).rejects.toSatisfy((err: unknown) => {
-      if (!(err instanceof MalformedResponseError)) return false
-      return err.code === 'rate_exceeded' && err.providerMessage === 'Too many'
-    })
+    await expect(makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })).rejects.toSatisfy(
+      (err: unknown) => {
+        if (!(err instanceof MalformedResponseError)) return false
+        return err.code === 'rate_exceeded' && err.providerMessage === 'Too many'
+      }
+    )
   })
 
   it('throws MalformedResponseError when choices is an empty array', async () => {
@@ -126,9 +126,9 @@ describe('OpenAINativeProvider - finishReason', () => {
       usage: baseUsage,
     })
 
-    await expect(
-      makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })
-    ).rejects.toBeInstanceOf(MalformedResponseError)
+    await expect(makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })).rejects.toBeInstanceOf(
+      MalformedResponseError
+    )
   })
 
   it('throws MalformedResponseError with undefined code and providerMessage when neither choices nor error envelope present', async () => {
@@ -136,12 +136,12 @@ describe('OpenAINativeProvider - finishReason', () => {
       model: 'gpt-4',
     })
 
-    await expect(
-      makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })
-    ).rejects.toSatisfy((err: unknown) => {
-      if (!(err instanceof MalformedResponseError)) return false
-      return err.code === undefined && err.providerMessage === undefined
-    })
+    await expect(makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })).rejects.toSatisfy(
+      (err: unknown) => {
+        if (!(err instanceof MalformedResponseError)) return false
+        return err.code === undefined && err.providerMessage === undefined
+      }
+    )
   })
 
   it('thrown MalformedResponseError satisfies instanceof ProviderError', async () => {
@@ -150,8 +150,8 @@ describe('OpenAINativeProvider - finishReason', () => {
       model: 'gpt-4',
     })
 
-    await expect(
-      makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })
-    ).rejects.toBeInstanceOf(ProviderError)
+    await expect(makeProvider().complete({ messages: [{ role: 'user', content: 'test' }] })).rejects.toBeInstanceOf(
+      ProviderError
+    )
   })
 })

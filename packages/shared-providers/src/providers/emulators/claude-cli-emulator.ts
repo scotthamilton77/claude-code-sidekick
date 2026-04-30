@@ -9,18 +9,8 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from '../base'
+import { mapAnthropicStopReason } from '../anthropic-stop-reason'
 import type { EmulatorConfig } from './base-emulator'
-
-function mapAnthropicStopReason(stopReason: string | undefined): string | undefined {
-  if (!stopReason) return undefined
-  switch (stopReason) {
-    case 'end_turn': return 'stop'
-    case 'max_tokens': return 'length'
-    case 'stop_sequence': return 'stop'
-    case 'tool_use': return 'tool_calls'
-    default: return stopReason
-  }
-}
 
 // Bundled script content - avoids needing to locate external file
 const EMULATOR_SCRIPT = `#!/bin/bash

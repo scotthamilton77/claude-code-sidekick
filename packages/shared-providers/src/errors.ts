@@ -56,7 +56,7 @@ export class MalformedResponseError extends ProviderError {
       `Malformed response from ${provider}: ${code ?? 'unknown'} - ${providerMessage ?? 'no message'}`,
       provider,
       false,
-      cause,
+      cause
     )
     this.name = 'MalformedResponseError'
     this.code = code

@@ -31,11 +31,7 @@ const logger = createLogManager({
   destinations: { console: { enabled: false } },
 }).getLogger()
 
-const makeProvider = () =>
-  new AnthropicCliProvider(
-    { model: 'claude-3-5-sonnet-20241022' },
-    logger
-  )
+const makeProvider = () => new AnthropicCliProvider({ model: 'claude-3-5-sonnet-20241022' }, logger)
 
 const baseRequest = { messages: [{ role: 'user' as const, content: 'hello' }] }
 

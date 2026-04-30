@@ -9,17 +9,7 @@
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
 import { spawnClaudeCli } from '../claude-cli-spawn'
-
-function mapAnthropicStopReason(stopReason: string | undefined): string | undefined {
-  if (!stopReason) return undefined
-  switch (stopReason) {
-    case 'end_turn': return 'stop'
-    case 'max_tokens': return 'length'
-    case 'stop_sequence': return 'stop'
-    case 'tool_use': return 'tool_calls'
-    default: return stopReason
-  }
-}
+import { mapAnthropicStopReason } from './anthropic-stop-reason'
 
 export interface AnthropicCliConfig {
   model: string

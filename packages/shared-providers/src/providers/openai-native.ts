@@ -98,8 +98,11 @@ export class OpenAINativeProvider extends AbstractProvider {
       })
 
       if (!completion.choices || completion.choices.length === 0) {
-        const err = (completion as { error?: { code?: string; message?: string } }).error
-        throw new MalformedResponseError(this.id, err?.code, err?.message)
+        // Some upstreams (notably OpenRouter) return 200 with a top-level `error`
+        // envelope instead of `choices`; lift it into MalformedResponseError so
+        // callers see structured details rather than an empty content string.
+        const errorPayload = (completion as { error?: { code?: string; message?: string } }).error
+        throw new MalformedResponseError(this.id, errorPayload?.code, errorPayload?.message)
       }
 
       const response: LLMResponse = {
@@ -156,7 +159,8 @@ export class OpenAINativeProvider extends AbstractProvider {
   }
 
   private mapError(error: unknown): ProviderError {
-    // Pass ProviderError subclasses (including MalformedResponseError) through unchanged
+    // Errors thrown above (e.g. MalformedResponseError) are already shaped — passing
+    // them through the SDK-error branches below would discard their subclass identity.
     if (error instanceof ProviderError) {
       return error
     }
