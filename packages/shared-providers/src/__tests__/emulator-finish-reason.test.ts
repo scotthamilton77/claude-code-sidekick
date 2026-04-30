@@ -1,10 +1,7 @@
 /**
- * Emulator round-trip tests for finishReason
+ * Emulator round-trip tests for finishReason.
  *
- * RED-phase tests: these tests reference LLMResponse.finishReason (not yet in
- * @sidekick/types). Compilation errors ARE the expected red signal for this phase.
- *
- * Tests that each emulator propagates finishReason === 'stop' through to the
+ * Verifies that each emulator propagates finishReason === 'stop' through to the
  * returned LLMResponse, and that ClaudeCliEmulator maps stop_reason 'end_turn'
  * correctly.
  */

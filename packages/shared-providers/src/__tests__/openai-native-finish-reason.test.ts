@@ -1,9 +1,8 @@
 /**
  * OpenAI Native Provider - finishReason and MalformedResponseError Tests
  *
- * RED-phase tests: these tests reference MalformedResponseError (not yet in errors.ts)
- * and LLMResponse.finishReason (not yet in @sidekick/types). Compilation errors ARE
- * the expected red signal for this phase.
+ * Verifies finish_reason mapping on provider responses and malformed-response
+ * error handling for invalid OpenAI payloads.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'

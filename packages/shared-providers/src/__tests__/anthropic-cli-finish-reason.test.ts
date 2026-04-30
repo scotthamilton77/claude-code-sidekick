@@ -1,9 +1,6 @@
 /**
  * Anthropic CLI Provider - finishReason mapping tests
  *
- * RED-phase tests: these tests reference LLMResponse.finishReason (not yet in
- * @sidekick/types). Compilation errors ARE the expected red signal for this phase.
- *
  * Tests the stop_reason -> finishReason normalization map defined in the spec (R3):
  *   end_turn        -> stop
  *   max_tokens      -> length
