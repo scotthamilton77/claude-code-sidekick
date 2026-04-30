@@ -45,6 +45,7 @@ export interface LLMResponse {
     inputTokens: number
     outputTokens: number
   }
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | (string & {})
   rawResponse: {
     status: number
     body: string

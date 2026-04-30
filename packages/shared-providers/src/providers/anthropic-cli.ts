@@ -9,6 +9,7 @@
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
 import { spawnClaudeCli } from '../claude-cli-spawn'
+import { mapAnthropicStopReason } from './anthropic-stop-reason'
 
 export interface AnthropicCliConfig {
   model: string
@@ -83,6 +84,7 @@ export class AnthropicCliProvider extends AbstractProvider {
         content?: string
         message?: string
         usage?: { input_tokens?: number; output_tokens?: number }
+        stop_reason?: string
       }
       return {
         // Claude CLI --output-format json uses 'result' field for the response text
@@ -94,6 +96,7 @@ export class AnthropicCliProvider extends AbstractProvider {
               outputTokens: parsed.usage.output_tokens ?? 0,
             }
           : undefined,
+        finishReason: mapAnthropicStopReason(parsed.stop_reason),
         rawResponse: {
           status: 200,
           body: stdout,

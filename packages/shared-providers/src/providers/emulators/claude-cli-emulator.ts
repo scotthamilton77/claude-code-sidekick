@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from '../base'
+import { mapAnthropicStopReason } from '../anthropic-stop-reason'
 import type { EmulatorConfig } from './base-emulator'
 
 // Bundled script content - avoids needing to locate external file
@@ -127,6 +128,7 @@ export class ClaudeCliEmulator extends AbstractProvider {
         inputTokens,
         outputTokens,
       },
+      finishReason: mapAnthropicStopReason(parsed.stop_reason),
       rawResponse: {
         status: 0, // Exit code
         body: output,

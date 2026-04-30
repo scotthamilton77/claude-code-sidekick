@@ -46,3 +46,21 @@ export class TimeoutError extends ProviderError {
     Object.setPrototypeOf(this, TimeoutError.prototype)
   }
 }
+
+export class MalformedResponseError extends ProviderError {
+  readonly code?: string
+  readonly providerMessage?: string
+
+  constructor(provider: string, code?: string, providerMessage?: string, cause?: Error) {
+    super(
+      `Malformed response from ${provider}: ${code ?? 'unknown'} - ${providerMessage ?? 'no message'}`,
+      provider,
+      false,
+      cause
+    )
+    this.name = 'MalformedResponseError'
+    this.code = code
+    this.providerMessage = providerMessage
+    Object.setPrototypeOf(this, MalformedResponseError.prototype)
+  }
+}
