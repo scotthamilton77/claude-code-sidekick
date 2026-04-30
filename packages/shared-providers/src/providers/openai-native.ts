@@ -9,7 +9,7 @@
 import OpenAI from 'openai'
 import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from './base'
-import { AuthError, RateLimitError, TimeoutError, ProviderError } from '../errors'
+import { AuthError, RateLimitError, TimeoutError, ProviderError, MalformedResponseError } from '../errors'
 
 export interface OpenAINativeConfig {
   profileName?: string
@@ -97,6 +97,11 @@ export class OpenAINativeProvider extends AbstractProvider {
         ...request.additionalParams,
       })
 
+      if (!completion.choices || completion.choices.length === 0) {
+        const err = (completion as { error?: { code?: string; message?: string } }).error
+        throw new MalformedResponseError(this.id, err?.code, err?.message)
+      }
+
       const response: LLMResponse = {
         content: completion.choices[0]?.message?.content ?? '',
         model: completion.model,
@@ -106,6 +111,7 @@ export class OpenAINativeProvider extends AbstractProvider {
               outputTokens: completion.usage.completion_tokens,
             }
           : undefined,
+        finishReason: completion.choices[0]?.finish_reason ?? undefined,
         rawResponse: {
           status: 200,
           body: JSON.stringify(completion),
@@ -150,6 +156,11 @@ export class OpenAINativeProvider extends AbstractProvider {
   }
 
   private mapError(error: unknown): ProviderError {
+    // Pass ProviderError subclasses (including MalformedResponseError) through unchanged
+    if (error instanceof ProviderError) {
+      return error
+    }
+
     if (error instanceof OpenAI.APIError) {
       if (error.status === 401 || error.status === 403) {
         return new AuthError(this.id, error)

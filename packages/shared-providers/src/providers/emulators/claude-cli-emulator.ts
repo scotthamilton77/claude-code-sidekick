@@ -11,6 +11,17 @@ import type { Logger, LLMRequest, LLMResponse } from '@sidekick/types'
 import { AbstractProvider } from '../base'
 import type { EmulatorConfig } from './base-emulator'
 
+function mapAnthropicStopReason(stopReason: string | undefined): string | undefined {
+  if (!stopReason) return undefined
+  switch (stopReason) {
+    case 'end_turn': return 'stop'
+    case 'max_tokens': return 'length'
+    case 'stop_sequence': return 'stop'
+    case 'tool_use': return 'tool_calls'
+    default: return stopReason
+  }
+}
+
 // Bundled script content - avoids needing to locate external file
 const EMULATOR_SCRIPT = `#!/bin/bash
 # Claude CLI Emulator Script
@@ -127,6 +138,7 @@ export class ClaudeCliEmulator extends AbstractProvider {
         inputTokens,
         outputTokens,
       },
+      finishReason: mapAnthropicStopReason(parsed.stop_reason),
       rawResponse: {
         status: 0, // Exit code
         body: output,

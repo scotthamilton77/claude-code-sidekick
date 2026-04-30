@@ -26,7 +26,7 @@
 export type { Message, LLMRequest, LLMResponse, LLMProvider } from '@sidekick/types'
 
 // Error types
-export { ProviderError, RateLimitError, AuthError, TimeoutError } from './errors'
+export { ProviderError, RateLimitError, AuthError, TimeoutError, MalformedResponseError } from './errors'
 
 // Factory
 export { ProviderFactory, type ProviderConfig, type ProviderType, type EmulatedProviderType } from './factory'

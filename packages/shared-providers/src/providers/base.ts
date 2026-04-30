@@ -50,6 +50,7 @@ export abstract class AbstractProvider implements LLMProvider {
       model: response.model,
       durationMs,
       usage: response.usage,
+      finishReason: response.finishReason,
       status: response.rawResponse.status,
       contentLength: response.content.length,
     })

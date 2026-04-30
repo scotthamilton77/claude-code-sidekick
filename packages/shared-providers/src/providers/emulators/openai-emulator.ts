@@ -48,6 +48,7 @@ export class OpenAIEmulator extends AbstractEmulator {
         inputTokens,
         outputTokens,
       },
+      finishReason: 'stop',
       rawResponse: {
         status: 200,
         body: JSON.stringify(rawBody),
